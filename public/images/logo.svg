@@ -1,0 +1,31 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ef4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#dc2626;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="200" height="200" rx="40" fill="url(#redGradient)"/>
+  <!-- Rabbit body -->
+  <g fill="white" transform="translate(30, 25) scale(0.7)">
+    <!-- Main body curves -->
+    <path d="M120 180 Q60 180 50 140 Q40 100 60 80 Q80 60 100 70 Q120 60 140 80 Q160 100 150 140 Q140 180 120 180" fill="white"/>
+    <!-- Left ear -->
+    <path d="M70 75 Q55 30 70 10 Q80 0 85 15 Q95 45 85 70" fill="white"/>
+    <!-- Right ear -->
+    <path d="M115 70 Q110 45 115 15 Q120 0 130 10 Q145 30 130 75" fill="white"/>
+    <!-- Antenna left -->
+    <ellipse cx="52" cy="55" rx="6" ry="6" fill="white"/>
+    <path d="M55 60 Q50 80 70 85" stroke="white" stroke-width="4" fill="none"/>
+    <!-- Antenna right -->
+    <ellipse cx="148" cy="55" rx="6" ry="6" fill="white"/>
+    <path d="M145 60 Q150 80 130 85" stroke="white" stroke-width="4" fill="none"/>
+    <!-- Eye -->
+    <ellipse cx="105" cy="100" rx="8" ry="10" fill="#dc2626"/>
+    <!-- Body stripes -->
+    <path d="M65 130 Q100 115 135 130" stroke="#dc2626" stroke-width="3" fill="none"/>
+    <path d="M70 145 Q100 130 130 145" stroke="#dc2626" stroke-width="3" fill="none"/>
+    <path d="M75 160 Q100 145 125 160" stroke="#dc2626" stroke-width="3" fill="none"/>
+  </g>
+</svg>

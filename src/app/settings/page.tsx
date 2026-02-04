@@ -1,0 +1,436 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import {
+  User,
+  Bell,
+  Palette,
+  Shield,
+  CreditCard,
+  LogOut,
+  ChevronRight,
+  Check,
+  Moon,
+  Sun,
+  Gift,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Navbar, Footer } from '@/components/layout';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
+import { RabbitLoader } from '@/components/ui/RabbitLoader';
+import { FadeIn } from '@/components/animations';
+import { useTheme } from '@/components/ThemeProvider';
+import { useAuth } from '@/hooks/useAuth';
+
+const tabs = [
+  { id: 'profile', label: 'โปรไฟล์', icon: User },
+  { id: 'notifications', label: 'การแจ้งเตือน', icon: Bell },
+  { id: 'appearance', label: 'ธีม', icon: Palette },
+  { id: 'security', label: 'ความปลอดภัย', icon: Shield },
+  { id: 'billing', label: 'การเรียกเก็บเงิน', icon: CreditCard },
+];
+
+export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState('profile');
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { user, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth/login?redirect=/settings');
+    }
+  }, [user, loading, router]);
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+        <RabbitLoader size="lg" text="กำลังโหลดการตั้งค่า..." />
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated
+  if (!user) {
+    return null;
+  }
+
+  // User data from auth
+  const userData = {
+    name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้',
+    email: user?.email || '',
+    plan: 'Free', // TODO: Get from subscription
+    avatar: user?.user_metadata?.avatar_url || null,
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white dark:bg-neutral-950">
+      <Navbar />
+
+      <main className="flex-1 pt-16 bg-neutral-50 dark:bg-neutral-950">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+          {/* Header */}
+          <FadeIn>
+            <div className="mb-6 sm:mb-8">
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-neutral-900 dark:text-white mb-1 sm:mb-2">
+                ตั้งค่า
+              </h1>
+              <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400">
+                จัดการบัญชีและค่ากำหนดของคุณ
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* Sidebar - Horizontal scroll on mobile */}
+            <FadeIn delay={0.1} className="lg:col-span-1">
+              {/* Mobile: Horizontal tabs */}
+              <div className="lg:hidden mb-4">
+                <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors touch-feedback ${
+                        activeTab === tab.id
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                      }`}
+                    >
+                      <tab.icon className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Desktop: Vertical sidebar */}
+              <Card className="p-2 hidden lg:block">
+                <nav className="space-y-1">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                          : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                      }`}
+                    >
+                      <tab.icon className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  ))}
+                  <hr className="my-2 border-neutral-200 dark:border-neutral-800" />
+                  <Link
+                    href="/free-access"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 transition-colors"
+                  >
+                    <Gift className="h-4 w-4" />
+                    ใช้งานฟรี (ดูโฆษณา)
+                  </Link>
+                  <button
+                    onClick={() => signOut()}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    ออกจากระบบ
+                  </button>
+                </nav>
+              </Card>
+            </FadeIn>
+
+            {/* Content */}
+            <FadeIn delay={0.2} className="lg:col-span-3">
+              {/* Profile Tab */}
+              {activeTab === 'profile' && (
+                <Card>
+                  <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+                    <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
+                      ตั้งค่าโปรไฟล์
+                    </h2>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      จัดการข้อมูลส่วนตัวของคุณ
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex items-center gap-4">
+                      <Avatar name={userData.name} size="xl" />
+                      <div>
+                        <Button variant="outline" size="sm">
+                          เปลี่ยนรูปภาพ
+                        </Button>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                          JPG, PNG หรือ GIF ขนาดไม่เกิน 2MB
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input label="ชื่อ-นามสกุล" defaultValue={userData.name} />
+                      <Input label="อีเมล" type="email" defaultValue={userData.email} />
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
+                      <Badge variant="primary">แผน {userData.plan}</Badge>
+                      <span className="text-sm text-primary-700 dark:text-primary-400">
+                        {userData.plan === 'Free'
+                          ? 'คุณใช้แผนฟรี อัปเกรดเพื่อใช้งานได้มากขึ้น'
+                          : 'คุณใช้แผนที่เข้าถึงทุกฟีเจอร์ได้'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button>บันทึกการเปลี่ยนแปลง</Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Notifications Tab */}
+              {activeTab === 'notifications' && (
+                <Card>
+                  <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+                    <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
+                      การแจ้งเตือน
+                    </h2>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      ตั้งค่าวิธีรับการแจ้งเตือนของคุณ
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {[
+                      { title: 'การแจ้งเตือนทางอีเมล', description: 'รับอัปเดตผ่านอีเมล', checked: true },
+                      { title: 'อัปเดตผลิตภัณฑ์', description: 'ข่าวสารเกี่ยวกับฟีเจอร์ใหม่', checked: true },
+                      { title: 'แจ้งเตือนการใช้งาน', description: 'แจ้งเตือนเมื่อใกล้ถึงขีดจำกัด', checked: true },
+                      { title: 'อีเมลโปรโมชั่น', description: 'เคล็ดลับและโปรโมชั่น', checked: false },
+                    ].map((item) => (
+                      <div
+                        key={item.title}
+                        className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50"
+                      >
+                        <div>
+                          <p className="font-medium text-neutral-900 dark:text-white">{item.title}</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.description}</p>
+                        </div>
+                        <label className="relative inline-flex cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" defaultChecked={item.checked} />
+                          <div className="w-11 h-6 bg-neutral-200 peer-focus:ring-2 peer-focus:ring-primary-500/50 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600" />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Appearance Tab - Simple Theme Toggle */}
+              {activeTab === 'appearance' && (
+                <Card>
+                  <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+                    <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
+                      ธีม
+                    </h2>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      เลือกโหมดการแสดงผลที่ชอบ
+                    </p>
+                  </div>
+                  <div className="p-6">
+                    {/* Simple Toggle */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                      <div className="flex items-center gap-3">
+                        {resolvedTheme === 'dark' ? (
+                          <Moon className="h-5 w-5 text-indigo-500" />
+                        ) : (
+                          <Sun className="h-5 w-5 text-amber-500" />
+                        )}
+                        <div>
+                          <p className="font-medium text-neutral-900 dark:text-white">
+                            {resolvedTheme === 'dark' ? 'โหมดกลางคืน' : 'โหมดกลางวัน'}
+                          </p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                            {resolvedTheme === 'dark' ? 'พื้นหลังสีเข้ม สบายตา' : 'พื้นหลังสีอ่อน อ่านง่าย'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Toggle Switch */}
+                      <button
+                        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                        className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${
+                          resolvedTheme === 'dark' ? 'bg-indigo-600' : 'bg-amber-400'
+                        }`}
+                      >
+                        <motion.div
+                          className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center"
+                          animate={{ left: resolvedTheme === 'dark' ? '2.25rem' : '0.25rem' }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                        >
+                          {resolvedTheme === 'dark' ? (
+                            <Moon className="h-3.5 w-3.5 text-indigo-600" />
+                          ) : (
+                            <Sun className="h-3.5 w-3.5 text-amber-500" />
+                          )}
+                        </motion.div>
+                      </button>
+                    </div>
+
+                    {/* Quick Options */}
+                    <div className="mt-6 grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'light', label: 'สว่าง', icon: Sun, color: 'amber' },
+                        { id: 'dark', label: 'มืด', icon: Moon, color: 'indigo' },
+                        { id: 'system', label: 'อัตโนมัติ', icon: Palette, color: 'neutral' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => setTheme(option.id as 'light' | 'dark' | 'system')}
+                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                            theme === option.id
+                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                              : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
+                          }`}
+                        >
+                          <option.icon
+                            className={`h-5 w-5 ${
+                              theme === option.id
+                                ? 'text-primary-600 dark:text-primary-400'
+                                : 'text-neutral-500'
+                            }`}
+                          />
+                          <span
+                            className={`text-sm font-medium ${
+                              theme === option.id
+                                ? 'text-primary-700 dark:text-primary-400'
+                                : 'text-neutral-600 dark:text-neutral-400'
+                            }`}
+                          >
+                            {option.label}
+                          </span>
+                          {theme === option.id && (
+                            <Check className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400 text-center">
+                      {theme === 'system' && 'ธีมจะเปลี่ยนตามการตั้งค่าของอุปกรณ์โดยอัตโนมัติ'}
+                      {theme === 'light' && 'ใช้ธีมสว่างตลอดเวลา'}
+                      {theme === 'dark' && 'ใช้ธีมมืดตลอดเวลา'}
+                    </p>
+                  </div>
+                </Card>
+              )}
+
+              {/* Security Tab */}
+              {activeTab === 'security' && (
+                <Card>
+                  <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+                    <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
+                      ความปลอดภัย
+                    </h2>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      จัดการค่ากำหนดด้านความปลอดภัย
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {[
+                      { title: 'รหัสผ่าน', desc: 'เปลี่ยนล่าสุด 30 วันที่แล้ว', btn: 'เปลี่ยนรหัสผ่าน' },
+                      { title: 'การยืนยันตัวตนสองชั้น', desc: 'เพิ่มความปลอดภัยอีกระดับ', btn: 'เปิดใช้งาน 2FA' },
+                      { title: 'เซสชันที่ใช้งานอยู่', desc: '2 เซสชันที่ใช้งานอยู่', btn: 'จัดการเซสชัน' },
+                    ].map((item) => (
+                      <div key={item.title} className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                        <div>
+                          <p className="font-medium text-neutral-900 dark:text-white">{item.title}</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.desc}</p>
+                        </div>
+                        <Button variant="outline">{item.btn}</Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Billing Tab */}
+              {activeTab === 'billing' && (
+                <Card>
+                  <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+                    <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
+                      การเรียกเก็บเงิน
+                    </h2>
+                    <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                      จัดการการสมัครสมาชิก
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className={`p-4 rounded-lg ${
+                      userData.plan === 'Free'
+                        ? 'bg-gradient-to-r from-neutral-500 to-neutral-600 text-white'
+                        : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm opacity-90">แผนปัจจุบัน</p>
+                          <p className="text-2xl font-display font-bold">{userData.plan}</p>
+                        </div>
+                        <Badge className="bg-white/20 text-white">ใช้งานอยู่</Badge>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-white/20 flex justify-between text-sm">
+                        <span>{userData.plan === 'Free' ? 'ฟรี' : '฿299/เดือน'}</span>
+                        {userData.plan !== 'Free' && <span>ต่ออายุ 1 ก.พ. 2569</span>}
+                      </div>
+                    </div>
+
+                    {userData.plan === 'Free' ? (
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
+                        <div>
+                          <p className="font-medium text-neutral-900 dark:text-white">อัปเกรดเป็น Pro</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                            ใช้งานได้ไม่จำกัดและเข้าถึงทุกโมเดล
+                          </p>
+                        </div>
+                        <Link href="/pricing">
+                          <Button>อัปเกรด</Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                          <div>
+                            <p className="font-medium text-neutral-900 dark:text-white">วิธีการชำระเงิน</p>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Visa ลงท้าย 4242</p>
+                          </div>
+                          <Button variant="outline">อัปเดต</Button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                          <div>
+                            <p className="font-medium text-neutral-900 dark:text-white">ประวัติการเรียกเก็บเงิน</p>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">ดูใบแจ้งหนี้ที่ผ่านมา</p>
+                          </div>
+                          <Button variant="outline" rightIcon={<ChevronRight className="h-4 w-4" />}>
+                            ดูทั้งหมด
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </Card>
+              )}
+            </FadeIn>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
