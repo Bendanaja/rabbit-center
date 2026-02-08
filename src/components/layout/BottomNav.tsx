@@ -2,17 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Home,
   MessageSquare,
   Gift,
   Settings,
-  Play,
+  LogIn,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
-const navItems = [
+const baseNavItems = [
   {
     href: '/',
     label: 'หน้าแรก',
@@ -29,15 +30,19 @@ const navItems = [
     label: 'ใช้ฟรี',
     icon: Gift,
   },
-  {
-    href: '/settings',
-    label: 'ตั้งค่า',
-    icon: Settings,
-  },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  // Show settings if logged in, otherwise show login
+  const navItems = [
+    ...baseNavItems,
+    user
+      ? { href: '/settings', label: 'ตั้งค่า', icon: Settings }
+      : { href: '/auth/login', label: 'เข้าสู่ระบบ', icon: LogIn },
+  ];
 
   // Don't show on chat page (has its own navigation)
   if (pathname === '/chat') return null;
@@ -84,21 +89,21 @@ export function BottomNav() {
                     />
                   )}
 
-                  {/* Highlight button (Chat) */}
+                  {/* Highlight button (Chat) - static dot */}
                   {item.highlight && !isActive && (
-                    <motion.div
-                      className="absolute -top-1 left-1/2 -translate-x-1/2"
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-primary-500" />
-                    </motion.div>
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2">
+                      <div
+                        className="w-2 h-2 rounded-full bg-primary-500 animate-[navDotPulse_1.5s_ease-in-out_infinite]"
+                        style={{ willChange: 'transform' }}
+                      />
+                    </div>
                   )}
 
                   <div className="relative z-10 flex flex-col items-center">
                     <motion.div
                       animate={isActive ? { scale: 1.1, y: -2 } : { scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      style={{ willChange: 'transform' }}
                     >
                       <Icon
                         className={cn(

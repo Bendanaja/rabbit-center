@@ -47,12 +47,7 @@ export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-white/30 via-transparent to-transparent" />
 
                 <div className="relative flex items-center gap-1.5">
-                  <motion.div
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    <Crown className="h-3.5 w-3.5 text-amber-900" />
-                  </motion.div>
+                  <Crown className="h-3.5 w-3.5 text-amber-900" />
                   <span className="text-xs font-bold text-amber-900 tracking-wide">
                     ยอดนิยม
                   </span>

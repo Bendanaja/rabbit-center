@@ -312,18 +312,13 @@ export default function FeaturesPage() {
           {/* Animated background */}
           <div className="absolute inset-0">
             {/* Central glow */}
-            <motion.div
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary-500/10 rounded-full blur-[150px]"
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary-500/10 rounded-full blur-[150px] animate-glow-pulse-slow"
             />
 
-            {/* Orbiting elements */}
+            {/* Orbiting elements - CSS spin */}
             {[...Array(3)].map((_, i) => (
-              <motion.div
+              <div
                 key={i}
                 className="absolute top-1/2 left-1/2"
                 style={{
@@ -331,19 +326,14 @@ export default function FeaturesPage() {
                   height: 300 + i * 150,
                   marginLeft: -(150 + i * 75),
                   marginTop: -(150 + i * 75),
-                }}
-                animate={{ rotate: 360 }}
-                transition={{
-                  duration: 20 + i * 10,
-                  repeat: Infinity,
-                  ease: "linear"
+                  animation: `spin ${20 + i * 10}s linear infinite`,
                 }}
               >
                 <div
                   className="absolute w-3 h-3 rounded-full bg-primary-500/50"
                   style={{ top: 0, left: '50%', transform: 'translateX(-50%)' }}
                 />
-              </motion.div>
+              </div>
             ))}
 
             {/* Grid */}
@@ -373,12 +363,9 @@ export default function FeaturesPage() {
                 transition={{ delay: 0.2 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-8"
               >
-                <motion.div
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                >
+                <div className="animate-[spin_4s_linear_infinite]">
                   <Sparkles className="h-4 w-4 text-primary-400" />
-                </motion.div>
+                </div>
                 <span className="text-sm text-neutral-300">ฟีเจอร์ครบครัน</span>
               </motion.div>
 
@@ -418,43 +405,35 @@ export default function FeaturesPage() {
                 className="flex flex-wrap gap-4 justify-center"
               >
                 <Link href="/chat">
-                  <motion.button
-                    whileHover={{ scale: 1.05, boxShadow: "0 0 40px rgba(239, 68, 68, 0.4)" }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-8 py-4 rounded-2xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center gap-2 text-lg"
+                  <button
+                    className="px-8 py-4 rounded-2xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center gap-2 text-lg hover:scale-[1.05] active:scale-[0.95] hover:shadow-[0_0_40px_rgba(239,68,68,0.4)] transition-all duration-150"
                   >
                     <Play className="h-5 w-5" />
                     เริ่มใช้งานฟรี
-                  </motion.button>
+                  </button>
                 </Link>
                 <Link href="/pricing">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-semibold flex items-center gap-2 text-lg hover:bg-white/10 transition-colors"
+                  <button
+                    className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-semibold flex items-center gap-2 text-lg hover:bg-white/10 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150"
                   >
                     ดูแผนราคา
                     <ChevronRight className="h-5 w-5" />
-                  </motion.button>
+                  </button>
                 </Link>
               </motion.div>
             </motion.div>
           </div>
 
           {/* Scroll indicator */}
-          <motion.div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
+          <div
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce"
           >
             <div className="w-6 h-10 rounded-full border-2 border-white/20 flex justify-center pt-2">
-              <motion.div
-                animate={{ y: [0, 12, 0], opacity: [1, 0.3, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-1.5 h-1.5 rounded-full bg-white/50"
+              <div
+                className="w-1.5 h-1.5 rounded-full bg-white/50 animate-scroll-dot"
               />
             </div>
-          </motion.div>
+          </div>
         </motion.section>
 
         {/* Stats Bar */}
@@ -521,7 +500,7 @@ export default function FeaturesPage() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-                ทำไมต้องเลือก RabbitAI?
+                ทำไมต้องเลือก RabbitHub?
               </h2>
               <p className="text-neutral-400 max-w-xl mx-auto">
                 เปรียบเทียบกับ ChatGPT และบริการอื่นๆ
@@ -542,7 +521,7 @@ export default function FeaturesPage() {
                       <th className="p-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Bot className="h-5 w-5 text-primary-400" />
-                          <span className="font-bold text-white">RabbitAI</span>
+                          <span className="font-bold text-white">RabbitHub</span>
                         </div>
                       </th>
                       <th className="p-4 text-center text-neutral-400">ChatGPT</th>
@@ -617,33 +596,19 @@ export default function FeaturesPage() {
               <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-rose-600 to-amber-600" />
               <div className="absolute inset-0 bg-[url('/images/noise.png')] opacity-10" />
 
-              {/* Animated shapes */}
-              <motion.div
-                animate={{
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 90, 0]
-                }}
-                transition={{ duration: 20, repeat: Infinity }}
-                className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+              {/* Animated shapes - CSS */}
+              <div
+                className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-[spin_20s_linear_infinite]"
               />
-              <motion.div
-                animate={{
-                  scale: [1.2, 1, 1.2],
-                  rotate: [0, -90, 0]
-                }}
-                transition={{ duration: 25, repeat: Infinity }}
-                className="absolute -bottom-20 -left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+              <div
+                className="absolute -bottom-20 -left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-[spin_25s_linear_infinite_reverse]"
               />
 
               {/* Content */}
               <div className="relative p-8 sm:p-12 lg:p-16 text-center">
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="inline-block mb-6"
-                >
+                <div className="inline-block mb-6 animate-float-slow">
                   <Bot className="h-16 w-16 text-white/80" />
-                </motion.div>
+                </div>
 
                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
                   พร้อมลองใช้งานแล้วหรือยัง?
@@ -654,22 +619,18 @@ export default function FeaturesPage() {
 
                 <div className="flex flex-wrap gap-4 justify-center">
                   <Link href="/chat">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-8 py-4 rounded-2xl bg-white text-primary-600 font-bold text-lg shadow-xl shadow-black/20"
+                    <button
+                      className="px-8 py-4 rounded-2xl bg-white text-primary-600 font-bold text-lg shadow-xl shadow-black/20 hover:scale-[1.05] active:scale-[0.95] transition-transform duration-150"
                     >
                       เริ่มใช้งานฟรี
-                    </motion.button>
+                    </button>
                   </Link>
                   <Link href="/contact">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-8 py-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold text-lg hover:bg-white/20 transition-colors"
+                    <button
+                      className="px-8 py-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold text-lg hover:bg-white/20 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150"
                     >
                       ติดต่อทีมขาย
-                    </motion.button>
+                    </button>
                   </Link>
                 </div>
               </div>

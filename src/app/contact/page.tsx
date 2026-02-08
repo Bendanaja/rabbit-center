@@ -28,8 +28,8 @@ const contactMethods = [
     icon: Mail,
     title: 'อีเมล',
     description: 'ส่งอีเมลถึงเรา',
-    value: 'hello@rabbitai.co',
-    action: 'mailto:hello@rabbitai.co',
+    value: 'hello@rabbithub.co',
+    action: 'mailto:hello@rabbithub.co',
     color: 'from-blue-500 to-cyan-500'
   },
   {
@@ -53,14 +53,14 @@ const contactMethods = [
 const officeInfo = {
   address: '123 อาคาร AI Tower ชั้น 15\nถนนสีลม แขวงสีลม\nเขตบางรัก กรุงเทพฯ 10500',
   hours: 'จันทร์ - ศุกร์: 9:00 - 18:00',
-  email: 'hello@rabbitai.co',
+  email: 'hello@rabbithub.co',
   phone: '02-XXX-XXXX'
 };
 
 const socialLinks = [
-  { icon: Twitter, label: 'Twitter', href: '#', handle: '@RabbitAI_TH' },
-  { icon: Github, label: 'GitHub', href: '#', handle: 'rabbitai' },
-  { icon: Linkedin, label: 'LinkedIn', href: '#', handle: 'RabbitAI' },
+  { icon: Twitter, label: 'Twitter', href: '#', handle: '@RabbitHub_TH' },
+  { icon: Github, label: 'GitHub', href: '#', handle: 'rabbithub' },
+  { icon: Linkedin, label: 'LinkedIn', href: '#', handle: 'RabbitHub' },
 ];
 
 const faqs = [
@@ -277,13 +277,8 @@ export default function ContactPage() {
                     {/* Map placeholder with ping animation */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="relative">
-                        <motion.div
-                          animate={{
-                            scale: [1, 2, 2],
-                            opacity: [0.5, 0.3, 0]
-                          }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                          className="absolute inset-0 rounded-full bg-primary-500"
+                        <div
+                          className="absolute inset-0 rounded-full bg-primary-500 animate-ping"
                         />
                         <div className="w-4 h-4 rounded-full bg-primary-500 relative z-10" />
                       </div>
@@ -292,7 +287,7 @@ export default function ContactPage() {
                     <div className="absolute bottom-4 left-4 right-4">
                       <div className="p-3 rounded-xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm">
                         <p className="text-sm font-medium text-neutral-900 dark:text-white">
-                          RabbitAI Headquarters
+                          RabbitHub Headquarters
                         </p>
                         <p className="text-xs text-neutral-500">กรุงเทพมหานคร</p>
                       </div>

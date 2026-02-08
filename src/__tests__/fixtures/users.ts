@@ -1,4 +1,4 @@
-// Test user fixtures for RabbitAI
+// Test user fixtures for RabbitHub
 
 export const testUsers = {
   free: {

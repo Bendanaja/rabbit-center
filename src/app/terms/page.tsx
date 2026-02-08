@@ -31,7 +31,7 @@ const termsSections: TermsSection[] = [
     number: '1',
     title: 'การยอมรับข้อตกลง',
     content: [
-      'โดยการเข้าถึงหรือใช้บริการ RabbitAI คุณตกลงที่จะผูกพันตามข้อกำหนดการใช้งานนี้',
+      'โดยการเข้าถึงหรือใช้บริการ RabbitHub คุณตกลงที่จะผูกพันตามข้อกำหนดการใช้งานนี้',
       'หากคุณไม่ยอมรับข้อกำหนดทั้งหมด คุณไม่มีสิทธิ์ใช้บริการ',
       'การใช้บริการต่อไปหลังจากมีการเปลี่ยนแปลงข้อกำหนด ถือว่าคุณยอมรับการเปลี่ยนแปลงนั้น',
     ]
@@ -87,7 +87,7 @@ const termsSections: TermsSection[] = [
     number: '6',
     title: 'ทรัพย์สินทางปัญญา',
     content: [
-      'RabbitAI และโลโก้เป็นเครื่องหมายการค้าของบริษัท',
+      'RabbitHub และโลโก้เป็นเครื่องหมายการค้าของบริษัท',
       'คุณเป็นเจ้าของเนื้อหาที่คุณสร้างขึ้นผ่านบริการ',
       'คุณให้สิทธิ์เราในการใช้เนื้อหาของคุณเพื่อให้บริการ',
       'เราไม่อ้างสิทธิ์ในเนื้อหาที่คุณสร้างด้วย AI',
@@ -291,7 +291,7 @@ export default function TermsPage() {
         <PageHero
           badge={{ icon: <Scale className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />, text: 'Legal' }}
           title="ข้อกำหนดการใช้งาน"
-          subtitle="กรุณาอ่านข้อกำหนดเหล่านี้อย่างละเอียดก่อนใช้บริการ RabbitAI"
+          subtitle="กรุณาอ่านข้อกำหนดเหล่านี้อย่างละเอียดก่อนใช้บริการ RabbitHub"
         />
 
         {/* Last Updated */}
@@ -387,10 +387,10 @@ export default function TermsPage() {
               <div className="inline-flex flex-col items-center gap-2 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800">
                 <p className="text-sm text-neutral-500">ฝ่ายกฎหมาย</p>
                 <a
-                  href="mailto:legal@rabbitai.co"
+                  href="mailto:legal@rabbithub.co"
                   className="text-primary-600 dark:text-primary-400 font-medium hover:underline"
                 >
-                  legal@rabbitai.co
+                  legal@rabbithub.co
                 </a>
               </div>
             </FadeIn>

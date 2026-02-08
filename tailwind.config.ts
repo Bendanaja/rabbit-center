@@ -54,6 +54,24 @@ export default {
         'pulse-dot': 'pulseDot 1.4s ease-in-out infinite',
         'scale-in': 'scaleIn 0.2s ease-out forwards',
         'shimmer': 'shimmer 2s infinite linear',
+        'float': 'float 2s ease-in-out infinite',
+        'float-slow': 'float 3s ease-in-out infinite',
+        'float-slower': 'float 4s ease-in-out infinite',
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'glow-pulse-slow': 'glowPulse 4s ease-in-out infinite',
+        'gradient-shift': 'gradientShift 4s linear infinite',
+        'gradient-shift-slow': 'gradientShift 10s linear infinite',
+        'wiggle': 'wiggle 2s ease-in-out infinite',
+        'wiggle-slow': 'wiggle 4s ease-in-out infinite',
+        'scroll-dot': 'scrollDot 2s ease-in-out infinite',
+        'sparkle': 'sparkle 2.5s ease-in-out infinite',
+        'orbit-slow': 'spin 20s linear infinite',
+        'orbit-medium': 'spin 30s linear infinite',
+        'orbit-fast': 'spin 40s linear infinite',
+        'drift': 'drift 10s ease-in-out infinite',
+        'drift-slow': 'drift 12s ease-in-out infinite',
+        'pulse-ring': 'pulseRing 1.5s ease-in-out infinite',
+        'text-shimmer': 'textShimmer 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -83,6 +101,45 @@ export default {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        glowPulse: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.3' },
+          '50%': { transform: 'scale(1.2)', opacity: '0.5' },
+        },
+        gradientShift: {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(0deg)' },
+          '25%': { transform: 'rotate(10deg)' },
+          '75%': { transform: 'rotate(-10deg)' },
+        },
+        scrollDot: {
+          '0%, 100%': { transform: 'translateY(0)', opacity: '1' },
+          '50%': { transform: 'translateY(12px)', opacity: '0.3' },
+        },
+        sparkle: {
+          '0%, 100%': { transform: 'translateY(0) scale(0.5)', opacity: '0' },
+          '50%': { transform: 'translateY(-20px) scale(1)', opacity: '0.8' },
+        },
+        drift: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+          '33%': { transform: 'translate(50px, -30px) scale(1.1)' },
+          '66%': { transform: 'translate(-40px, 40px) scale(1.15)' },
+        },
+        pulseRing: {
+          '0%': { transform: 'scale(1)', opacity: '0.5' },
+          '100%': { transform: 'scale(2)', opacity: '0' },
+        },
+        textShimmer: {
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '1' },
         },
       },
       boxShadow: {

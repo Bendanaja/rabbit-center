@@ -65,39 +65,24 @@ function LoginOverlay() {
           {/* Background glow */}
           <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 via-rose-600/10 to-transparent" />
 
-          {/* Animated particles */}
+          {/* Static decorative dots */}
           {[...Array(5)].map((_, i) => (
-            <motion.div
+            <div
               key={i}
-              className="absolute w-1 h-1 bg-primary-500/50 rounded-full"
+              className="absolute w-1 h-1 bg-primary-500/50 rounded-full animate-pulse"
               style={{
                 left: `${20 + i * 15}%`,
                 top: `${10 + i * 10}%`,
-              }}
-              animate={{
-                y: [0, -20, 0],
-                opacity: [0.5, 1, 0.5],
-              }}
-              transition={{
-                duration: 2 + i * 0.5,
-                repeat: Infinity,
-                delay: i * 0.3,
+                animationDelay: `${i * 0.3}s`,
               }}
             />
           ))}
 
           <div className="relative z-10">
-            {/* Icon */}
-            <motion.div
-              animate={{
-                rotate: [0, 10, -10, 0],
-                scale: [1, 1.1, 1]
-              }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500 to-rose-500 flex items-center justify-center shadow-lg shadow-primary-500/30"
-            >
+            {/* Icon - static */}
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500 to-rose-500 flex items-center justify-center shadow-lg shadow-primary-500/30">
               <Lock className="h-8 w-8 text-white" />
-            </motion.div>
+            </div>
 
             {/* Title */}
             <h2 className="text-2xl font-bold text-white text-center mb-2">
@@ -132,23 +117,15 @@ function LoginOverlay() {
             {/* CTAs */}
             <div className="space-y-3">
               <Link href="/auth/login?redirect=/chat" className="block">
-                <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(239, 68, 68, 0.3)" }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center justify-center gap-2"
-                >
+                <button className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center justify-center gap-2 transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]">
                   เข้าสู่ระบบ
                   <ArrowRight className="h-4 w-4" />
-                </motion.button>
+                </button>
               </Link>
               <Link href="/auth/signup?redirect=/chat" className="block">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 px-6 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-colors"
-                >
+                <button className="w-full py-3 px-6 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]">
                   สมัครสมาชิกฟรี
-                </motion.button>
+                </button>
               </Link>
             </div>
 
@@ -217,15 +194,10 @@ function PreviewChatWindow() {
             <div className="bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-md px-4 py-3">
               <div className="flex gap-1">
                 {[0, 1, 2].map((i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    className="w-2 h-2 bg-neutral-400 rounded-full"
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{
-                      duration: 0.6,
-                      repeat: Infinity,
-                      delay: i * 0.2,
-                    }}
+                    className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"
+                    style={{ animationDelay: `${i * 200}ms`, animationDuration: '0.6s' }}
                   />
                 ))}
               </div>
@@ -345,7 +317,7 @@ export default function ChatPage() {
               <div className="relative h-8 w-8 rounded-lg overflow-hidden shadow-sm">
                 <Image
                   src="/images/logo.jpg"
-                  alt="RabbitAI"
+                  alt="RabbitHub"
                   fill
                   className="object-cover"
                 />
@@ -490,7 +462,7 @@ export default function ChatPage() {
             <div className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-lg overflow-hidden shadow-sm">
               <Image
                 src="/images/logo.jpg"
-                alt="RabbitAI"
+                alt="RabbitHub"
                 fill
                 className="object-cover"
               />

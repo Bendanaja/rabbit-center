@@ -246,18 +246,7 @@ function UpdateCard({ update, index }: { update: Update; index: number }) {
 
           {/* Pulse effect for highlighted items */}
           {update.highlight && (
-            <motion.div
-              animate={{
-                scale: [1, 1.5, 1],
-                opacity: [0.5, 0, 0.5]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="absolute inset-0 rounded-xl bg-primary-500/30"
-            />
+            <div className="absolute inset-0 rounded-xl bg-primary-500/30 animate-ping" />
           )}
         </div>
 
@@ -288,16 +277,12 @@ function UpdateCard({ update, index }: { update: Update; index: number }) {
               {update.date}
             </span>
             {update.highlight && (
-              <motion.span
-                animate={{
-                  boxShadow: ['0 0 0 0 rgba(239, 68, 68, 0)', '0 0 0 8px rgba(239, 68, 68, 0)']
-                }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 text-xs font-medium"
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 text-xs font-medium animate-pulse"
               >
                 <Flame className="h-3 w-3" />
                 Hot
-              </motion.span>
+              </span>
             )}
           </div>
 
@@ -353,14 +338,10 @@ function UpdateCard({ update, index }: { update: Update; index: number }) {
 
           {/* Expand/collapse indicator */}
           {update.changes.length > 3 && (
-            <motion.div
-              className="mt-3 text-xs text-primary-400 flex items-center gap-1"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
+            <div className="mt-3 text-xs text-primary-400 flex items-center gap-1 animate-text-shimmer">
               {isExpanded ? 'ซ่อน' : `+${update.changes.length - 3} รายการเพิ่มเติม`}
               <ChevronRight className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-            </motion.div>
+            </div>
           )}
         </motion.div>
       </div>
@@ -392,24 +373,12 @@ export default function UpdatesPage() {
         >
           {/* Animated background */}
           <div className="absolute inset-0">
-            {/* Gradient orbs */}
-            <motion.div
-              animate={{
-                x: [0, 50, 0],
-                y: [0, -30, 0],
-                scale: [1, 1.1, 1]
-              }}
-              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/20 rounded-full blur-[128px]"
+            {/* Gradient orbs - CSS animation */}
+            <div
+              className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/20 rounded-full blur-[128px] animate-drift"
             />
-            <motion.div
-              animate={{
-                x: [0, -30, 0],
-                y: [0, 50, 0],
-                scale: [1.1, 1, 1.1]
-              }}
-              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-500/15 rounded-full blur-[128px]"
+            <div
+              className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-500/15 rounded-full blur-[128px] animate-drift-slow"
             />
 
             {/* Grid pattern */}
@@ -424,23 +393,16 @@ export default function UpdatesPage() {
               }}
             />
 
-            {/* Floating particles */}
+            {/* Floating particles - CSS animation */}
             {[...Array(20)].map((_, i) => (
-              <motion.div
+              <div
                 key={i}
-                className="absolute w-1 h-1 bg-primary-500/50 rounded-full"
+                className="absolute w-1 h-1 bg-primary-500/50 rounded-full animate-sparkle"
                 style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                }}
-                animate={{
-                  y: [0, -100, 0],
-                  opacity: [0, 1, 0],
-                }}
-                transition={{
-                  duration: 3 + Math.random() * 4,
-                  repeat: Infinity,
-                  delay: Math.random() * 2,
+                  left: `${(i * 5) % 100}%`,
+                  top: `${(i * 7 + 10) % 100}%`,
+                  animationDuration: `${3 + (i % 4)}s`,
+                  animationDelay: `${(i * 0.3) % 3}s`,
                 }}
               />
             ))}
@@ -460,12 +422,9 @@ export default function UpdatesPage() {
                 transition={{ delay: 0.2 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-6"
               >
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                >
+                <div className="animate-[spin_4s_linear_infinite]">
                   <Rocket className="h-4 w-4 text-primary-400" />
-                </motion.div>
+                </div>
                 <span className="text-sm text-neutral-300">Changelog</span>
                 <span className="px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 text-xs font-medium">
                   {updates.length} อัพเดท
@@ -495,7 +454,7 @@ export default function UpdatesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                ติดตามการพัฒนาและฟีเจอร์ใหม่ๆ ของ RabbitAI
+                ติดตามการพัฒนาและฟีเจอร์ใหม่ๆ ของ RabbitHub
                 <br />
                 <span className="text-neutral-500">เราพัฒนาทุกวันเพื่อคุณ</span>
               </motion.p>
@@ -528,19 +487,11 @@ export default function UpdatesPage() {
           </div>
 
           {/* Scroll indicator */}
-          <motion.div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
             <div className="w-6 h-10 rounded-full border-2 border-white/20 flex justify-center pt-2">
-              <motion.div
-                animate={{ y: [0, 12, 0], opacity: [1, 0.3, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-1.5 h-1.5 rounded-full bg-white/50"
-              />
+              <div className="w-1.5 h-1.5 rounded-full bg-white/50 animate-scroll-dot" />
             </div>
-          </motion.div>
+          </div>
         </motion.section>
 
         {/* Stats Section */}
@@ -613,24 +564,15 @@ export default function UpdatesPage() {
               <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 to-rose-600/20 backdrop-blur-xl" />
               <div className="absolute inset-0 border border-primary-500/20 rounded-3xl" />
 
-              {/* Animated glow */}
-              <motion.div
-                animate={{
-                  opacity: [0.3, 0.6, 0.3],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{ duration: 4, repeat: Infinity }}
-                className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary-500/30 rounded-full blur-[80px]"
+              {/* Animated glow - CSS */}
+              <div
+                className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary-500/30 rounded-full blur-[80px] animate-glow-pulse-slow"
               />
 
               <div className="relative text-center">
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="inline-block mb-4"
-                >
+                <div className="inline-block mb-4 animate-wiggle-slow">
                   <Gift className="h-12 w-12 text-primary-400" />
-                </motion.div>
+                </div>
 
                 <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
                   ไม่พลาดอัพเดทใหม่ๆ

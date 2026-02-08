@@ -66,8 +66,8 @@ const blogPosts: BlogPost[] = [
   },
   {
     id: '2',
-    title: 'เปิดตัว Claude 3.5 Sonnet บน RabbitAI',
-    excerpt: 'RabbitAI รองรับ Claude 3.5 Sonnet โมเดลใหม่ล่าสุดจาก Anthropic ที่มีความสามารถในการเข้าใจบริบทได้ดียิ่งขึ้น',
+    title: 'เปิดตัว Claude 3.5 Sonnet บน RabbitHub',
+    excerpt: 'RabbitHub รองรับ Claude 3.5 Sonnet โมเดลใหม่ล่าสุดจาก Anthropic ที่มีความสามารถในการเข้าใจบริบทได้ดียิ่งขึ้น',
     category: 'news',
     author: 'Mike Torres',
     authorRole: 'Engineering',
@@ -78,8 +78,8 @@ const blogPosts: BlogPost[] = [
   },
   {
     id: '3',
-    title: 'สร้าง Chatbot ด้วย RabbitAI API ใน 10 นาที',
-    excerpt: 'บทเรียนสอนสร้าง Chatbot อย่างง่ายๆ โดยใช้ RabbitAI API พร้อมตัวอย่างโค้ด Python และ JavaScript',
+    title: 'สร้าง Chatbot ด้วย RabbitHub API ใน 10 นาที',
+    excerpt: 'บทเรียนสอนสร้าง Chatbot อย่างง่ายๆ โดยใช้ RabbitHub API พร้อมตัวอย่างโค้ด Python และ JavaScript',
     category: 'tutorials',
     author: 'Alex Kim',
     authorRole: 'Developer Advocate',
@@ -100,7 +100,7 @@ const blogPosts: BlogPost[] = [
   },
   {
     id: '5',
-    title: 'ทำไมเราถึงเลือกใช้ Next.js 15 สำหรับ RabbitAI',
+    title: 'ทำไมเราถึงเลือกใช้ Next.js 15 สำหรับ RabbitHub',
     excerpt: 'เบื้องหลังการตัดสินใจทางเทคนิคของทีม Engineering และประสบการณ์การอัพเกรดจาก Next.js 14',
     category: 'engineering',
     author: 'James Lee',
@@ -123,10 +123,10 @@ const blogPosts: BlogPost[] = [
   },
   {
     id: '7',
-    title: 'RabbitAI ได้รับรางวัล Best AI Startup 2025',
+    title: 'RabbitHub ได้รับรางวัล Best AI Startup 2025',
     excerpt: 'เราภูมิใจที่ได้รับการยอมรับจากวงการเทคโนโลยีไทย ขอบคุณผู้ใช้งานทุกคน',
     category: 'news',
-    author: 'RabbitAI Team',
+    author: 'RabbitHub Team',
     authorRole: 'Official',
     date: '5 ม.ค. 2026',
     readTime: '2 นาที',
@@ -209,14 +209,10 @@ function FeaturedHeroCard({ post }: { post: BlogPost }) {
                 </div>
               </div>
 
-              <motion.div
-                className="mt-8 flex items-center gap-2 text-red-400 font-medium"
-                animate={{ x: [0, 5, 0] }}
-                transition={{ repeat: Infinity, duration: 1.5, repeatDelay: 2 }}
-              >
+              <div className="mt-8 flex items-center gap-2 text-red-400 font-medium">
                 อ่านบทความ
                 <ArrowRight className="h-4 w-4" />
-              </motion.div>
+              </div>
             </div>
 
             {/* Right - Visual */}
@@ -228,16 +224,8 @@ function FeaturedHeroCard({ post }: { post: BlogPost }) {
 
               {/* Decorative elements */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                  className="w-64 h-64 rounded-full border border-dashed border-white/10"
-                />
-                <motion.div
-                  animate={{ rotate: -360 }}
-                  transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-                  className="absolute w-48 h-48 rounded-full border border-white/5"
-                />
+                <div className="w-64 h-64 rounded-full border border-dashed border-white/10 animate-[spin_20s_linear_infinite]" />
+                <div className="absolute w-48 h-48 rounded-full border border-white/5 animate-[spin_30s_linear_infinite_reverse]" />
                 <div className={`absolute w-24 h-24 rounded-2xl bg-gradient-to-br ${post.gradient} opacity-80 shadow-2xl`} />
               </div>
             </div>
@@ -386,7 +374,7 @@ export default function BlogPage() {
               className="text-5xl sm:text-6xl md:text-7xl font-bold mb-6"
               style={{ fontFamily: "'Outfit', sans-serif" }}
             >
-              <span className="text-white">RabbitAI</span>
+              <span className="text-white">RabbitHub</span>
               <span className="bg-gradient-to-r from-red-500 via-rose-500 to-pink-500 bg-clip-text text-transparent"> Blog</span>
             </motion.h1>
 
@@ -549,15 +537,11 @@ export default function BlogPage() {
             viewport={{ once: true }}
             className="text-center"
           >
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 4, repeat: Infinity }}
-              className="inline-block mb-6"
-            >
+            <div className="inline-block mb-6 animate-wiggle-slow">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/30">
                 <Sparkles className="h-8 w-8 text-white" />
               </div>
-            </motion.div>
+            </div>
 
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
               ไม่พลาดบทความใหม่

@@ -73,7 +73,7 @@ const jobs: Job[] = [
     type: 'full-time',
     level: 'Senior',
     salary: '80,000 - 150,000 บาท',
-    description: 'พัฒนาและดูแลระบบ Core Platform ของ RabbitAI ทำงานกับ Next.js, Python และ AI Infrastructure',
+    description: 'พัฒนาและดูแลระบบ Core Platform ของ RabbitHub ทำงานกับ Next.js, Python และ AI Infrastructure',
     requirements: ['5+ ปีประสบการณ์', 'TypeScript/Python', 'AI/ML Background (เป็นข้อดี)'],
     hot: true,
   },
@@ -117,7 +117,7 @@ const jobs: Job[] = [
     location: 'กรุงเทพฯ / Remote',
     type: 'full-time',
     level: 'Junior-Mid',
-    description: 'สร้าง Content ที่น่าสนใจเกี่ยวกับ AI และ RabbitAI สำหรับ Blog และ Social Media',
+    description: 'สร้าง Content ที่น่าสนใจเกี่ยวกับ AI และ RabbitHub สำหรับ Blog และ Social Media',
     requirements: ['2+ ปีประสบการณ์', 'เขียนไทยและอังกฤษได้ดี', 'สนใจ AI'],
   },
   {
@@ -138,7 +138,7 @@ const jobs: Job[] = [
     location: 'กรุงเทพฯ',
     type: 'full-time',
     level: 'Mid',
-    description: 'ดูแลลูกค้า Enterprise ให้ใช้งาน RabbitAI ได้อย่างมีประสิทธิภาพ',
+    description: 'ดูแลลูกค้า Enterprise ให้ใช้งาน RabbitHub ได้อย่างมีประสิทธิภาพ',
     requirements: ['3+ ปีประสบการณ์ CS', 'Tech Background', 'Communication Skills'],
   },
 ];
@@ -309,13 +309,12 @@ function BenefitCard({ benefit, index }: { benefit: typeof benefits[0]; index: n
       {/* Glow effect */}
       <div className={`absolute inset-0 bg-gradient-to-br ${benefit.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
 
-      <motion.div
-        animate={{ y: [0, -5, 0] }}
-        transition={{ duration: 3, repeat: Infinity, delay: index * 0.2 }}
-        className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.color} flex items-center justify-center mb-4 shadow-lg`}
+      <div
+        className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.color} flex items-center justify-center mb-4 shadow-lg animate-float-slow`}
+        style={{ animationDelay: `${index * 0.2}s` }}
       >
         <benefit.icon className="h-6 w-6 text-white" />
-      </motion.div>
+      </div>
 
       <h3 className="text-lg font-bold text-white mb-1">{benefit.title}</h3>
       <p className="text-sm text-neutral-400">{benefit.description}</p>
@@ -352,21 +351,11 @@ export default function CareersPage() {
         >
           {/* Background */}
           <div className="absolute inset-0">
-            <motion.div
-              animate={{
-                scale: [1, 1.2, 1],
-                rotate: [0, 180, 360]
-              }}
-              transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-              className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-primary-500/10 rounded-full blur-[150px]"
+            <div
+              className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-primary-500/10 rounded-full blur-[150px] animate-[spin_60s_linear_infinite]"
             />
-            <motion.div
-              animate={{
-                scale: [1.2, 1, 1.2],
-                rotate: [360, 180, 0]
-              }}
-              transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
-              className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-rose-500/10 rounded-full blur-[150px]"
+            <div
+              className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-rose-500/10 rounded-full blur-[150px] animate-[spin_80s_linear_infinite_reverse]"
             />
 
             {/* Grid */}
@@ -396,11 +385,7 @@ export default function CareersPage() {
                 transition={{ delay: 0.2 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-8"
               >
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-2 h-2 rounded-full bg-emerald-500"
-                />
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-sm text-neutral-300">
                   {jobs.length} ตำแหน่งที่เปิดรับ
                 </span>
@@ -454,19 +439,11 @@ export default function CareersPage() {
           </div>
 
           {/* Scroll indicator */}
-          <motion.div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
             <div className="w-6 h-10 rounded-full border-2 border-white/20 flex justify-center pt-2">
-              <motion.div
-                animate={{ y: [0, 12, 0], opacity: [1, 0.3, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-1.5 h-1.5 rounded-full bg-white/50"
-              />
+              <div className="w-1.5 h-1.5 rounded-full bg-white/50 animate-scroll-dot" />
             </div>
-          </motion.div>
+          </div>
         </motion.section>
 
         {/* Stats Section */}
@@ -617,13 +594,9 @@ export default function CareersPage() {
               <div className="absolute inset-0 border border-primary-500/20 rounded-3xl" />
 
               <div className="relative text-center">
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="inline-block mb-6"
-                >
+                <div className="inline-block mb-6 animate-float-slow">
                   <Building2 className="h-16 w-16 text-primary-400" />
-                </motion.div>
+                </div>
 
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
                   ไม่เห็นตำแหน่งที่เหมาะสม?

@@ -89,7 +89,7 @@ export default function HomePage() {
                         className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full bg-white dark:bg-neutral-900 shadow-sm border border-neutral-200 dark:border-neutral-800"
                       >
                         <div className="relative h-5 w-5 sm:h-6 sm:w-6 rounded-md overflow-hidden">
-                          <Image src={model.icon} alt={model.name} fill className="object-cover" />
+                          <Image src={model.icon} alt={model.name} fill sizes="24px" className="object-cover" />
                         </div>
                         <span className="text-xs sm:text-sm font-medium text-neutral-700 dark:text-neutral-300 hidden xs:inline">
                           {model.name}
@@ -125,7 +125,7 @@ export default function HomePage() {
                     <div className="flex-1 mx-2 sm:mx-4">
                       <div className="h-6 sm:h-7 bg-neutral-700 rounded-lg flex items-center justify-center px-3">
                         <span className="text-[10px] sm:text-xs text-neutral-400">
-                          rabbitai.app/chat
+                          rabbithub.app/chat
                         </span>
                       </div>
                     </div>
@@ -152,17 +152,13 @@ export default function HomePage() {
                       transition={{ delay: 1.3, duration: 0.4 }}
                       className="flex gap-3"
                     >
-                      <motion.div
-                        className="h-8 w-8 rounded-xl shrink-0 shadow-lg shadow-purple-500/30 overflow-hidden"
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
+                      <div className="h-8 w-8 rounded-xl shrink-0 shadow-lg shadow-purple-500/30 overflow-hidden">
                         <Image src="/images/models/claude.svg" alt="Claude" width={32} height={32} className="w-full h-full" />
-                      </motion.div>
+                      </div>
                       <div className="bg-neutral-800 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] border border-neutral-700">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-xs font-semibold text-purple-400">Claude 4.5</span>
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                         </div>
                         <motion.p
                           className="text-sm text-neutral-300 leading-relaxed"
@@ -194,33 +190,21 @@ export default function HomePage() {
                       transition={{ delay: 3, duration: 0.3 }}
                       className="flex gap-3"
                     >
-                      <motion.div
-                        className="h-8 w-8 rounded-xl shrink-0 shadow-lg shadow-green-500/30 overflow-hidden"
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      >
+                      <div className="h-8 w-8 rounded-xl shrink-0 shadow-lg shadow-green-500/30 overflow-hidden">
                         <Image src="/images/models/openai.svg" alt="OpenAI" width={32} height={32} className="w-full h-full" />
-                      </motion.div>
+                      </div>
                       <div className="bg-neutral-800 rounded-2xl rounded-tl-sm px-4 py-3 border border-neutral-700">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-xs font-semibold text-green-400">ChatGPT 5.2</span>
                           <span className="text-[10px] text-neutral-500">กำลังพิมพ์...</span>
                         </div>
-                        {/* Typing dots */}
+                        {/* Typing dots - spring animation */}
                         <div className="flex items-center gap-1">
                           {[0, 1, 2].map((i) => (
-                            <motion.div
+                            <div
                               key={i}
-                              className="h-2 w-2 rounded-full bg-green-400"
-                              animate={{
-                                y: [0, -6, 0],
-                                opacity: [0.4, 1, 0.4],
-                              }}
-                              transition={{
-                                duration: 0.6,
-                                repeat: Infinity,
-                                delay: i * 0.15,
-                              }}
+                              className="h-2 w-2 rounded-full bg-green-400 animate-[scalePulse_0.8s_ease-in-out_infinite]"
+                              style={{ willChange: 'transform, opacity', animationDelay: `${i * 0.15}s` }}
                             />
                           ))}
                         </div>
@@ -235,9 +219,10 @@ export default function HomePage() {
                         <span className="text-sm text-neutral-500">พิมพ์ข้อความ...</span>
                       </div>
                       <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                         className="h-10 w-10 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/30"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        style={{ willChange: 'transform' }}
                       >
                         <ArrowRight className="h-5 w-5 text-white" />
                       </motion.button>

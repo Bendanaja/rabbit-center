@@ -45,7 +45,7 @@ const policySections: PolicySection[] = [
     icon: Eye,
     title: 'วิธีที่เราใช้ข้อมูล',
     content: [
-      'ให้บริการแชท AI และฟีเจอร์ต่างๆ ของ RabbitAI',
+      'ให้บริการแชท AI และฟีเจอร์ต่างๆ ของ RabbitHub',
       'ปรับปรุงและพัฒนาบริการของเรา',
       'ส่งการแจ้งเตือนสำคัญเกี่ยวกับบัญชีและบริการ',
       'วิเคราะห์การใช้งานเพื่อปรับปรุงประสบการณ์ผู้ใช้',
@@ -100,7 +100,7 @@ const policySections: PolicySection[] = [
       'ส่งออก: คุณสามารถดาวน์โหลดข้อมูลของคุณในรูปแบบมาตรฐาน',
       'คัดค้าน: คุณสามารถคัดค้านการประมวลผลข้อมูลบางประเภท',
     ],
-    highlights: ['ติดต่อ privacy@rabbitai.co เพื่อใช้สิทธิ์เหล่านี้']
+    highlights: ['ติดต่อ privacy@rabbithub.co เพื่อใช้สิทธิ์เหล่านี้']
   },
 ];
 
@@ -239,15 +239,12 @@ export default function PrivacyPage() {
                 <Clock className="h-4 w-4" />
                 อัปเดตล่าสุด: 1 กุมภาพันธ์ 2026
               </div>
-              <motion.div
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              >
+              <div className="animate-pulse">
                 <Badge variant="success">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   GDPR Compliant
                 </Badge>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -276,7 +273,7 @@ export default function PrivacyPage() {
                         สิ่งสำคัญที่ควรทราบ
                       </p>
                       <p className="text-amber-700 dark:text-amber-400">
-                        RabbitAI ไม่เก็บข้อความแชทของคุณเพื่อฝึกโมเดล AI ข้อมูลของคุณถูกใช้เพื่อให้บริการเท่านั้น
+                        RabbitHub ไม่เก็บข้อความแชทของคุณเพื่อฝึกโมเดล AI ข้อมูลของคุณถูกใช้เพื่อให้บริการเท่านั้น
                       </p>
                     </div>
                   </div>
@@ -310,10 +307,10 @@ export default function PrivacyPage() {
               <div className="inline-flex flex-col items-center gap-2 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800">
                 <p className="text-sm text-neutral-500">Data Protection Officer</p>
                 <a
-                  href="mailto:privacy@rabbitai.co"
+                  href="mailto:privacy@rabbithub.co"
                   className="text-primary-600 dark:text-primary-400 font-medium hover:underline"
                 >
-                  privacy@rabbitai.co
+                  privacy@rabbithub.co
                 </a>
               </div>
             </FadeIn>

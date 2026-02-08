@@ -1,4 +1,4 @@
-// Test chat fixtures for RabbitAI
+// Test chat fixtures for RabbitHub
 
 import type { Chat, Message } from '@/store/chatStore';
 

@@ -137,11 +137,10 @@ export const NAV_LINKS = [
   { href: '/', label: 'หน้าแรก' },
   { href: '/chat', label: 'แชท' },
   { href: '/pricing', label: 'ราคา' },
-  { href: '/settings', label: 'ตั้งค่า' },
 ] as const;
 
 export const SITE_CONFIG = {
-  name: 'RabbitAI',
+  name: 'RabbitHub',
   tagline: 'แชทกับ AI ที่ดีที่สุดในโลก',
   description: 'เข้าถึง GPT-5, Claude, Gemini และอื่นๆ ในที่เดียว ราคาเรียบง่าย ฟีเจอร์ครบครัน',
 } as const;

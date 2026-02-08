@@ -33,7 +33,7 @@ export function createClient() {
       {
         auth: {
           persistSession: true,
-          storageKey: 'rabbitai-auth',
+          storageKey: 'rabbithub-auth',
           storage: window.localStorage,
           autoRefreshToken: true,
           detectSessionInUrl: true,

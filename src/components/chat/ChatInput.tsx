@@ -78,7 +78,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="ส่งข้อความถึง RabbitAI..."
+            placeholder="ส่งข้อความถึง RabbitHub..."
             disabled={isGenerating}
             rows={1}
             className={cn(
@@ -169,7 +169,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
 
       {/* Disclaimer */}
       <p className="mt-2 sm:mt-3 text-[10px] sm:text-xs text-neutral-400 dark:text-neutral-500 text-center">
-        RabbitAI อาจให้ข้อมูลที่ไม่ถูกต้อง กรุณาตรวจสอบข้อมูลสำคัญ
+        RabbitHub อาจให้ข้อมูลที่ไม่ถูกต้อง กรุณาตรวจสอบข้อมูลสำคัญ
       </p>
     </div>
   );

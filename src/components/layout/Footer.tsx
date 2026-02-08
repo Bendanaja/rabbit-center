@@ -43,7 +43,7 @@ export function Footer() {
               <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-lg overflow-hidden shadow-md">
                 <Image
                   src="/images/logo.jpg"
-                  alt="RabbitAI Logo"
+                  alt="RabbitHub Logo"
                   fill
                   className="object-cover"
                 />

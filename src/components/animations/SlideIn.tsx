@@ -110,24 +110,15 @@ export function AnimatedList({ children, className }: AnimatedListProps) {
   );
 }
 
-// Typing indicator dots
+// Typing indicator dots - framer-motion spring physics
 export function TypingIndicator() {
   return (
     <div className="flex items-center gap-1 px-4 py-3">
       {[0, 1, 2].map((i) => (
-        <motion.div
+        <div
           key={i}
-          className="h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-500"
-          animate={{
-            scale: [0.6, 1, 0.6],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            duration: 1.4,
-            repeat: Infinity,
-            delay: i * 0.2,
-            ease: 'easeInOut',
-          }}
+          className="h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-[scalePulse_0.8s_ease-in-out_infinite]"
+          style={{ willChange: 'transform, opacity', animationDelay: `${i * 0.15}s` }}
         />
       ))}
     </div>

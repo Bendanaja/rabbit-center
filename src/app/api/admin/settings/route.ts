@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+export const dynamic = 'force-dynamic';
+
+// Get all settings
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = createAdminClient();
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+
+    let query = supabase
+      .from('system_config')
+      .select('*')
+      .order('category')
+      .order('key');
+
+    if (category) {
+      query = query.eq('category', category);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // Group by category
+    const grouped: Record<string, typeof data> = {};
+    data?.forEach(config => {
+      if (!grouped[config.category]) {
+        grouped[config.category] = [];
+      }
+      grouped[config.category].push(config);
+    });
+
+    return NextResponse.json({
+      settings: data,
+      grouped,
+    });
+  } catch (error) {
+    console.error('Get settings error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch settings' },
+      { status: 500 }
+    );
+  }
+}
+
+// Update multiple settings
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const supabase = createAdminClient();
+
+    const { settings, admin_user_id } = body;
+
+    // Update each setting
+    const updates = Object.entries(settings).map(async ([key, value]) => {
+      const { error } = await supabase
+        .from('system_config')
+        .upsert({
+          key,
+          value: JSON.stringify(value),
+          updated_by: admin_user_id,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+    });
+
+    await Promise.all(updates);
+
+    // Log activity
+    await supabase.rpc('log_admin_activity', {
+      p_admin_user_id: admin_user_id,
+      p_action: 'update_settings',
+      p_resource_type: 'system_config',
+      p_resource_id: null,
+      p_details: { keys: Object.keys(settings) }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Update settings error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update settings' },
+      { status: 500 }
+    );
+  }
+}

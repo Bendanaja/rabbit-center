@@ -33,23 +33,16 @@ const FREE_ACCESS_CONFIG = {
   adDurationSeconds: 30,
 };
 
-// Floating Particle Component
+// Floating Particle Component - CSS only
 function FloatingParticle({ delay, duration, startX, startY }: { delay: number; duration: number; startX: number; startY: number }) {
   return (
-    <motion.div
-      className="absolute w-1 h-1 bg-primary-500/60 rounded-full"
-      style={{ left: `${startX}%`, top: `${startY}%` }}
-      animate={{
-        y: [0, -100, -200],
-        x: [0, Math.random() > 0.5 ? 30 : -30, 0],
-        opacity: [0, 1, 0],
-        scale: [0, 1.5, 0],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        ease: "easeOut",
+    <div
+      className="absolute w-1 h-1 bg-primary-500/60 rounded-full animate-sparkle"
+      style={{
+        left: `${startX}%`,
+        top: `${startY}%`,
+        animationDuration: `${duration}s`,
+        animationDelay: `${delay}s`,
       }}
     />
   );
@@ -95,14 +88,13 @@ function CinemaScreen({
       <div className="absolute -inset-1 rounded-2xl bg-gradient-to-b from-neutral-800 to-black -z-10" />
 
       {/* Screen glow effect */}
-      <motion.div
-        className="absolute inset-0 rounded-2xl"
-        animate={{
+      <div
+        className={`absolute inset-0 rounded-2xl ${isPlaying ? 'animate-pulse' : ''}`}
+        style={{
           boxShadow: isPlaying
-            ? ['0 0 60px rgba(239, 68, 68, 0.3)', '0 0 80px rgba(239, 68, 68, 0.5)', '0 0 60px rgba(239, 68, 68, 0.3)']
+            ? '0 0 80px rgba(239, 68, 68, 0.5)'
             : '0 0 40px rgba(239, 68, 68, 0.2)'
         }}
-        transition={{ duration: 2, repeat: Infinity }}
       />
 
       {/* Main screen content */}
@@ -200,26 +192,19 @@ function CinemaScreen({
             >
               {/* Animated ad visualization */}
               <div className="relative mb-8">
-                <motion.div
-                  className="w-20 h-20 rounded-full border-4 border-primary-500/30"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                <div
+                  className="w-20 h-20 rounded-full border-4 border-primary-500/30 animate-[spin_3s_linear_infinite]"
                 />
-                <motion.div
-                  className="absolute inset-0 flex items-center justify-center"
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
+                <div className="absolute inset-0 flex items-center justify-center animate-pulse">
                   <Volume2 className="w-8 h-8 text-primary-500" />
-                </motion.div>
+                </div>
 
                 {/* Pulse rings */}
                 {[...Array(3)].map((_, i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    className="absolute inset-0 rounded-full border-2 border-primary-500"
-                    animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.5 }}
+                    className="absolute inset-0 rounded-full border-2 border-primary-500 animate-pulse-ring"
+                    style={{ animationDelay: `${i * 0.5}s` }}
                   />
                 ))}
               </div>
@@ -253,10 +238,8 @@ function CinemaScreen({
                 whileHover={{ scale: 1.05 }}
               >
                 {/* Outer glow ring */}
-                <motion.div
-                  className="absolute inset-0 rounded-full bg-gradient-to-r from-primary-500/20 to-rose-500/20"
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                <div
+                  className="absolute inset-0 rounded-full bg-gradient-to-r from-primary-500/20 to-rose-500/20 animate-glow-pulse"
                 />
 
                 {/* Play button */}
@@ -364,19 +347,9 @@ function RewardCard({ index, available }: { index: number; available: boolean })
         </div>
       </div>
 
-      {/* Shine effect for available */}
+      {/* Shimmer effect for available */}
       {available && (
-        <motion.div
-          className="absolute inset-0 rounded-xl"
-          animate={{
-            background: [
-              'linear-gradient(90deg, transparent 0%, transparent 100%)',
-              'linear-gradient(90deg, transparent 0%, rgba(239,68,68,0.1) 50%, transparent 100%)',
-              'linear-gradient(90deg, transparent 0%, transparent 100%)',
-            ],
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
+        <div className="absolute inset-0 rounded-xl shimmer opacity-30" />
       )}
     </motion.div>
   );
@@ -446,16 +419,13 @@ export default function FreeAccessPage() {
       <section className="relative pt-24 pb-12 overflow-hidden">
         {/* Background effects */}
         <div className="absolute inset-0">
-          {/* Gradient orbs */}
-          <motion.div
-            className="absolute top-20 left-1/4 w-96 h-96 rounded-full bg-primary-600/20 blur-3xl"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.3, 0.2] }}
-            transition={{ duration: 8, repeat: Infinity }}
+          {/* Gradient orbs - CSS */}
+          <div
+            className="absolute top-20 left-1/4 w-96 h-96 rounded-full bg-primary-600/20 blur-3xl animate-glow-pulse-slow"
           />
-          <motion.div
-            className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl"
-            animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.2, 0.1] }}
-            transition={{ duration: 10, repeat: Infinity }}
+          <div
+            className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-amber-500/10 blur-3xl animate-glow-pulse-slow"
+            style={{ animationDelay: '2s' }}
           />
 
           {/* Grid pattern */}
@@ -591,28 +561,21 @@ export default function FreeAccessPage() {
             >
               {/* Shimmer effect */}
               {canWatchAd && !isWatchingAd && (
-                <motion.div
-                  className="absolute inset-0 rounded-2xl"
-                  animate={{
-                    background: [
-                      'linear-gradient(90deg, transparent 0%, transparent 100%)',
-                      'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
-                      'linear-gradient(90deg, transparent 0%, transparent 100%)',
-                    ],
+                <div
+                  className="absolute inset-0 rounded-2xl animate-shimmer"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
                   }}
-                  transition={{ duration: 2, repeat: Infinity }}
                 />
               )}
 
               <span className="relative flex items-center gap-3">
                 {isWatchingAd ? (
                   <>
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
+                    <span className="animate-spin">
                       <Clock className="w-5 h-5" />
-                    </motion.span>
+                    </span>
                     กำลังดู... {remainingTime}s
                   </>
                 ) : canWatchAd ? (
@@ -739,13 +702,9 @@ export default function FreeAccessPage() {
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMC41IiBvcGFjaXR5PSIwLjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30" />
 
             <div className="relative text-center">
-              <motion.div
-                animate={{ rotate: [0, 10, -10, 0] }}
-                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                className="inline-flex w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm items-center justify-center mb-6"
-              >
+              <div className="inline-flex w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm items-center justify-center mb-6 animate-wiggle-slow">
                 <Crown className="w-10 h-10 text-white" />
-              </motion.div>
+              </div>
 
               <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 ต้องการใช้งานไม่จำกัด?
@@ -754,7 +713,7 @@ export default function FreeAccessPage() {
                 อัปเกรดเป็น Pro เพื่อใช้งาน AI ได้ไม่จำกัด ไม่ต้องดูโฆษณา พร้อมฟีเจอร์พิเศษอีกมากมาย
               </p>
 
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <div className="hover:scale-[1.02] active:scale-[0.98] transition-transform duration-150 inline-block">
                 <Link
                   href="/pricing"
                   className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-600 font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-shadow"
@@ -762,7 +721,7 @@ export default function FreeAccessPage() {
                   ดูแพ็กเกจทั้งหมด
                   <ArrowRight className="w-5 h-5" />
                 </Link>
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         </div>

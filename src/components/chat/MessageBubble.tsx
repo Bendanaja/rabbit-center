@@ -103,20 +103,15 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
 
               {/* Streaming indicator */}
               {message.isStreaming && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30"
-                >
-                  <motion.div
-                    className="w-1.5 h-1.5 rounded-full bg-primary-500"
-                    animate={{ scale: [1, 1.3, 1] }}
-                    transition={{ duration: 0.6, repeat: Infinity }}
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-[navDotPulse_1s_ease-in-out_infinite]"
+                    style={{ willChange: 'transform' }}
                   />
                   <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">
                     กำลังพิมพ์...
                   </span>
-                </motion.div>
+                </div>
               )}
             </div>
 
@@ -127,10 +122,8 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
                   {displayContent}
                   {/* Typing cursor */}
                   {message.isStreaming && (
-                    <motion.span
-                      className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5 align-middle"
-                      animate={{ opacity: [1, 0, 1] }}
-                      transition={{ duration: 0.8, repeat: Infinity }}
+                    <span
+                      className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5 align-middle animate-[cursorBlink_1s_step-end_infinite]"
                     />
                   )}
                 </p>

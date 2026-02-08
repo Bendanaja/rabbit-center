@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash } from 'lucide-react';
+import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { ModelSelector } from './ModelSelector';
@@ -35,6 +35,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const lastMessageRef = useRef<string | null>(null);
   const typewriterRef = useRef<NodeJS.Timeout | null>(null);
   const fullContentRef = useRef<string>('');
   const displayedLengthRef = useRef<number>(0);
@@ -127,6 +129,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
 
     setLocalMessages(prev => [...prev, userMessage]);
     setResponseTime(null);
+    setAiError(null);
+    lastMessageRef.current = content;
 
     // Save user message to database
     const { error: sendError } = await sendMessage(content, 'user');
@@ -231,6 +235,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
           fullContentRef.current = '';
           displayedLengthRef.current = 0;
           setResponseTime(null);
+          setAiError(error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
         },
         onTitleUpdate: (newTitle) => {
           // Title updated in background
@@ -312,6 +317,21 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
     displayedLengthRef.current = 0;
   }, [stop, chatId, selectedModel, sendMessage]);
 
+  const handleRetry = useCallback(() => {
+    if (lastMessageRef.current && chatId) {
+      setAiError(null);
+      // Remove the last user message and re-send
+      const lastMsg = lastMessageRef.current;
+      setLocalMessages(prev => {
+        // Remove the last user message (to re-add it)
+        const idx = prev.findLastIndex(m => m.role === 'user' && m.content === lastMsg);
+        if (idx >= 0) return prev.slice(0, idx);
+        return prev;
+      });
+      handleSendMessageInternal(lastMsg, chatId);
+    }
+  }, [chatId, handleSendMessageInternal]);
+
   const currentModel = getModelById(selectedModel);
 
   return (
@@ -380,20 +400,15 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                       <span className="text-sm font-semibold text-neutral-900 dark:text-white">
                         {currentModel?.name || 'AI'}
                       </span>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30"
-                      >
-                        <motion.div
-                          className="w-1.5 h-1.5 rounded-full bg-primary-500"
-                          animate={{ scale: [1, 1.3, 1] }}
-                          transition={{ duration: 0.6, repeat: Infinity }}
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30">
+                        <div
+                          className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-[navDotPulse_1s_ease-in-out_infinite]"
+                          style={{ willChange: 'transform' }}
                         />
                         <span className="text-[10px] font-medium text-primary-600 dark:text-primary-400">
                           กำลังพิมพ์...
                         </span>
-                      </motion.div>
+                      </div>
                     </div>
 
                     {displayedContent ? (
@@ -401,10 +416,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                         <div className="prose prose-neutral dark:prose-invert max-w-none">
                           <p className="text-sm sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap m-0">
                             {displayedContent}
-                            <motion.span
-                              className="inline-block w-0.5 h-5 bg-primary-500 ml-0.5 align-middle"
-                              animate={{ opacity: [1, 0] }}
-                              transition={{ duration: 0.5, repeat: Infinity }}
+                            <span
+                              className="inline-block w-0.5 h-5 bg-primary-500 ml-0.5 align-middle animate-[cursorBlink_1s_step-end_infinite]"
                             />
                           </p>
                         </div>
@@ -429,24 +442,40 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                       </>
                     ) : (
                       <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800 w-fit">
-                        <motion.span
-                          className="w-2 h-2 rounded-full bg-primary-400"
-                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 0.8, repeat: Infinity, delay: 0 }}
-                        />
-                        <motion.span
-                          className="w-2 h-2 rounded-full bg-primary-400"
-                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 0.8, repeat: Infinity, delay: 0.15 }}
-                        />
-                        <motion.span
-                          className="w-2 h-2 rounded-full bg-primary-400"
-                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 0.8, repeat: Infinity, delay: 0.3 }}
-                        />
+                        {[0, 1, 2].map((i) => (
+                          <span
+                            key={i}
+                            className="w-2 h-2 rounded-full bg-primary-400 animate-[scalePulse_0.8s_ease-in-out_infinite]"
+                            style={{ willChange: 'transform, opacity', animationDelay: `${i * 0.15}s` }}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Error message with retry */}
+            <AnimatePresence>
+              {aiError && !isGenerating && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 my-4"
+                >
+                  <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+                  <p className="text-sm text-red-600 dark:text-red-400 flex-1">
+                    {aiError}
+                  </p>
+                  <button
+                    onClick={handleRetry}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors shrink-0"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    ลองใหม่
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -519,19 +548,15 @@ function WelcomeScreen({ selectedModel, onModelChange, onSendMessage }: WelcomeS
           <div className="relative h-16 w-16 sm:h-20 sm:w-20 mx-auto rounded-2xl overflow-hidden shadow-lg">
             <Image
               src="/images/logo.jpg"
-              alt="RabbitAI"
+              alt="RabbitHub"
               fill
               className="object-cover"
               priority
             />
           </div>
-          <motion.div
-            className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2"
-            animate={{ rotate: [0, 10, -10, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          >
+          <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">
             <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary-500" />
-          </motion.div>
+          </div>
         </motion.div>
 
         {/* Greeting */}

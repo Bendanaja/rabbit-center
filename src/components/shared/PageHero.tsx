@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { type ReactNode } from 'react';
 import { FadeIn } from '@/components/animations';
 import { Badge } from '@/components/ui';
@@ -30,27 +29,19 @@ export function PageHero({
       {/* Background Pattern */}
       <div className="absolute inset-0 dot-pattern opacity-30" />
 
-      {/* Animated Particles */}
+      {/* Floating decorative particles - CSS */}
       {particles && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(6)].map((_, i) => (
-            <motion.div
+          {[...Array(4)].map((_, i) => (
+            <div
               key={i}
-              className="absolute w-2 h-2 rounded-full bg-primary-400/20"
-              initial={{
-                x: `${20 + i * 15}%`,
-                y: '100%',
-                opacity: 0.3
-              }}
-              animate={{
-                y: '-20%',
-                opacity: [0.3, 0.6, 0.3]
-              }}
-              transition={{
-                duration: 8 + i * 2,
-                repeat: Infinity,
-                delay: i * 1.5,
-                ease: 'linear'
+              className="absolute w-2 h-2 rounded-full bg-primary-400/20 animate-[floatY_ease-in-out_infinite]"
+              style={{
+                left: `${20 + i * 20}%`,
+                top: `${15 + i * 15}%`,
+                willChange: 'transform, opacity',
+                animationDuration: `${3 + i * 0.5}s`,
+                animationDelay: `${i * 0.5}s`,
               }}
             />
           ))}

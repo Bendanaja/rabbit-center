@@ -65,10 +65,10 @@ export default function SettingsPage() {
 
   // User data from auth
   const userData = {
-    name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้',
-    email: user?.email || '',
-    plan: 'Free', // TODO: Get from subscription
-    avatar: user?.user_metadata?.avatar_url || null,
+    name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'ผู้ใช้',
+    email: user.email || '',
+    plan: 'Free',
+    avatar: user.user_metadata?.avatar_url || null,
   };
 
   return (

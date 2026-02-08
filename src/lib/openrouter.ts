@@ -64,6 +64,49 @@ export function getAllModels() {
     .map(([key, model]) => ({ key, ...model }))
 }
 
+// Get fallback free model IDs (excluding the given model)
+function getFreeFallbacks(excludeModel: string): string[] {
+  return Object.values(OPENROUTER_MODELS)
+    .filter(m => m.isFree && m.id !== excludeModel)
+    .map(m => m.id)
+}
+
+async function tryStreamChat(
+  messages: ChatMessage[],
+  model: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<{ reader: ReadableStreamDefaultReader<Uint8Array> } | { error: string }> {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      'X-Title': 'RabbitHub',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      route: 'fallback',
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    return { error: errorData.error?.message || `OpenRouter error: ${response.status}` }
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    return { error: 'No response body' }
+  }
+
+  return { reader }
+}
+
 export async function streamChat(
   messages: ChatMessage[],
   model: string,
@@ -79,84 +122,102 @@ export async function streamChat(
 
   let fullResponse = ''
 
-  try {
-    const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-        'X-Title': 'RabbitAI',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-      }),
-      signal,
-    })
+  // Models to try: requested model first, then free fallbacks
+  const modelsToTry = [model, ...getFreeFallbacks(model)]
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error?.message || `OpenRouter error: ${response.status}`)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw new Error('No response body')
-    }
-
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        // Accumulate chunks in buffer to handle partial lines
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        // Keep the last incomplete line in buffer
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-
-          const data = line.slice(6).trim()
-          if (data === '[DONE]') {
-            callbacks.onDone(fullResponse)
-            return
-          }
-
-          try {
-            const parsed = JSON.parse(data)
-            const content = parsed.choices?.[0]?.delta?.content
-            if (content) {
-              fullResponse += content
-              callbacks.onChunk(content)
-            }
-          } catch {
-            // Skip invalid JSON
-          }
-        }
-      }
-
-      callbacks.onDone(fullResponse)
-    } finally {
-      // Always release the reader lock to prevent memory leak
-      reader.releaseLock()
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
+  for (const currentModel of modelsToTry) {
+    if (signal?.aborted) {
       callbacks.onDone(fullResponse || '')
       return
     }
-    callbacks.onError(error instanceof Error ? error : new Error('Unknown error'))
+
+    try {
+      const result = await tryStreamChat(messages, currentModel, apiKey, signal)
+
+      if ('error' in result) {
+        console.warn(`Model ${currentModel} failed: ${result.error}, trying next...`)
+        continue
+      }
+
+      const { reader } = result
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamError = false
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+
+            const data = line.slice(6).trim()
+            if (data === '[DONE]') {
+              callbacks.onDone(fullResponse)
+              return
+            }
+
+            try {
+              const parsed = JSON.parse(data)
+
+              // Detect provider errors in SSE stream
+              if (parsed.error) {
+                const errMsg = parsed.error?.message || parsed.error?.metadata?.raw || 'Provider error'
+                console.warn(`Stream error from ${currentModel}: ${errMsg}, trying next...`)
+                streamError = true
+                break
+              }
+
+              const content = parsed.choices?.[0]?.delta?.content
+              if (content) {
+                fullResponse += content
+                callbacks.onChunk(content)
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+
+          if (streamError) break
+        }
+
+        // If we got content before the error, deliver what we have
+        if (streamError && fullResponse) {
+          callbacks.onDone(fullResponse)
+          return
+        }
+
+        // If stream error with no content, try next model
+        if (streamError) {
+          fullResponse = ''
+          continue
+        }
+
+        callbacks.onDone(fullResponse)
+        return
+      } finally {
+        reader.releaseLock()
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        callbacks.onDone(fullResponse || '')
+        return
+      }
+      console.warn(`Model ${currentModel} threw: ${error}, trying next...`)
+      continue
+    }
   }
+
+  // All models failed
+  callbacks.onError(new Error('AI ไม่สามารถตอบกลับได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'))
 }
 
-// Non-streaming version for simple requests
+// Non-streaming version for simple requests (with auto-retry on free models)
 export async function chatCompletion(
   messages: ChatMessage[],
   model: string
@@ -167,31 +228,51 @@ export async function chatCompletion(
     throw new Error('OpenRouter API key not configured')
   }
 
-  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-      'X-Title': 'RabbitAI',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: false,
-    }),
-  })
+  const modelsToTry = [model, ...getFreeFallbacks(model)]
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error?.message || `OpenRouter error: ${response.status}`)
+  for (const currentModel of modelsToTry) {
+    try {
+      const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          'X-Title': 'RabbitHub',
+        },
+        body: JSON.stringify({
+          model: currentModel,
+          messages,
+          stream: false,
+          route: 'fallback',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.warn(`chatCompletion ${currentModel} failed: ${errorData.error?.message}`)
+        continue
+      }
+
+      const data = await response.json()
+
+      // Check for error in response body
+      if (data.error) {
+        console.warn(`chatCompletion ${currentModel} returned error: ${data.error.message}`)
+        continue
+      }
+
+      const content = data.choices?.[0]?.message?.content || ''
+      const tokensUsed = data.usage?.total_tokens
+
+      return { content, tokensUsed }
+    } catch (error) {
+      console.warn(`chatCompletion ${currentModel} threw: ${error}`)
+      continue
+    }
   }
 
-  const data = await response.json()
-  const content = data.choices?.[0]?.message?.content || ''
-  const tokensUsed = data.usage?.total_tokens
-
-  return { content, tokensUsed }
+  throw new Error('AI ไม่สามารถตอบกลับได้ในขณะนี้')
 }
 
 // Generate chat title from first message

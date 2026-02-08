@@ -55,7 +55,7 @@ const endpoints = [
 ];
 
 const codeExamples = {
-  curl: `curl https://api.rabbitai.co/v1/chat/completions \\
+  curl: `curl https://api.rabbithub.co/v1/chat/completions \\
   -H "Authorization: Bearer $RABBIT_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -64,9 +64,9 @@ const codeExamples = {
       {"role": "user", "content": "สวัสดี"}
     ]
   }'`,
-  python: `import rabbitai
+  python: `import rabbithub
 
-client = rabbitai.Client(api_key="your-api-key")
+client = rabbithub.Client(api_key="your-api-key")
 
 response = client.chat.completions.create(
     model="gpt-4",
@@ -76,9 +76,9 @@ response = client.chat.completions.create(
 )
 
 print(response.choices[0].message.content)`,
-  javascript: `import RabbitAI from 'rabbitai';
+  javascript: `import RabbitHub from 'rabbithub';
 
-const client = new RabbitAI({
+const client = new RabbitHub({
   apiKey: 'your-api-key'
 });
 
@@ -102,7 +102,7 @@ const responseExample = `{
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "สวัสดีครับ! ยินดีต้อนรับสู่ RabbitAI 🐰"
+        "content": "สวัสดีครับ! ยินดีต้อนรับสู่ RabbitHub 🐰"
       },
       "finish_reason": "stop"
     }
@@ -270,7 +270,7 @@ export default function APIDocsPage() {
             <div className="grid md:grid-cols-3 gap-6 mb-12">
               {[
                 { step: 1, title: 'รับ API Key', desc: 'สร้างบัญชีและรับ API Key ฟรี', icon: Key },
-                { step: 2, title: 'ติดตั้ง SDK', desc: 'npm install rabbitai หรือ pip install rabbitai', icon: Terminal },
+                { step: 2, title: 'ติดตั้ง SDK', desc: 'npm install rabbithub หรือ pip install rabbithub', icon: Terminal },
                 { step: 3, title: 'เรียก API', desc: 'เริ่มสร้างแอปพลิเคชันของคุณ', icon: Play },
               ].map((item, index) => (
                 <motion.div
@@ -415,10 +415,10 @@ export default function APIDocsPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { name: 'Python', version: 'v1.2.0', install: 'pip install rabbitai' },
-                { name: 'Node.js', version: 'v1.1.5', install: 'npm install rabbitai' },
-                { name: 'Go', version: 'v0.9.2', install: 'go get rabbitai' },
-                { name: 'Ruby', version: 'v0.8.0', install: 'gem install rabbitai' },
+                { name: 'Python', version: 'v1.2.0', install: 'pip install rabbithub' },
+                { name: 'Node.js', version: 'v1.1.5', install: 'npm install rabbithub' },
+                { name: 'Go', version: 'v0.9.2', install: 'go get rabbithub' },
+                { name: 'Ruby', version: 'v0.8.0', install: 'gem install rabbithub' },
               ].map((sdk, index) => (
                 <motion.div
                   key={sdk.name}

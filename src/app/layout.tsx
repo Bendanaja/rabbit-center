@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_CONFIG.name}`,
   },
   description: SITE_CONFIG.description,
-  keywords: ["AI", "ChatGPT", "Claude", "Gemini", "แชท AI", "AI หลายโมเดล", "RabbitAI"],
+  keywords: ["AI", "ChatGPT", "Claude", "Gemini", "แชท AI", "AI หลายโมเดล", "RabbitHub"],
   authors: [{ name: SITE_CONFIG.name }],
   icons: {
     icon: [

@@ -1,124 +1,83 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { motion, useInView, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import Image from 'next/image';
 import {
   Layers,
   Zap,
   Shield,
   MessageSquare,
-  Bot,
   Globe,
-  Sparkles,
   Brain,
-  Code,
-  Cpu,
 } from 'lucide-react';
 import { AI_MODELS } from '@/lib/constants';
 
-// Floating particles component - uses deterministic positions to avoid hydration mismatch
-function FloatingParticles({ count = 20 }: { count?: number }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Generate deterministic positions based on index (same on server and client)
-  const getPosition = (index: number) => ({
-    x: ((index * 37 + 13) % 100) + '%',
-    y: ((index * 53 + 17) % 100) + '%',
-  });
-
-  const getDuration = (index: number) => 4 + (index % 4);
-  const getDelay = (index: number) => (index * 0.5) % 4;
-
-  if (!mounted) {
-    return <div className="absolute inset-0 overflow-hidden pointer-events-none" />;
-  }
-
+// Floating particles - CSS GPU animation
+function FloatingParticles({ count = 6 }: { count?: number }) {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(count)].map((_, i) => {
-        const pos = getPosition(i);
-        return (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-primary-500/30 rounded-full"
-            initial={{
-              x: pos.x,
-              y: pos.y,
-            }}
-            animate={{
-              y: [null, '-20%', '120%'],
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: getDuration(i),
-              repeat: Infinity,
-              delay: getDelay(i),
-              ease: 'linear',
-            }}
-          />
-        );
-      })}
+      {[...Array(count)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-1 h-1 bg-primary-500/20 rounded-full animate-[floatY_ease-in-out_infinite]"
+          style={{
+            left: `${((i * 37 + 13) % 100)}%`,
+            top: `${((i * 53 + 17) % 100)}%`,
+            willChange: 'transform, opacity',
+            animationDuration: `${3 + i * 0.5}s`,
+            animationDelay: `${i * 0.4}s`,
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-// Animated gradient orb
+// Static gradient orb - no JS animation, uses CSS
 function GradientOrb({ className }: { className?: string }) {
   return (
-    <motion.div
-      className={`absolute rounded-full blur-3xl opacity-30 ${className}`}
-      animate={{
-        scale: [1, 1.2, 1],
-        x: [0, 30, 0],
-        y: [0, -20, 0],
-      }}
-      transition={{
-        duration: 8,
-        repeat: Infinity,
-        ease: 'easeInOut',
-      }}
-    />
+    <div className={`absolute rounded-full blur-3xl opacity-20 ${className}`} />
   );
 }
 
-// Interactive 3D tilt card
+// 3D tilt card with CSS transitions - GPU only (transform)
 function TiltCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
+  const tiltRef = useRef<HTMLDivElement>(null);
 
-  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [8, -8]), { stiffness: 300, damping: 30 });
-  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-8, 8]), { stiffness: 300, damping: 30 });
+  function handleMouse(e: React.MouseEvent) {
+    const rect = tiltRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = (e.clientX - rect.left) / rect.width - 0.5;
+    const my = (e.clientY - rect.top) / rect.height - 0.5;
+    const rotateX = my * -14;
+    const rotateY = mx * 14;
+    if (tiltRef.current) {
+      tiltRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    }
+  }
 
-  const handleMouse = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    x.set((e.clientX - centerX) / rect.width);
-    y.set((e.clientY - centerY) / rect.height);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
+  function handleMouseLeave() {
+    if (tiltRef.current) {
+      tiltRef.current.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+    }
+  }
 
   return (
-    <motion.div
-      ref={ref}
+    <div
+      ref={tiltRef}
       onMouseMove={handleMouse}
       onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+      style={{
+        transformStyle: 'preserve-3d',
+        willChange: 'transform',
+        transition: 'transform 0.15s ease-out',
+        transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)',
+      }}
       className={className}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -154,7 +113,7 @@ function AnimatedCounter({ value, suffix = '' }: { value: number; suffix?: strin
   );
 }
 
-// Typing animation text
+// Typing animation text - uses CSS cursor blink instead of framer-motion
 function TypingText({ text, className }: { text: string; className?: string }) {
   const [displayText, setDisplayText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
@@ -180,17 +139,15 @@ function TypingText({ text, className }: { text: string; className?: string }) {
     <span ref={ref} className={className}>
       {displayText}
       {isTyping && (
-        <motion.span
-          className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5"
-          animate={{ opacity: [1, 0, 1] }}
-          transition={{ duration: 0.8, repeat: Infinity }}
+        <span
+          className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5 animate-[cursorBlink_1s_step-end_infinite]"
         />
       )}
     </span>
   );
 }
 
-// Neural network animation
+// Neural network - static SVG, no JS animations
 function NeuralNetwork() {
   const nodes = [
     { x: 20, y: 30 }, { x: 20, y: 70 },
@@ -206,7 +163,7 @@ function NeuralNetwork() {
   return (
     <svg className="w-full h-full" viewBox="0 0 100 100">
       {connections.map(([from, to], i) => (
-        <motion.line
+        <line
           key={i}
           x1={nodes[from].x}
           y1={nodes[from].y}
@@ -215,73 +172,85 @@ function NeuralNetwork() {
           stroke="currentColor"
           strokeWidth="0.5"
           className="text-primary-500/30"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.5, delay: i * 0.1 }}
         />
       ))}
       {nodes.map((node, i) => (
-        <motion.circle
+        <circle
           key={i}
           cx={node.x}
           cy={node.y}
           r="4"
-          className="fill-primary-500"
-          initial={{ scale: 0 }}
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{
-            scale: { duration: 2, repeat: Infinity, delay: i * 0.2 },
-            default: { duration: 0.5, delay: i * 0.1 },
-          }}
-        />
-      ))}
-      {/* Animated pulse along connections */}
-      {connections.slice(0, 6).map(([from, to], i) => (
-        <motion.circle
-          key={`pulse-${i}`}
-          r="2"
-          className="fill-primary-400"
-          initial={{ cx: nodes[from].x, cy: nodes[from].y, opacity: 0 }}
-          animate={{
-            cx: [nodes[from].x, nodes[to].x],
-            cy: [nodes[from].y, nodes[to].y],
-            opacity: [0, 1, 0],
-          }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            delay: i * 0.3,
-            ease: 'easeInOut',
-          }}
+          className="fill-primary-500 animate-pulse"
+          style={{ animationDelay: `${i * 300}ms` }}
         />
       ))}
     </svg>
   );
 }
 
-// Speed lines animation
+// Speed lines - glowing animated streaks that zoom across
 function SpeedLines() {
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {[...Array(8)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute h-px bg-gradient-to-r from-transparent via-primary-500/50 to-transparent"
+      {/* Static faint background lines */}
+      {[...Array(5)].map((_, i) => (
+        <div
+          key={`bg-${i}`}
+          className="absolute h-px bg-gradient-to-r from-transparent via-primary-500/15 to-transparent"
+          style={{ top: `${20 + i * 14}%`, width: '80%', left: '10%' }}
+        />
+      ))}
+      {/* Animated glowing streaks */}
+      {[...Array(4)].map((_, i) => (
+        <div
+          key={`streak-${i}`}
+          className="absolute h-[2px] rounded-full animate-[speedStreak_1.5s_ease-in-out_infinite]"
           style={{
-            top: `${20 + i * 10}%`,
-            width: '60%',
-            left: '20%',
-          }}
-          initial={{ x: '-100%', opacity: 0 }}
-          animate={{ x: '100%', opacity: [0, 1, 0] }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            delay: i * 0.15,
-            ease: 'easeOut',
+            top: `${22 + i * 16}%`,
+            animationDelay: `${i * 0.35}s`,
+            background: `linear-gradient(90deg, transparent, transparent 20%, rgba(248,113,113,0.8) 40%, rgba(239,68,68,1) 50%, rgba(248,113,113,0.8) 60%, transparent 80%, transparent)`,
+            filter: 'blur(0.5px)',
+            boxShadow: '0 0 8px rgba(239,68,68,0.6), 0 0 20px rgba(239,68,68,0.3)',
+            width: '50%',
           }}
         />
       ))}
+      {/* Extra thin fast streaks */}
+      {[...Array(3)].map((_, i) => (
+        <div
+          key={`fast-${i}`}
+          className="absolute h-px rounded-full animate-[speedStreak_1s_ease-in-out_infinite]"
+          style={{
+            top: `${30 + i * 20}%`,
+            animationDelay: `${0.2 + i * 0.4}s`,
+            background: `linear-gradient(90deg, transparent, rgba(252,165,165,0.6) 50%, transparent)`,
+            filter: 'blur(0.3px)',
+            boxShadow: '0 0 4px rgba(252,165,165,0.4)',
+            width: '35%',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Security scan animation - radar sweep + shield glow
+function SecurityScan() {
+  return (
+    <div className="absolute top-3 right-3 w-20 h-20">
+      {/* Outer ring */}
+      <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20" />
+      {/* Rotating radar sweep */}
+      <div
+        className="absolute inset-0 rounded-full animate-[spin_3s_linear_infinite]"
+        style={{
+          background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(16,185,129,0.3) 340deg, rgba(16,185,129,0.6) 360deg)',
+        }}
+      />
+      {/* Inner glow ring */}
+      <div className="absolute inset-2 rounded-full border border-emerald-500/30 animate-pulse" />
+      {/* Center dot */}
+      <div className="absolute inset-[34%] rounded-full bg-emerald-500/40 animate-ping" style={{ animationDuration: '2s' }} />
     </div>
   );
 }
@@ -319,52 +288,15 @@ function ChatBubbles() {
   );
 }
 
-// Globe with rotating ring
+// Globe - static with CSS animation for ring only
 function AnimatedGlobe() {
   return (
     <div className="relative w-20 h-20">
-      <motion.div
-        className="absolute inset-0 rounded-full border-2 border-primary-500/30"
-        style={{ borderStyle: 'dashed' }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-      />
-      <motion.div
-        className="absolute inset-2 rounded-full border border-primary-500/20"
-        animate={{ rotate: -360 }}
-        transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
-      />
+      <div className="absolute inset-0 rounded-full border-2 border-dashed border-primary-500/30 animate-[spin_20s_linear_infinite]" />
+      <div className="absolute inset-2 rounded-full border border-primary-500/20" />
       <div className="absolute inset-4 rounded-full bg-gradient-to-br from-primary-500/20 to-primary-600/20 flex items-center justify-center">
         <Globe className="h-6 w-6 text-primary-400" />
       </div>
-      {/* Orbiting dots */}
-      {[0, 120, 240].map((angle, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-2 h-2 bg-primary-500 rounded-full"
-          style={{
-            top: '50%',
-            left: '50%',
-            marginTop: -4,
-            marginLeft: -4,
-          }}
-          animate={{
-            x: [
-              Math.cos((angle * Math.PI) / 180) * 36,
-              Math.cos(((angle + 360) * Math.PI) / 180) * 36,
-            ],
-            y: [
-              Math.sin((angle * Math.PI) / 180) * 36,
-              Math.sin(((angle + 360) * Math.PI) / 180) * 36,
-            ],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'linear',
-          }}
-        />
-      ))}
     </div>
   );
 }
@@ -389,14 +321,16 @@ export function BentoGrid() {
         >
           <TiltCard className="h-full">
             <div className="relative h-full p-6 rounded-3xl bg-gradient-to-br from-neutral-900 to-neutral-800 border border-neutral-700/50 overflow-hidden group">
-              <FloatingParticles count={15} />
+              <FloatingParticles />
 
               {/* Content */}
               <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-4">
                   <motion.div
                     className="p-3 rounded-2xl bg-primary-500/10 border border-primary-500/20"
-                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    whileHover={{ scale: 1.15, rotate: 5 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                    style={{ willChange: 'transform' }}
                   >
                     <Layers className="h-6 w-6 text-primary-400" />
                   </motion.div>
@@ -414,11 +348,10 @@ export function BentoGrid() {
                       initial={{ opacity: 0, scale: 0 }}
                       animate={isInView ? { opacity: 1, scale: 1 } : {}}
                       transition={{ delay: 0.3 + i * 0.1 }}
-                      whileHover={{ scale: 1.15, y: -5 }}
-                      className="relative aspect-square rounded-xl bg-neutral-800/50 border border-neutral-700/50 p-2 flex items-center justify-center cursor-pointer group/icon"
+                      className="relative aspect-square rounded-xl bg-neutral-800/50 border border-neutral-700/50 p-2 flex items-center justify-center cursor-pointer group/icon transition-transform duration-200 hover:scale-110 hover:-translate-y-1"
                     >
                       <div className="relative h-8 w-8">
-                        <Image src={model.icon} alt={model.name} fill className="object-cover rounded-lg" />
+                        <Image src={model.icon} alt={model.name} fill sizes="32px" className="object-cover rounded-lg" />
                       </div>
                       {/* Tooltip */}
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-neutral-700 rounded text-xs text-white opacity-0 group-hover/icon:opacity-100 transition-opacity whitespace-nowrap">
@@ -454,13 +387,11 @@ export function BentoGrid() {
               <SpeedLines />
 
               <div className="relative z-10">
-                <motion.div
+                <div
                   className="p-2.5 rounded-xl bg-primary-500/20 border border-primary-500/30 w-fit mb-3"
-                  animate={{ x: [0, 5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
                 >
                   <Zap className="h-5 w-5 text-primary-400" />
-                </motion.div>
+                </div>
                 <h3 className="text-lg font-bold text-white mb-1">เร็วสุดขีด</h3>
                 <p className="text-xs text-primary-300/70">ตอบกลับภายใน</p>
                 <div className="text-3xl font-bold text-primary-400 mt-2">
@@ -479,30 +410,27 @@ export function BentoGrid() {
         >
           <TiltCard className="h-full">
             <div className="relative h-full p-5 rounded-3xl bg-gradient-to-br from-emerald-950 to-emerald-900 border border-emerald-800/50 overflow-hidden">
-              <motion.div
-                className="absolute top-4 right-4 w-16 h-16 rounded-full border-4 border-emerald-500/20"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
-              />
+              {/* Security radar scan */}
+              <SecurityScan />
 
               <div className="relative z-10">
-                <motion.div
+                <div
                   className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 w-fit mb-3"
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
                 >
                   <Shield className="h-5 w-5 text-emerald-400" />
-                </motion.div>
+                </div>
                 <h3 className="text-lg font-bold text-white mb-1">ปลอดภัย 100%</h3>
                 <p className="text-xs text-emerald-300/70">เข้ารหัสแบบ End-to-End</p>
-                <div className="flex items-center gap-1 mt-3">
-                  {[...Array(4)].map((_, i) => (
-                    <motion.div
+                {/* Security status indicators */}
+                <div className="flex items-center gap-1.5 mt-3">
+                  {['E2E', 'SSL', 'AES', '256'].map((label, i) => (
+                    <div
                       key={i}
-                      className="h-2 w-2 rounded-full bg-emerald-500"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                    />
+                      className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse"
+                      style={{ animationDelay: `${i * 300}ms` }}
+                    >
+                      {label}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -522,7 +450,9 @@ export function BentoGrid() {
               <div className="relative z-10">
                 <motion.div
                   className="p-2.5 rounded-xl bg-violet-500/20 border border-violet-500/30 w-fit mb-3"
-                  whileHover={{ rotate: 10 }}
+                  whileHover={{ scale: 1.1, y: -2 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  style={{ willChange: 'transform' }}
                 >
                   <MessageSquare className="h-5 w-5 text-violet-400" />
                 </motion.div>
@@ -568,8 +498,9 @@ export function BentoGrid() {
               <div className="relative z-10">
                 <motion.div
                   className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 w-fit mb-3"
-                  animate={{ rotate: [0, 5, -5, 0] }}
-                  transition={{ duration: 4, repeat: Infinity }}
+                  whileHover={{ rotate: [0, -10, 10, -5, 0] }}
+                  transition={{ duration: 0.6 }}
+                  style={{ willChange: 'transform' }}
                 >
                   <Brain className="h-5 w-5 text-amber-400" />
                 </motion.div>

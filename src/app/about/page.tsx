@@ -168,17 +168,11 @@ export default function AboutPage() {
       <section ref={heroRef} className="relative min-h-[100vh] flex items-center justify-center overflow-hidden">
         {/* Animated gradient background */}
         <div className="absolute inset-0">
-          <motion.div
-            animate={{
-              background: [
-                'radial-gradient(ellipse at 20% 20%, rgba(220,38,38,0.15) 0%, transparent 50%)',
-                'radial-gradient(ellipse at 80% 80%, rgba(220,38,38,0.15) 0%, transparent 50%)',
-                'radial-gradient(ellipse at 50% 50%, rgba(220,38,38,0.15) 0%, transparent 50%)',
-                'radial-gradient(ellipse at 20% 20%, rgba(220,38,38,0.15) 0%, transparent 50%)',
-              ]
+          <div
+            className="absolute inset-0 animate-pulse"
+            style={{
+              background: 'radial-gradient(ellipse at 50% 50%, rgba(220,38,38,0.15) 0%, transparent 50%)',
             }}
-            transition={{ duration: 10, repeat: Infinity }}
-            className="absolute inset-0"
           />
           {/* Grid overlay */}
           <div
@@ -268,14 +262,10 @@ export default function AboutPage() {
           transition={{ delay: 1 }}
           className="absolute bottom-8 left-1/2 -translate-x-1/2"
         >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-            className="flex flex-col items-center gap-2 text-neutral-500"
-          >
+          <div className="flex flex-col items-center gap-2 text-neutral-500 animate-bounce">
             <span className="text-xs uppercase tracking-widest">Scroll</span>
             <ChevronDown className="h-4 w-4" />
-          </motion.div>
+          </div>
         </motion.div>
       </section>
 
@@ -329,7 +319,7 @@ export default function AboutPage() {
                   เราเชื่อว่า AI ไม่ควรเป็นเทคโนโลยีที่สงวนไว้สำหรับบริษัทใหญ่หรือผู้เชี่ยวชาญเท่านั้น
                 </p>
                 <p>
-                  RabbitAI ถูกสร้างขึ้นเพื่อให้ทุกคน—นักเรียน ฟรีแลนซ์ เจ้าของธุรกิจ หรือใครก็ตาม—สามารถใช้พลังของ AI ในราคาที่เข้าถึงได้
+                  RabbitHub ถูกสร้างขึ้นเพื่อให้ทุกคน—นักเรียน ฟรีแลนซ์ เจ้าของธุรกิจ หรือใครก็ตาม—สามารถใช้พลังของ AI ในราคาที่เข้าถึงได้
                 </p>
               </div>
 
@@ -363,15 +353,13 @@ export default function AboutPage() {
 
                 {/* Center logo */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-                    className="w-48 h-48 sm:w-64 sm:h-64 rounded-full border border-dashed border-white/10"
+                  <div
+                    className="w-48 h-48 sm:w-64 sm:h-64 rounded-full border border-dashed border-white/10 animate-[spin_30s_linear_infinite]"
                   />
                   <div className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-2xl shadow-red-500/30 overflow-hidden">
                     <Image
                       src="/images/logo.jpg"
-                      alt="RabbitAI"
+                      alt="RabbitHub"
                       fill
                       className="object-cover"
                     />
@@ -380,26 +368,18 @@ export default function AboutPage() {
 
                 {/* Floating elements */}
                 {['GPT-4', 'Claude', 'Gemini', 'Llama'].map((model, i) => (
-                  <motion.div
+                  <div
                     key={model}
-                    animate={{
-                      y: [0, -10, 0],
-                      rotate: [0, 5, 0, -5, 0]
-                    }}
-                    transition={{
-                      duration: 4,
-                      repeat: Infinity,
-                      delay: i * 0.5
-                    }}
-                    className="absolute px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400 backdrop-blur-sm"
+                    className="absolute px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-neutral-400 backdrop-blur-sm animate-float-slower"
                     style={{
                       top: `${20 + i * 20}%`,
                       left: i % 2 === 0 ? '0%' : 'auto',
-                      right: i % 2 === 1 ? '0%' : 'auto'
+                      right: i % 2 === 1 ? '0%' : 'auto',
+                      animationDelay: `${i * 0.5}s`,
                     }}
                   >
                     {model}
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </motion.div>
@@ -583,7 +563,7 @@ export default function AboutPage() {
               พร้อมที่จะเริ่มต้น?
             </h2>
             <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
-              ลองใช้ RabbitAI ฟรีวันนี้ ไม่ต้องใช้บัตรเครดิต
+              ลองใช้ RabbitHub ฟรีวันนี้ ไม่ต้องใช้บัตรเครดิต
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <MagneticButton>

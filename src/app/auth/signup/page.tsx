@@ -96,20 +96,18 @@ export default function SignupPage() {
             transition={{ delay: 0.3 }}
             className="text-white max-w-md"
           >
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-              className="relative inline-flex items-center justify-center h-28 w-28 rounded-3xl bg-white/20 backdrop-blur-sm mb-8 overflow-hidden"
+            <div
+              className="relative inline-flex items-center justify-center h-28 w-28 rounded-3xl bg-white/20 backdrop-blur-sm mb-8 overflow-hidden animate-wiggle-slow"
             >
               <Image
                 src="/images/logo.jpg"
-                alt="RabbitAI"
+                alt="RabbitHub"
                 fill
                 className="object-cover"
               />
-            </motion.div>
+            </div>
             <h2 className="text-3xl font-display font-bold mb-4">
-              เข้าร่วม RabbitAI วันนี้
+              เข้าร่วม RabbitHub วันนี้
             </h2>
             <p className="text-primary-100 mb-8">
               สร้างบัญชีฟรีและเริ่มแชทกับ AI ที่ทรงพลังที่สุดในโลก
@@ -144,7 +142,7 @@ export default function SignupPage() {
               <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-xl overflow-hidden shadow-lg">
                 <Image
                   src="/images/logo.jpg"
-                  alt="RabbitAI Logo"
+                  alt="RabbitHub Logo"
                   fill
                   className="object-cover"
                 />

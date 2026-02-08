@@ -4,7 +4,7 @@ export async function getAuthToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null
 
   try {
-    const authData = localStorage.getItem('rabbitai-auth')
+    const authData = localStorage.getItem('rabbithub-auth')
     if (!authData) return null
 
     const parsed = JSON.parse(authData)

@@ -295,7 +295,7 @@ export const useChatStore = create<ChatState>()(
       },
     }),
     {
-      name: 'rabbitai-chat-storage',
+      name: 'rabbithub-chat-storage',
       partialize: (state) => ({
         chats: state.chats.map(chat => ({
           ...chat,

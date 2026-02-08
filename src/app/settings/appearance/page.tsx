@@ -94,16 +94,12 @@ export default function AppearancePage() {
         {/* Hero Section */}
         <section className="relative py-12 lg:py-16 overflow-hidden">
           {/* Animated gradient background */}
-          <motion.div
-            className="absolute inset-0"
-            animate={{
-              background: [
-                'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(249, 115, 22, 0.1) 50%, rgba(220, 38, 38, 0.1) 100%)',
-                'linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(251, 191, 36, 0.1) 50%, rgba(249, 115, 22, 0.1) 100%)',
-                'linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(220, 38, 38, 0.1) 50%, rgba(251, 191, 36, 0.1) 100%)',
-              ],
+          <div
+            className="absolute inset-0 animate-gradient-shift-slow"
+            style={{
+              background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(249, 115, 22, 0.1) 33%, rgba(220, 38, 38, 0.1) 66%, rgba(251, 191, 36, 0.1) 100%)',
+              backgroundSize: '300% 300%',
             }}
-            transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
           />
 
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,7 +129,7 @@ export default function AppearancePage() {
                     ธีมและการแสดงผล
                   </h1>
                   <p className="text-neutral-600 dark:text-neutral-400">
-                    ปรับแต่งหน้าตา RabbitAI ให้ตรงใจคุณ
+                    ปรับแต่งหน้าตา RabbitHub ให้ตรงใจคุณ
                   </p>
                 </div>
               </div>
