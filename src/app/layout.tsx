@@ -55,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html lang="th" className="dark" suppressHydrationWarning>
       <body className="antialiased overflow-x-hidden mobile-scroll">
         <ThemeProvider>
           <ErrorSuppressor />

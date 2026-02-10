@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import {
   Home,
   MessageSquare,
+  ImagePlus,
+  Video,
   Gift,
   Settings,
   LogIn,
@@ -26,9 +28,14 @@ const baseNavItems = [
     highlight: true,
   },
   {
-    href: '/free-access',
-    label: 'ใช้ฟรี',
-    icon: Gift,
+    href: '/image',
+    label: 'สร้างภาพ',
+    icon: ImagePlus,
+  },
+  {
+    href: '/video',
+    label: 'สร้างวิดีโอ',
+    icon: Video,
   },
 ];
 
@@ -44,8 +51,10 @@ export function BottomNav() {
       : { href: '/auth/login', label: 'เข้าสู่ระบบ', icon: LogIn },
   ];
 
-  // Don't show on chat page (has its own navigation)
+  // Don't show on pages with their own navigation
   if (pathname === '/chat') return null;
+  if (pathname === '/image') return null;
+  if (pathname === '/video') return null;
 
   // Don't show on auth pages
   if (pathname.startsWith('/auth')) return null;

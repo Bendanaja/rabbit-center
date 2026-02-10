@@ -1,4 +1,5 @@
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+const BYTEPLUS_BASE_URL = 'https://ark.ap-southeast.bytepluses.com/api/v3'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -11,34 +12,88 @@ export interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
-export const OPENROUTER_MODELS = {
-  // Free models (working & available)
-  'step-flash-free': { id: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash', provider: 'StepFun', icon: '/images/models/stepfun.svg', isFree: true, isLocked: false },
-  'nemotron-nano-free': { id: 'nvidia/nemotron-nano-9b-v2:free', name: 'Nemotron Nano 9B', provider: 'NVIDIA', icon: '/images/models/nvidia.svg', isFree: true, isLocked: false },
-  'glm-4.5-air-free': { id: 'z-ai/glm-4.5-air:free', name: 'GLM-4.5 Air', provider: 'Z.AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false },
+export type ModelSource = 'openrouter' | 'byteplus'
+export type ModelType = 'chat' | 'image' | 'video'
 
-  // OpenAI (Pro required)
-  'gpt-4o': { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: true },
-  'gpt-4o-mini': { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: true },
+export interface ModelDefinition {
+  id: string
+  name: string
+  provider: string
+  icon: string
+  isFree: boolean
+  isLocked: boolean
+  source: ModelSource
+  modelType: ModelType
+  capabilities?: string[] // e.g. ['t2i', 'i2i'] or ['t2v', 'i2v']
+}
 
-  // Anthropic (Pro required)
-  'claude-3.5-sonnet': { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: true },
-  'claude-3-haiku': { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: true },
+export const OPENROUTER_MODELS: Record<string, ModelDefinition> = {
+  // ═══════════════════════════════════════════
+  // BytePlus ModelArk — Chat/LLM (Free)
+  // ═══════════════════════════════════════════
+  'deepseek-r1': { id: 'deepseek-r1-250528', name: 'DeepSeek R1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'deepseek-v3-2': { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3.2', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'deepseek-v3-1': { id: 'deepseek-v3-1-250821', name: 'DeepSeek V3.1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'seed-1-8': { id: 'seed-1-8-251228', name: 'Seed 1.8', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'seed-1-6': { id: 'seed-1-6-250915', name: 'Seed 1.6', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'seed-1-6-flash': { id: 'seed-1-6-flash-250715', name: 'Seed 1.6 Flash', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
+  'gpt-oss-120b': { id: 'gpt-oss-120b-250805', name: 'GPT-OSS 120B', provider: 'BytePlus', icon: '/images/models/gpt-oss.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'chat' },
 
-  // Google (Pro required)
-  'gemini-pro-1.5': { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: true },
+  // ═══════════════════════════════════════════
+  // BytePlus ModelArk — Image Generation (Free)
+  // ═══════════════════════════════════════════
+  'seedream-3': { id: 'seedream-3-0-t2i-250415', name: 'Seedream 3.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'image', capabilities: ['t2i'] },
+  'seedream-4': { id: 'seedream-4-0-250828', name: 'Seedream 4.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'image', capabilities: ['t2i', 'i2i'] },
+  'seedream-4-5': { id: 'seedream-4-5-251128', name: 'Seedream 4.5', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'image', capabilities: ['t2i', 'i2i'] },
+  'seedream-5': { id: 'seedream-5-0-260128', name: 'Seedream 5.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'image', capabilities: ['t2i', 'i2i'] },
 
-  // Meta (Pro required)
-  'llama-3.1-70b': { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', provider: 'Meta', icon: '/images/models/meta.svg', isFree: false, isLocked: true },
+  // ═══════════════════════════════════════════
+  // BytePlus ModelArk — Video Generation (Free)
+  // ═══════════════════════════════════════════
+  'seedance-lite-t2v': { id: 'seedance-1-0-lite-t2v-250428', name: 'Seedance Lite (T2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['t2v'] },
+  'seedance-lite-i2v': { id: 'seedance-1-0-lite-i2v-250428', name: 'Seedance Lite (I2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['i2v'] },
+  'seedance-pro': { id: 'seedance-1-0-pro-250528', name: 'Seedance Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['t2v', 'i2v'] },
+  'seedance-pro-fast': { id: 'seedance-1-0-pro-fast-251015', name: 'Seedance Pro Fast', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['t2v', 'i2v'] },
+  'seedance-1-5-pro': { id: 'seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['t2v', 'i2v'] },
+  'seedance-2': { id: 'seedance-2-0-260128', name: 'Seedance 2.0', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, source: 'byteplus', modelType: 'video', capabilities: ['t2v', 'i2v', 'editing'] },
 
-  // Mistral (Pro required)
-  'mistral-large': { id: 'mistralai/mistral-large', name: 'Mistral Large', provider: 'Mistral', icon: '/images/models/mistral.svg', isFree: false, isLocked: true },
+  // ═══════════════════════════════════════════
+  // OpenRouter (Free)
+  // ═══════════════════════════════════════════
+  'step-flash-free': { id: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash', provider: 'StepFun', icon: '/images/models/stepfun.svg', isFree: true, isLocked: false, source: 'openrouter', modelType: 'chat' },
+  'nemotron-nano-free': { id: 'nvidia/nemotron-nano-9b-v2:free', name: 'Nemotron Nano 9B', provider: 'NVIDIA', icon: '/images/models/nvidia.svg', isFree: true, isLocked: false, source: 'openrouter', modelType: 'chat' },
+
+  // ═══════════════════════════════════════════
+  // OpenRouter (Pro required)
+  // ═══════════════════════════════════════════
+  'gpt-4o': { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'gpt-4o-mini': { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'claude-3.5-sonnet': { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'claude-3-haiku': { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'gemini-pro-1.5': { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'llama-3.1-70b': { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', provider: 'Meta', icon: '/images/models/meta.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
+  'mistral-large': { id: 'mistralai/mistral-large', name: 'Mistral Large', provider: 'Mistral', icon: '/images/models/mistral.svg', isFree: false, isLocked: true, source: 'openrouter', modelType: 'chat' },
 } as const
 
 export type ModelKey = keyof typeof OPENROUTER_MODELS
 
+// ─── Query helpers ───────────────────────────────────────
+
 export function getModelById(modelId: string) {
   return Object.values(OPENROUTER_MODELS).find(m => m.id === modelId)
+}
+
+export function getModelSource(modelId: string): ModelSource {
+  const model = getModelById(modelId)
+  return model?.source || 'openrouter'
+}
+
+export function getModelType(modelId: string): ModelType {
+  const model = getModelById(modelId)
+  return model?.modelType || 'chat'
 }
 
 export function getFreeModels() {
@@ -49,13 +104,13 @@ export function getFreeModels() {
 
 export function getAvailableModels() {
   return Object.entries(OPENROUTER_MODELS)
-    .filter(([, model]) => !model.isLocked)
+    .filter(([, model]) => !model.isLocked && model.modelType === 'chat')
     .map(([key, model]) => ({ key, ...model }))
 }
 
 export function getLockedModels() {
   return Object.entries(OPENROUTER_MODELS)
-    .filter(([, model]) => model.isLocked)
+    .filter(([, model]) => model.isLocked && model.modelType === 'chat')
     .map(([key, model]) => ({ key, ...model }))
 }
 
@@ -64,39 +119,84 @@ export function getAllModels() {
     .map(([key, model]) => ({ key, ...model }))
 }
 
-// Get fallback free model IDs (excluding the given model)
+export function getChatModels() {
+  return Object.entries(OPENROUTER_MODELS)
+    .filter(([, model]) => model.modelType === 'chat' && !model.isLocked)
+    .map(([key, model]) => ({ key, ...model }))
+}
+
+export function getImageModels() {
+  return Object.entries(OPENROUTER_MODELS)
+    .filter(([, model]) => model.modelType === 'image')
+    .map(([key, model]) => ({ key, ...model }))
+}
+
+export function getVideoModels() {
+  return Object.entries(OPENROUTER_MODELS)
+    .filter(([, model]) => model.modelType === 'video')
+    .map(([key, model]) => ({ key, ...model }))
+}
+
+// ─── Chat fallback logic ─────────────────────────────────
+
 function getFreeFallbacks(excludeModel: string): string[] {
-  return Object.values(OPENROUTER_MODELS)
-    .filter(m => m.isFree && m.id !== excludeModel)
+  const source = getModelSource(excludeModel)
+  const sameSource = Object.values(OPENROUTER_MODELS)
+    .filter(m => m.isFree && m.modelType === 'chat' && m.id !== excludeModel && m.source === source)
     .map(m => m.id)
+  const otherSource = Object.values(OPENROUTER_MODELS)
+    .filter(m => m.isFree && m.modelType === 'chat' && m.id !== excludeModel && m.source !== source)
+    .map(m => m.id)
+  return [...sameSource, ...otherSource]
 }
 
 async function tryStreamChat(
   messages: ChatMessage[],
   model: string,
-  apiKey: string,
   signal?: AbortSignal
 ): Promise<{ reader: ReadableStreamDefaultReader<Uint8Array> } | { error: string }> {
-  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
+  const source = getModelSource(model)
+
+  let url: string
+  let headers: Record<string, string>
+
+  if (source === 'byteplus') {
+    const apiKey = process.env.BYTEPLUS_API_KEY
+    if (!apiKey) return { error: 'BytePlus API key not configured' }
+
+    url = `${BYTEPLUS_BASE_URL}/chat/completions`
+    headers = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    }
+  } else {
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) return { error: 'OpenRouter API key not configured' }
+
+    url = `${OPENROUTER_BASE_URL}/chat/completions`
+    headers = {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'X-Title': 'RabbitHub',
-    },
+    }
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
     body: JSON.stringify({
       model,
       messages,
       stream: true,
-      route: 'fallback',
+      ...(source === 'openrouter' ? { route: 'fallback' } : {}),
     }),
     signal,
   })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    return { error: errorData.error?.message || `OpenRouter error: ${response.status}` }
+    return { error: errorData.error?.message || `API error: ${response.status}` }
   }
 
   const reader = response.body?.getReader()
@@ -113,13 +213,6 @@ export async function streamChat(
   callbacks: StreamCallbacks,
   signal?: AbortSignal
 ) {
-  const apiKey = process.env.OPENROUTER_API_KEY
-
-  if (!apiKey) {
-    callbacks.onError(new Error('OpenRouter API key not configured'))
-    return
-  }
-
   let fullResponse = ''
 
   // Models to try: requested model first, then free fallbacks
@@ -132,7 +225,7 @@ export async function streamChat(
     }
 
     try {
-      const result = await tryStreamChat(messages, currentModel, apiKey, signal)
+      const result = await tryStreamChat(messages, currentModel, signal)
 
       if ('error' in result) {
         console.warn(`Model ${currentModel} failed: ${result.error}, trying next...`)
@@ -222,29 +315,45 @@ export async function chatCompletion(
   messages: ChatMessage[],
   model: string
 ): Promise<{ content: string; tokensUsed?: number }> {
-  const apiKey = process.env.OPENROUTER_API_KEY
-
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured')
-  }
-
   const modelsToTry = [model, ...getFreeFallbacks(model)]
 
   for (const currentModel of modelsToTry) {
+    const source = getModelSource(currentModel)
+
+    let url: string
+    let headers: Record<string, string>
+
+    if (source === 'byteplus') {
+      const apiKey = process.env.BYTEPLUS_API_KEY
+      if (!apiKey) continue
+
+      url = `${BYTEPLUS_BASE_URL}/chat/completions`
+      headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      }
+    } else {
+      const apiKey = process.env.OPENROUTER_API_KEY
+      if (!apiKey) continue
+
+      url = `${OPENROUTER_BASE_URL}/chat/completions`
+      headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'RabbitHub',
+      }
+    }
+
     try {
-      const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-          'X-Title': 'RabbitHub',
-        },
+        headers,
         body: JSON.stringify({
           model: currentModel,
           messages,
           stream: false,
-          route: 'fallback',
+          ...(source === 'openrouter' ? { route: 'fallback' } : {}),
         }),
       })
 
@@ -275,7 +384,148 @@ export async function chatCompletion(
   throw new Error('AI ไม่สามารถตอบกลับได้ในขณะนี้')
 }
 
-// Generate chat title from first message
+// ─── Image Generation (BytePlus Seedream) ────────────────
+
+export interface ImageGenerationOptions {
+  prompt: string
+  model?: string
+  size?: string
+  n?: number
+  seed?: number
+  guidance_scale?: number
+}
+
+export async function generateImage(options: ImageGenerationOptions): Promise<{
+  images: Array<{ url?: string; b64_json?: string }>
+}> {
+  const apiKey = process.env.BYTEPLUS_API_KEY
+  if (!apiKey) throw new Error('BytePlus API key not configured')
+
+  const model = options.model || 'seedream-5-0-260128'
+
+  const response = await fetch(`${BYTEPLUS_BASE_URL}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      prompt: options.prompt,
+      size: options.size || '1024x1024',
+      n: options.n || 1,
+      ...(options.seed != null ? { seed: options.seed } : {}),
+      ...(options.guidance_scale != null ? { guidance_scale: options.guidance_scale } : {}),
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `Image generation failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return { images: data.data || [] }
+}
+
+// ─── Video Generation (BytePlus Seedance) ────────────────
+
+export interface VideoGenerationOptions {
+  prompt: string
+  model?: string
+  duration?: number
+  image_url?: string // for image-to-video
+  seed?: number
+}
+
+export async function generateVideo(options: VideoGenerationOptions): Promise<{
+  taskId: string
+}> {
+  const apiKey = process.env.BYTEPLUS_API_KEY
+  if (!apiKey) throw new Error('BytePlus API key not configured')
+
+  const model = options.model || 'seedance-2-0-260128'
+
+  const body: Record<string, unknown> = {
+    model,
+    content: [
+      {
+        type: 'text',
+        text: options.prompt,
+      },
+    ],
+  }
+
+  if (options.image_url) {
+    body.content = [
+      {
+        type: 'image_url',
+        image_url: { url: options.image_url },
+      },
+      {
+        type: 'text',
+        text: options.prompt,
+      },
+    ]
+  }
+
+  if (options.duration) body.duration = options.duration
+  if (options.seed != null) body.seed = options.seed
+
+  const response = await fetch(`${BYTEPLUS_BASE_URL}/content/generations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `Video generation failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return { taskId: data.id || data.task_id }
+}
+
+export async function checkVideoStatus(taskId: string): Promise<{
+  status: 'processing' | 'completed' | 'failed'
+  videoUrl?: string
+  error?: string
+}> {
+  const apiKey = process.env.BYTEPLUS_API_KEY
+  if (!apiKey) throw new Error('BytePlus API key not configured')
+
+  const response = await fetch(`${BYTEPLUS_BASE_URL}/content/generations/${taskId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `Status check failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+
+  if (data.status === 'completed' || data.status === 'succeeded') {
+    const videoUrl = data.content?.[0]?.url || data.data?.[0]?.url
+    return { status: 'completed', videoUrl }
+  }
+
+  if (data.status === 'failed') {
+    return { status: 'failed', error: data.error?.message || 'Video generation failed' }
+  }
+
+  return { status: 'processing' }
+}
+
+// ─── Title generation ────────────────────────────────────
+
 export async function generateChatTitle(firstMessage: string): Promise<string> {
   try {
     const { content } = await chatCompletion(
@@ -289,7 +539,7 @@ export async function generateChatTitle(firstMessage: string): Promise<string> {
           content: firstMessage,
         },
       ],
-      'stepfun/step-3.5-flash:free' // Use free model for title generation
+      'seed-1-6-flash-250715' // Use BytePlus Seed Flash for title generation (fast & free)
     )
 
     return content.trim().slice(0, 100) || 'แชทใหม่'

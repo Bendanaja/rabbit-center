@@ -22,6 +22,10 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
 
   const availableModels = getAvailableModels();
   const lockedModels = getLockedModels();
+
+  // Group available models by source
+  const byteplusModels = availableModels.filter(m => m.source === 'byteplus');
+  const openrouterModels = availableModels.filter(m => m.source === 'openrouter');
   const currentModel = getModelById(selectedModel) || availableModels[0];
 
   // Set mounted for portal
@@ -168,73 +172,138 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
             </div>
 
             {/* Models List - Compact */}
-            <div className="max-h-[280px] overflow-y-auto overscroll-contain">
-              {/* Available Models Section */}
-              <div className="py-1">
-                <div className="px-3 py-1.5">
-                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                    ใช้งานได้ฟรี
-                  </span>
+            <div className="max-h-[360px] overflow-y-auto overscroll-contain">
+              {/* BytePlus Models Section */}
+              {byteplusModels.length > 0 && (
+                <div className="py-1">
+                  <div className="px-3 py-1.5">
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                      BytePlus ModelArk
+                    </span>
+                  </div>
+                  {byteplusModels.map((model, index) => {
+                    const isSelected = model.id === selectedModel;
+
+                    return (
+                      <motion.button
+                        key={model.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.02 }}
+                        onClick={() => handleSelect(model.id, false)}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-3 py-2 transition-all duration-100',
+                          isSelected && 'bg-primary-50 dark:bg-primary-950/50',
+                          !isSelected && 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
+                        )}
+                      >
+                        <div className={cn(
+                          'relative h-7 w-7 rounded-md overflow-hidden border shrink-0',
+                          isSelected
+                            ? 'border-primary-500'
+                            : 'border-neutral-200 dark:border-neutral-700'
+                        )}>
+                          <Image
+                            src={model.icon}
+                            alt={model.provider}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              'text-xs font-medium truncate',
+                              isSelected ? 'text-primary-700 dark:text-primary-300' : 'text-neutral-900 dark:text-white'
+                            )}>
+                              {model.name}
+                            </span>
+                            <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-emerald-500 text-white leading-none">
+                              FREE
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
+                            {model.provider}
+                          </p>
+                        </div>
+
+                        {isSelected && (
+                          <div className="h-4 w-4 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
                 </div>
-                {availableModels.map((model, index) => {
-                  const isSelected = model.id === selectedModel;
+              )}
 
-                  return (
-                    <motion.button
-                      key={model.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.02 }}
-                      onClick={() => handleSelect(model.id, false)}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-3 py-2 transition-all duration-100',
-                        isSelected && 'bg-primary-50 dark:bg-primary-950/50',
-                        !isSelected && 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
-                      )}
-                    >
-                      {/* Icon - Logo */}
-                      <div className={cn(
-                        'relative h-7 w-7 rounded-md overflow-hidden border shrink-0',
-                        isSelected
-                          ? 'border-primary-500'
-                          : 'border-neutral-200 dark:border-neutral-700'
-                      )}>
-                        <Image
-                          src={model.icon}
-                          alt={model.provider}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
+              {/* OpenRouter Models Section */}
+              {openrouterModels.length > 0 && (
+                <div className="py-1 border-t border-neutral-200 dark:border-neutral-700">
+                  <div className="px-3 py-1.5">
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                      OpenRouter
+                    </span>
+                  </div>
+                  {openrouterModels.map((model, index) => {
+                    const isSelected = model.id === selectedModel;
 
-                      {/* Info - Compact */}
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className={cn(
-                            'text-xs font-medium truncate',
-                            isSelected ? 'text-primary-700 dark:text-primary-300' : 'text-neutral-900 dark:text-white'
-                          )}>
-                            {model.name}
-                          </span>
-                          <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-emerald-500 text-white leading-none">
-                            FREE
-                          </span>
+                    return (
+                      <motion.button
+                        key={model.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: (byteplusModels.length + index) * 0.02 }}
+                        onClick={() => handleSelect(model.id, false)}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-3 py-2 transition-all duration-100',
+                          isSelected && 'bg-primary-50 dark:bg-primary-950/50',
+                          !isSelected && 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
+                        )}
+                      >
+                        <div className={cn(
+                          'relative h-7 w-7 rounded-md overflow-hidden border shrink-0',
+                          isSelected
+                            ? 'border-primary-500'
+                            : 'border-neutral-200 dark:border-neutral-700'
+                        )}>
+                          <Image
+                            src={model.icon}
+                            alt={model.provider}
+                            fill
+                            className="object-cover"
+                          />
                         </div>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
-                          {model.provider}
-                        </p>
-                      </div>
 
-                      {/* Check */}
-                      {isSelected && (
-                        <div className="h-4 w-4 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
-                          <Check className="h-2.5 w-2.5 text-white" />
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              'text-xs font-medium truncate',
+                              isSelected ? 'text-primary-700 dark:text-primary-300' : 'text-neutral-900 dark:text-white'
+                            )}>
+                              {model.name}
+                            </span>
+                            <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-emerald-500 text-white leading-none">
+                              FREE
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
+                            {model.provider}
+                          </p>
                         </div>
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
+
+                        {isSelected && (
+                          <div className="h-4 w-4 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Locked Models Section */}
               {lockedModels.length > 0 && (
@@ -249,7 +318,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
                       key={model.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: (availableModels.length + index) * 0.02 }}
+                      transition={{ delay: (byteplusModels.length + openrouterModels.length + index) * 0.02 }}
                       onClick={() => handleSelect(model.id, true)}
                       disabled
                       className="w-full flex items-center gap-2.5 px-3 py-2 opacity-50 cursor-not-allowed"

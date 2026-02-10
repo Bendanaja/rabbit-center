@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw } from 'lucide-react';
+import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw, ImagePlus, Video, Download } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { ModelSelector } from './ModelSelector';
@@ -11,7 +11,7 @@ import { getGreeting } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
 import { getModelById } from '@/lib/openrouter';
-import { authFetch } from '@/lib/api-client';
+import { authFetch, getAuthToken } from '@/lib/api-client';
 import type { Message } from '@/types/database';
 
 interface ChatWindowProps {
@@ -29,18 +29,21 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
   const { chat, messages, loading, sendMessage, updateChatTitle, refetch } = useChat(chatId || undefined);
   const { isGenerating, generate, stop } = useAI();
 
-  const [selectedModel, setSelectedModel] = useState('stepfun/step-3.5-flash:free');
+  const [selectedModel, setSelectedModel] = useState('deepseek-v3-2-251201');
   const [streamingContent, setStreamingContent] = useState('');
   const [displayedContent, setDisplayedContent] = useState(''); // For typewriter effect
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [mediaGenerating, setMediaGenerating] = useState<'image' | 'video' | null>(null);
+  const [videoProgress, setVideoProgress] = useState<string>('');
   const lastMessageRef = useRef<string | null>(null);
   const typewriterRef = useRef<NodeJS.Timeout | null>(null);
   const fullContentRef = useRef<string>('');
   const displayedLengthRef = useRef<number>(0);
   const pendingMessageRef = useRef<string | null>(null);
+  const videoPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync local messages with fetched messages from DB
   // Simple approach: only sync on initial load, otherwise let local state be the truth
@@ -244,6 +247,145 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
     );
   }, [localMessages, selectedModel, sendMessage, generate]);
 
+  // Handle /image command
+  const handleImageGeneration = useCallback(async (prompt: string, targetChatId: string) => {
+    // Add user message
+    const userMessage: Message = {
+      id: `temp-user-${crypto.randomUUID()}`,
+      chat_id: targetChatId,
+      role: 'user',
+      content: `/image ${prompt}`,
+      model_id: null,
+      tokens_used: null,
+      created_at: new Date().toISOString(),
+    };
+    setLocalMessages(prev => [...prev, userMessage]);
+    await sendMessage(`/image ${prompt}`, 'user');
+
+    setMediaGenerating('image');
+    setAiError(null);
+
+    try {
+      const token = await getAuthToken();
+      const response = await authFetch('/api/ai/image/generate', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, model: 'seedream-5-0-260128', size: '1024x1024' }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Image generation failed');
+      }
+
+      const data = await response.json();
+      const imageUrls = (data.images || [])
+        .map((img: { url?: string; b64_json?: string }) => img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : ''))
+        .filter(Boolean);
+
+      if (imageUrls.length === 0) {
+        throw new Error('ไม่สามารถสร้างภาพได้');
+      }
+
+      // Add AI response with image
+      const aiMessage: Message = {
+        id: `img-${crypto.randomUUID()}`,
+        chat_id: targetChatId,
+        role: 'assistant',
+        content: `[GENERATED_IMAGE]\n${imageUrls.join('\n')}\n[/GENERATED_IMAGE]\n\nสร้างภาพจาก: "${prompt}"`,
+        model_id: 'seedream-5-0-260128',
+        tokens_used: null,
+        created_at: new Date().toISOString(),
+      };
+      setLocalMessages(prev => [...prev, aiMessage]);
+      await sendMessage(aiMessage.content, 'assistant');
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างภาพ');
+    } finally {
+      setMediaGenerating(null);
+    }
+  }, [sendMessage]);
+
+  // Handle /video command
+  const handleVideoGeneration = useCallback(async (prompt: string, targetChatId: string) => {
+    const userMessage: Message = {
+      id: `temp-user-${crypto.randomUUID()}`,
+      chat_id: targetChatId,
+      role: 'user',
+      content: `/video ${prompt}`,
+      model_id: null,
+      tokens_used: null,
+      created_at: new Date().toISOString(),
+    };
+    setLocalMessages(prev => [...prev, userMessage]);
+    await sendMessage(`/video ${prompt}`, 'user');
+
+    setMediaGenerating('video');
+    setVideoProgress('กำลังเริ่มสร้างวิดีโอ...');
+    setAiError(null);
+
+    try {
+      const response = await authFetch('/api/ai/video/generate', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, model: 'seedance-2-0-260128' }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Video generation failed');
+      }
+
+      const { taskId } = await response.json();
+      setVideoProgress('กำลังสร้างวิดีโอ... อาจใช้เวลา 1-3 นาที');
+
+      // Poll for status
+      const pollStatus = async (): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const poll = async () => {
+            try {
+              const statusRes = await authFetch(`/api/ai/video/status?taskId=${taskId}`);
+              const status = await statusRes.json();
+
+              if (status.status === 'completed' && status.videoUrl) {
+                resolve(status.videoUrl);
+              } else if (status.status === 'failed') {
+                reject(new Error(status.error || 'Video generation failed'));
+              } else {
+                setVideoProgress('กำลังสร้างวิดีโอ... กรุณารอสักครู่');
+                videoPollingRef.current = setTimeout(poll, 5000);
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+          poll();
+        });
+      };
+
+      const videoUrl = await pollStatus();
+
+      const aiMessage: Message = {
+        id: `vid-${crypto.randomUUID()}`,
+        chat_id: targetChatId,
+        role: 'assistant',
+        content: `[GENERATED_VIDEO]\n${videoUrl}\n[/GENERATED_VIDEO]\n\nสร้างวิดีโอจาก: "${prompt}"`,
+        model_id: 'seedance-2-0-260128',
+        tokens_used: null,
+        created_at: new Date().toISOString(),
+      };
+      setLocalMessages(prev => [...prev, aiMessage]);
+      await sendMessage(aiMessage.content, 'assistant');
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างวิดีโอ');
+    } finally {
+      setMediaGenerating(null);
+      setVideoProgress('');
+      if (videoPollingRef.current) {
+        clearTimeout(videoPollingRef.current);
+        videoPollingRef.current = null;
+      }
+    }
+  }, [sendMessage]);
+
   const handleSendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
@@ -258,8 +400,26 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
 
     if (!chatId) return;
 
+    // Detect /image command
+    if (content.startsWith('/image ')) {
+      const prompt = content.slice(7).trim();
+      if (prompt) {
+        await handleImageGeneration(prompt, chatId);
+        return;
+      }
+    }
+
+    // Detect /video command
+    if (content.startsWith('/video ')) {
+      const prompt = content.slice(7).trim();
+      if (prompt) {
+        await handleVideoGeneration(prompt, chatId);
+        return;
+      }
+    }
+
     await handleSendMessageInternal(content, chatId);
-  }, [chatId, onCreateChat, handleSendMessageInternal]);
+  }, [chatId, onCreateChat, handleSendMessageInternal, handleImageGeneration, handleVideoGeneration]);
 
   const handleModelChange = async (modelId: string) => {
     setSelectedModel(modelId);
@@ -369,6 +529,67 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                   isLast={index === filteredMessages.length - 1 && !isGenerating}
                 />
               ))}
+            </AnimatePresence>
+
+            {/* Media Generation Progress */}
+            <AnimatePresence>
+              {mediaGenerating && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex gap-4 py-6"
+                >
+                  <div className={cn(
+                    'h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg',
+                    mediaGenerating === 'image'
+                      ? 'bg-gradient-to-br from-violet-500 to-purple-600'
+                      : 'bg-gradient-to-br from-pink-500 to-rose-600'
+                  )}>
+                    {mediaGenerating === 'image' ? (
+                      <ImagePlus className="h-4 w-4 text-white" />
+                    ) : (
+                      <Video className="h-4 w-4 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-semibold text-white">
+                        {mediaGenerating === 'image' ? 'Seedream 5.0' : 'Seedance 2.0'}
+                      </span>
+                      <div className={cn(
+                        'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full',
+                        mediaGenerating === 'image' ? 'bg-violet-500/20' : 'bg-pink-500/20'
+                      )}>
+                        <Loader2 className={cn(
+                          'h-3 w-3 animate-spin',
+                          mediaGenerating === 'image' ? 'text-violet-400' : 'text-pink-400'
+                        )} />
+                        <span className={cn(
+                          'text-[10px] font-medium',
+                          mediaGenerating === 'image' ? 'text-violet-400' : 'text-pink-400'
+                        )}>
+                          {mediaGenerating === 'image' ? 'กำลังสร้างภาพ...' : videoProgress || 'กำลังสร้างวิดีโอ...'}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Progress animation */}
+                    <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                      <motion.div
+                        className={cn(
+                          'h-full rounded-full',
+                          mediaGenerating === 'image'
+                            ? 'bg-gradient-to-r from-violet-500 to-purple-500'
+                            : 'bg-gradient-to-r from-pink-500 to-rose-500'
+                        )}
+                        initial={{ width: '0%' }}
+                        animate={{ width: mediaGenerating === 'image' ? '90%' : '60%' }}
+                        transition={{ duration: mediaGenerating === 'image' ? 15 : 60, ease: 'linear' }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
 
             {/* Streaming Response */}

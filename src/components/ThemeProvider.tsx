@@ -13,8 +13,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark');
   const [mounted, setMounted] = useState(false);
 
   // Load theme from localStorage on mount
@@ -76,9 +76,9 @@ export function useTheme() {
   // Provide default values for SSR/static generation
   if (context === undefined) {
     return {
-      theme: 'system' as Theme,
+      theme: 'dark' as Theme,
       setTheme: () => {},
-      resolvedTheme: 'light' as const,
+      resolvedTheme: 'dark' as const,
     };
   }
   return context;
