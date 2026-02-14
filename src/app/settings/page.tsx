@@ -534,7 +534,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-neutral-900 dark:text-white">การยืนยันตัวตนสองชั้น</p>
-                          <Badge variant="secondary" className="text-[10px]">เร็วๆ นี้</Badge>
+                          <Badge variant="info" className="text-[10px]">เร็วๆ นี้</Badge>
                         </div>
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">เพิ่มความปลอดภัยอีกระดับ</p>
                       </div>
@@ -544,7 +544,7 @@ export default function SettingsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-neutral-900 dark:text-white">เซสชันที่ใช้งานอยู่</p>
-                          <Badge variant="secondary" className="text-[10px]">เร็วๆ นี้</Badge>
+                          <Badge variant="info" className="text-[10px]">เร็วๆ นี้</Badge>
                         </div>
                         <p className="text-sm text-neutral-500 dark:text-neutral-400">จัดการเซสชันที่ใช้งานอยู่</p>
                       </div>
