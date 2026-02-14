@@ -13,6 +13,9 @@ import {
   X,
   Save,
   Trash2,
+  MessageSquare,
+  ImageIcon,
+  Video,
 } from 'lucide-react';
 import Image from 'next/image';
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -35,6 +38,7 @@ interface AIModel {
   cooldown_seconds: number;
   priority: number;
   context_length: number | null;
+  model_type: 'chat' | 'image' | 'video';
   usage_stats: { requests: number; tokens: number };
 }
 
@@ -44,6 +48,7 @@ export default function AdminModelsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [editingModel, setEditingModel] = useState<AIModel | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'chat' | 'image' | 'video'>('all');
 
   const fetchModels = useCallback(async () => {
     try {
@@ -152,6 +157,33 @@ export default function AdminModelsPage() {
           </PermissionGate>
         </motion.div>
 
+        {/* Type Filter */}
+        <div className="flex gap-2">
+          {([
+            { key: 'all', label: 'ทั้งหมด', icon: Bot },
+            { key: 'chat', label: 'แชท', icon: MessageSquare },
+            { key: 'image', label: 'สร้างรูป', icon: ImageIcon },
+            { key: 'video', label: 'สร้างวิดีโอ', icon: Video },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTypeFilter(key)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                typeFilter === key
+                  ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                  : 'bg-neutral-800/50 text-neutral-400 border border-neutral-700 hover:text-white'
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+              <span className="text-xs opacity-70">
+                ({key === 'all' ? models.length : models.filter(m => m.model_type === key).length})
+              </span>
+            </button>
+          ))}
+        </div>
+
         {/* Models Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -164,7 +196,7 @@ export default function AdminModelsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {models.map((model, index) => (
+            {models.filter(m => typeFilter === 'all' || m.model_type === typeFilter).map((model, index) => (
               <motion.div
                 key={model.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -213,13 +245,26 @@ export default function AdminModelsPage() {
                   </PermissionGate>
                 </div>
 
-                {/* Tier Badge */}
-                <span className={cn(
-                  'inline-flex px-2 py-1 rounded-full text-xs font-medium border',
-                  tierColors[model.tier]
-                )}>
-                  {model.tier.charAt(0).toUpperCase() + model.tier.slice(1)}
-                </span>
+                {/* Type & Tier Badges */}
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border',
+                    model.model_type === 'chat' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' :
+                    model.model_type === 'image' ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' :
+                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  )}>
+                    {model.model_type === 'chat' ? <MessageSquare className="h-3 w-3" /> :
+                     model.model_type === 'image' ? <ImageIcon className="h-3 w-3" /> :
+                     <Video className="h-3 w-3" />}
+                    {model.model_type === 'chat' ? 'แชท' : model.model_type === 'image' ? 'รูปภาพ' : 'วิดีโอ'}
+                  </span>
+                  <span className={cn(
+                    'inline-flex px-2 py-1 rounded-full text-xs font-medium border',
+                    tierColors[model.tier]
+                  )}>
+                    {model.tier.charAt(0).toUpperCase() + model.tier.slice(1)}
+                  </span>
+                </div>
 
                 {/* Description */}
                 {model.description && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+import { MODELS } from '@/lib/byteplus';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,41 @@ async function verifyAdminAccess(request: Request) {
   return { authorized: true as const, user, role: adminData.role as string };
 }
 
+/**
+ * Auto-sync: ensure every model from byteplus.ts MODELS exists in the ai_models DB table.
+ * New models default to is_active=true. Existing rows are not overwritten.
+ */
+async function syncModelsToDb() {
+  const supabase = createAdminClient();
+
+  const { data: existing } = await supabase
+    .from('ai_models')
+    .select('model_id');
+
+  const existingIds = new Set((existing || []).map(m => m.model_id));
+
+  const toInsert = Object.entries(MODELS)
+    .filter(([key]) => !existingIds.has(key))
+    .map(([key, def], idx) => ({
+      model_id: key,
+      name: def.name,
+      provider: def.provider,
+      icon: def.icon,
+      description: `${def.modelType.toUpperCase()} model — ${def.provider}`,
+      tier: 'pro' as const,
+      is_active: true,
+      daily_limit: null,
+      hourly_limit: null,
+      cooldown_seconds: 0,
+      priority: 100 - idx,
+      context_length: def.maxContextTokens || null,
+    }));
+
+  if (toInsert.length > 0) {
+    await supabase.from('ai_models').insert(toInsert);
+  }
+}
+
 // Get all models
 export async function GET(request: Request) {
   const auth = await verifyAdminAccess(request);
@@ -30,6 +66,9 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient();
+
+    // Auto-sync real models from byteplus.ts into DB
+    await syncModelsToDb();
 
     const { data: models, error } = await supabase
       .from('ai_models')
@@ -56,8 +95,10 @@ export async function GET(request: Request) {
       });
     });
 
+    // Enrich with modelType from MODELS constant
     const modelsWithStats = models?.map(model => ({
       ...model,
+      model_type: MODELS[model.model_id]?.modelType || 'chat',
       usage_stats: usageMap.get(model.model_id) || { requests: 0, tokens: 0 },
     }));
 
