@@ -4,14 +4,17 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw, ImagePlus, Video, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { getGreeting, cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
-import { getModelById, getModelType } from '@/lib/byteplus';
+import { getModelById, getModelType, buildContextMessages } from '@/lib/byteplus';
 import { authFetch, getAuthToken } from '@/lib/api-client';
+import { PROMPT_TEMPLATES, PROMPT_CATEGORIES } from '@/lib/prompt-templates';
 import type { Message } from '@/types/database';
+import type { ModelId } from '@/lib/constants';
 
 interface ChatWindowProps {
   chatId: string | null;
@@ -20,9 +23,10 @@ interface ChatWindowProps {
   onCreateChat?: () => Promise<void>;
   selectedModel: string;
   onModelChange: (modelId: string) => void;
+  onMessageSent?: () => void;
 }
 
-export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, selectedModel, onModelChange }: ChatWindowProps) {
+export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, selectedModel, onModelChange, onMessageSent }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<number>(0);
@@ -34,23 +38,76 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const [displayedContent, setDisplayedContent] = useState(''); // For typewriter effect
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [responseTime, setResponseTime] = useState<number | null>(null);
+  const [streamingDone, setStreamingDone] = useState(false); // Track when onDone fires but stream still open
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [aiError, setAiError] = useState<string | null>(null);
   const [mediaGenerating, setMediaGenerating] = useState<'image' | 'video' | null>(null);
   const [videoProgress, setVideoProgress] = useState<string>('');
+  const [contextUsage, setContextUsage] = useState<number>(0);
   const lastMessageRef = useRef<string | null>(null);
   const typewriterRef = useRef<NodeJS.Timeout | null>(null);
   const fullContentRef = useRef<string>('');
   const displayedLengthRef = useRef<number>(0);
   const pendingMessageRef = useRef<string | null>(null);
   const videoPollingRef = useRef<NodeJS.Timeout | null>(null);
+  // Track active chatId to prevent cross-chat message leakage
+  const activeChatIdRef = useRef<string | null>(chatId);
+
+  // Auto-compact: cache summary of dropped messages
+  const compactSummaryRef = useRef<string | null>(null);
+  const compactedCountRef = useRef<number>(0);
+
+  // Build context with auto-compaction using seed-1-6-flash for dropped messages
+  const buildContextWithCompact = useCallback(async (
+    allMsgs: { role: 'user' | 'assistant' | 'system'; content: string }[],
+    maxTokens: number,
+  ): Promise<{ contextMessages: { role: 'user' | 'assistant' | 'system'; content: string }[]; usagePercent: number }> => {
+    const { messages: fittingMessages, usagePercent } = buildContextMessages(allMsgs, maxTokens);
+    const droppedCount = allMsgs.length - fittingMessages.length;
+
+    if (droppedCount === 0) {
+      return { contextMessages: fittingMessages, usagePercent };
+    }
+
+    // Use cached summary if we already summarized this many messages
+    if (compactSummaryRef.current && compactedCountRef.current === droppedCount) {
+      const summaryMsg: { role: 'user' | 'assistant' | 'system'; content: string } = {
+        role: 'system',
+        content: `[สรุปบทสนทนาก่อนหน้า]: ${compactSummaryRef.current}`,
+      };
+      return { contextMessages: [summaryMsg, ...fittingMessages], usagePercent };
+    }
+
+    // Call compact API to summarize dropped messages
+    const droppedMessages = allMsgs.slice(0, droppedCount);
+    try {
+      const response = await authFetch('/api/ai/compact', {
+        method: 'POST',
+        body: JSON.stringify({ messages: droppedMessages }),
+      });
+
+      if (response.ok) {
+        const { summary } = await response.json();
+        compactSummaryRef.current = summary;
+        compactedCountRef.current = droppedCount;
+
+        const summaryMsg: { role: 'user' | 'assistant' | 'system'; content: string } = {
+          role: 'system',
+          content: `[สรุปบทสนทนาก่อนหน้า]: ${summary}`,
+        };
+        return { contextMessages: [summaryMsg, ...fittingMessages], usagePercent };
+      }
+    } catch (err) {
+      console.error('Auto-compact failed, using truncated context:', err);
+    }
+
+    // Fallback: just use fitting messages without summary
+    return { contextMessages: fittingMessages, usagePercent };
+  }, []);
 
   // Sync local messages with fetched messages from DB
   // Simple approach: only sync on initial load, otherwise let local state be the truth
   useEffect(() => {
-    // Skip during generation
-    if (isGenerating) return;
-
     // Skip while loading
     if (loading) return;
 
@@ -63,36 +120,50 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     else if (isInitialLoad && messages.length === 0) {
       setIsInitialLoad(false);
     }
-  }, [messages, loading, isInitialLoad, isGenerating]);
+  }, [messages, loading, isInitialLoad]);
 
-  // Reset on chat change - IMPORTANT: clear everything when switching chats
+  // Reset on chat change - IMPORTANT: abort generation & clear everything when switching chats
   useEffect(() => {
+    activeChatIdRef.current = chatId;
+    // Abort any in-flight AI generation from the previous chat
+    stop();
     setIsInitialLoad(true);
     setLocalMessages([]); // Clear messages when switching chats
     setResponseTime(null);
     setDisplayedContent('');
     setStreamingContent('');
+    setAiError(null);
     fullContentRef.current = '';
     displayedLengthRef.current = 0;
+    compactSummaryRef.current = null;
+    compactedCountRef.current = 0;
+    setContextUsage(0);
     if (typewriterRef.current) {
       clearInterval(typewriterRef.current);
       typewriterRef.current = null;
     }
   }, [chatId]);
 
-  // Cleanup typewriter on unmount
+  // Cleanup typewriter and video polling on unmount
   useEffect(() => {
     return () => {
       if (typewriterRef.current) {
         clearInterval(typewriterRef.current);
       }
+      if (videoPollingRef.current) {
+        clearTimeout(videoPollingRef.current);
+      }
     };
   }, []);
 
-  // Update selected model when chat changes
+  // Update selected model when chat changes (only if the stored model_id is valid)
   useEffect(() => {
     if (chat?.model_id && chat.model_id !== selectedModel) {
-      onModelChange(chat.model_id);
+      // Only sync if model_id exists in the MODELS registry; skip stale/invalid IDs
+      const model = getModelById(chat.model_id);
+      if (model) {
+        onModelChange(chat.model_id);
+      }
     }
   }, [chat?.model_id]);
 
@@ -142,15 +213,20 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       return;
     }
 
-    // Prepare messages for AI (only send last 20 messages for context)
-    const contextMessages = [...localMessages.slice(-19), userMessage].map(m => ({
+    // Prepare messages for AI (auto-compact by token count, summarize dropped messages)
+    const modelDef = getModelById(selectedModel);
+    const maxTokens = modelDef?.maxContextTokens || 128_000;
+    const allContextMsgs = [...localMessages, userMessage].map(m => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
     }));
+    const { contextMessages, usagePercent } = await buildContextWithCompact(allContextMsgs, maxTokens);
+    setContextUsage(usagePercent);
 
     // Reset streaming content and start timer
     setStreamingContent('');
     setDisplayedContent('');
+    setStreamingDone(false);
     fullContentRef.current = '';
     displayedLengthRef.current = 0;
     startTimeRef.current = Date.now();
@@ -168,6 +244,9 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       selectedModel,
       {
         onChunk: (chunk) => {
+          // Guard: ignore chunks if user switched to a different chat
+          if (activeChatIdRef.current !== targetChatId) return;
+
           // Accumulate full content
           fullContentRef.current += chunk;
           setStreamingContent(fullContentRef.current);
@@ -183,6 +262,16 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
           }
         },
         onDone: async (fullResponse, messageId) => {
+          // Guard: don't apply results if user switched to a different chat
+          if (activeChatIdRef.current !== targetChatId) {
+            // Cleanup streaming state silently
+            if (typewriterRef.current) {
+              clearInterval(typewriterRef.current);
+              typewriterRef.current = null;
+            }
+            return;
+          }
+
           try {
             // Calculate response time
             const elapsed = (Date.now() - startTimeRef.current) / 1000;
@@ -199,6 +288,12 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
             // Small delay before transitioning
             await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Final guard after delay: user may have switched during the 300ms wait
+            if (activeChatIdRef.current !== targetChatId) return;
+
+            // Mark streaming as done to hide typing indicator immediately
+            setStreamingDone(true);
 
             // Add AI message to local state
             const aiMessage: Message = {
@@ -218,6 +313,9 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             setDisplayedContent('');
             fullContentRef.current = '';
             displayedLengthRef.current = 0;
+
+            // Refresh usage after message sent
+            onMessageSent?.();
           } catch (error) {
             console.error('onDone error:', error);
             // Still cleanup even on error
@@ -228,6 +326,9 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
           }
         },
         onError: (error) => {
+          // Guard: don't show errors from a different chat's generation
+          if (activeChatIdRef.current !== targetChatId) return;
+
           console.error('AI generation error:', error);
           if (typewriterRef.current) {
             clearInterval(typewriterRef.current);
@@ -238,7 +339,9 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
           fullContentRef.current = '';
           displayedLengthRef.current = 0;
           setResponseTime(null);
-          setAiError(error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+          const errorMsg = error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+          setAiError(errorMsg);
+          toast.error(errorMsg);
         },
         onTitleUpdate: (newTitle) => {
           // Title updated in background
@@ -301,12 +404,16 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       };
       setLocalMessages(prev => [...prev, aiMessage]);
       await sendMessage(aiMessage.content, 'assistant');
+      toast.success('สร้างภาพเสร็จแล้ว');
+      onMessageSent?.();
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างภาพ');
+      const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างภาพ';
+      setAiError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setMediaGenerating(null);
     }
-  }, [sendMessage]);
+  }, [sendMessage, onMessageSent]);
 
   // Handle /video command
   const handleVideoGeneration = useCallback(async (prompt: string, targetChatId: string, videoModelId?: string) => {
@@ -380,8 +487,12 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       };
       setLocalMessages(prev => [...prev, aiMessage]);
       await sendMessage(aiMessage.content, 'assistant');
+      toast.success('สร้างวิดีโอเสร็จแล้ว');
+      onMessageSent?.();
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างวิดีโอ');
+      const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างวิดีโอ';
+      setAiError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setMediaGenerating(null);
       setVideoProgress('');
@@ -493,7 +604,256 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     }
   }, [chatId, handleSendMessageInternal]);
 
-  const currentModel = getModelById(selectedModel);
+  // Handle edit user message: update content, remove subsequent messages, resend
+  const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
+    if (!chatId) return;
+
+    // Find the message index
+    const msgIndex = localMessages.findIndex(m => m.id === messageId);
+    if (msgIndex < 0) return;
+
+    // Update the message content and remove all messages after it
+    const updatedMessage = { ...localMessages[msgIndex], content: newContent };
+    setLocalMessages(prev => [...prev.slice(0, msgIndex), updatedMessage]);
+
+    // Update the message in the database (best effort, don't block)
+    authFetch(`/api/chat/${chatId}/messages`, {
+      method: 'PATCH',
+      body: JSON.stringify({ messageId, content: newContent }),
+    }).catch(err => console.error('Failed to update message in DB:', err));
+
+    // Delete subsequent messages from DB (messages after the edited one)
+    // We don't have a bulk delete by ID range, so just let the new messages overwrite
+    // The local state is the source of truth during this session
+
+    // Re-send the edited message to AI
+    setAiError(null);
+    lastMessageRef.current = newContent;
+
+    // Prepare messages for AI context (messages up to but not including the edited one, plus the edited one)
+    const editModelDef = getModelById(selectedModel);
+    const editMaxTokens = editModelDef?.maxContextTokens || 128_000;
+    const editAllMsgs = [...localMessages.slice(0, msgIndex), updatedMessage].map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system',
+      content: m.content,
+    }));
+    const { contextMessages, usagePercent: editUsage } = await buildContextWithCompact(editAllMsgs, editMaxTokens);
+    setContextUsage(editUsage);
+
+    // Reset streaming content and start timer
+    setStreamingContent('');
+    setDisplayedContent('');
+    setStreamingDone(false);
+    fullContentRef.current = '';
+    displayedLengthRef.current = 0;
+    startTimeRef.current = Date.now();
+
+    if (typewriterRef.current) {
+      clearInterval(typewriterRef.current);
+      typewriterRef.current = null;
+    }
+
+    const editTargetChatId = chatId;
+    await generate(
+      chatId,
+      contextMessages,
+      selectedModel,
+      {
+        onChunk: (chunk) => {
+          if (activeChatIdRef.current !== editTargetChatId) return;
+          fullContentRef.current += chunk;
+          setStreamingContent(fullContentRef.current);
+          if (!typewriterRef.current) {
+            typewriterRef.current = setInterval(() => {
+              if (displayedLengthRef.current < fullContentRef.current.length) {
+                displayedLengthRef.current++;
+                setDisplayedContent(fullContentRef.current.slice(0, displayedLengthRef.current));
+              }
+            }, 20);
+          }
+        },
+        onDone: async (fullResponse, responseMessageId) => {
+          if (activeChatIdRef.current !== editTargetChatId) {
+            if (typewriterRef.current) { clearInterval(typewriterRef.current); typewriterRef.current = null; }
+            return;
+          }
+          try {
+            const elapsed = (Date.now() - startTimeRef.current) / 1000;
+            setResponseTime(elapsed);
+            if (typewriterRef.current) {
+              clearInterval(typewriterRef.current);
+              typewriterRef.current = null;
+            }
+            setDisplayedContent(fullResponse);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            if (activeChatIdRef.current !== editTargetChatId) return;
+            setStreamingDone(true);
+            const aiMessage: Message = {
+              id: responseMessageId || `ai-${crypto.randomUUID()}`,
+              chat_id: editTargetChatId,
+              role: 'assistant',
+              content: fullResponse,
+              model_id: selectedModel,
+              tokens_used: null,
+              created_at: new Date().toISOString(),
+            };
+            setLocalMessages(prev => [...prev, aiMessage]);
+            setStreamingContent('');
+            setDisplayedContent('');
+            fullContentRef.current = '';
+            displayedLengthRef.current = 0;
+          } catch (error) {
+            console.error('onDone error:', error);
+            setStreamingContent('');
+            setDisplayedContent('');
+            fullContentRef.current = '';
+            displayedLengthRef.current = 0;
+          }
+        },
+        onError: (error) => {
+          if (activeChatIdRef.current !== editTargetChatId) return;
+          console.error('AI generation error:', error);
+          if (typewriterRef.current) {
+            clearInterval(typewriterRef.current);
+            typewriterRef.current = null;
+          }
+          setStreamingContent('');
+          setDisplayedContent('');
+          fullContentRef.current = '';
+          displayedLengthRef.current = 0;
+          setResponseTime(null);
+          setAiError(error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        },
+        onTitleUpdate: () => {},
+      }
+    );
+  }, [chatId, localMessages, selectedModel, generate]);
+
+  // Handle regenerate AI response: re-send the preceding user message
+  const handleRegenerate = useCallback(async (aiMessageId: string) => {
+    if (!chatId) return;
+
+    // Find the AI message
+    const aiMsgIndex = localMessages.findIndex(m => m.id === aiMessageId);
+    if (aiMsgIndex < 0) return;
+
+    // Find the preceding user message
+    let userMessage: Message | null = null;
+    for (let i = aiMsgIndex - 1; i >= 0; i--) {
+      if (localMessages[i].role === 'user') {
+        userMessage = localMessages[i];
+        break;
+      }
+    }
+    if (!userMessage) return;
+
+    // Remove the AI message from local state
+    setLocalMessages(prev => prev.filter((_, idx) => idx !== aiMsgIndex));
+
+    // Re-send the user message to get a new response
+    setAiError(null);
+    lastMessageRef.current = userMessage.content;
+
+    // Prepare context (everything up to the AI message, excluding the AI message)
+    const regenModelDef = getModelById(selectedModel);
+    const regenMaxTokens = regenModelDef?.maxContextTokens || 128_000;
+    const regenAllMsgs = localMessages.slice(0, aiMsgIndex).map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system',
+      content: m.content,
+    }));
+    const { contextMessages, usagePercent: regenUsage } = await buildContextWithCompact(regenAllMsgs, regenMaxTokens);
+    setContextUsage(regenUsage);
+
+    // Reset streaming
+    setStreamingContent('');
+    setDisplayedContent('');
+    setStreamingDone(false);
+    fullContentRef.current = '';
+    displayedLengthRef.current = 0;
+    startTimeRef.current = Date.now();
+
+    if (typewriterRef.current) {
+      clearInterval(typewriterRef.current);
+      typewriterRef.current = null;
+    }
+
+    const regenTargetChatId = chatId;
+    await generate(
+      chatId,
+      contextMessages,
+      selectedModel,
+      {
+        onChunk: (chunk) => {
+          if (activeChatIdRef.current !== regenTargetChatId) return;
+          fullContentRef.current += chunk;
+          setStreamingContent(fullContentRef.current);
+          if (!typewriterRef.current) {
+            typewriterRef.current = setInterval(() => {
+              if (displayedLengthRef.current < fullContentRef.current.length) {
+                displayedLengthRef.current++;
+                setDisplayedContent(fullContentRef.current.slice(0, displayedLengthRef.current));
+              }
+            }, 20);
+          }
+        },
+        onDone: async (fullResponse, responseMessageId) => {
+          if (activeChatIdRef.current !== regenTargetChatId) {
+            if (typewriterRef.current) { clearInterval(typewriterRef.current); typewriterRef.current = null; }
+            return;
+          }
+          try {
+            const elapsed = (Date.now() - startTimeRef.current) / 1000;
+            setResponseTime(elapsed);
+            if (typewriterRef.current) {
+              clearInterval(typewriterRef.current);
+              typewriterRef.current = null;
+            }
+            setDisplayedContent(fullResponse);
+            await new Promise(resolve => setTimeout(resolve, 300));
+            if (activeChatIdRef.current !== regenTargetChatId) return;
+            setStreamingDone(true);
+            const aiMessage: Message = {
+              id: responseMessageId || `ai-${crypto.randomUUID()}`,
+              chat_id: regenTargetChatId,
+              role: 'assistant',
+              content: fullResponse,
+              model_id: selectedModel,
+              tokens_used: null,
+              created_at: new Date().toISOString(),
+            };
+            setLocalMessages(prev => [...prev, aiMessage]);
+            setStreamingContent('');
+            setDisplayedContent('');
+            fullContentRef.current = '';
+            displayedLengthRef.current = 0;
+          } catch (error) {
+            console.error('onDone error:', error);
+            setStreamingContent('');
+            setDisplayedContent('');
+            fullContentRef.current = '';
+            displayedLengthRef.current = 0;
+          }
+        },
+        onError: (error) => {
+          if (activeChatIdRef.current !== regenTargetChatId) return;
+          console.error('AI generation error:', error);
+          if (typewriterRef.current) {
+            clearInterval(typewriterRef.current);
+            typewriterRef.current = null;
+          }
+          setStreamingContent('');
+          setDisplayedContent('');
+          fullContentRef.current = '';
+          displayedLengthRef.current = 0;
+          setResponseTime(null);
+          setAiError(error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        },
+        onTitleUpdate: () => {},
+      }
+    );
+  }, [chatId, localMessages, selectedModel, generate]);
+
+  const currentModel = getModelById(selectedModel) || getModelById('deepseek-v3-2-251201');
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-neutral-950">
@@ -523,9 +883,11 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                     role: message.role as 'user' | 'assistant',
                     content: message.content,
                     timestamp: new Date(message.created_at),
-                    modelId: (message.model_id || undefined) as 'gpt-4' | 'gpt-3.5' | 'claude-3-opus' | 'claude-2' | 'gemini-pro' | 'mistral-large' | 'llama-3-70b' | undefined,
+                    modelId: (message.model_id || undefined) as ModelId | undefined,
                   }}
                   isLast={index === filteredMessages.length - 1 && !isGenerating}
+                  onEdit={!isGenerating ? handleEditMessage : undefined}
+                  onRegenerate={!isGenerating ? handleRegenerate : undefined}
                 />
               ))}
             </AnimatePresence>
@@ -593,7 +955,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
             {/* Streaming Response */}
             <AnimatePresence>
-              {isGenerating && (
+              {isGenerating && !streamingDone && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -723,6 +1085,45 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       {/* Input Area */}
       <div className="bg-white dark:bg-neutral-950">
         <div className="max-w-3xl mx-auto">
+          {/* Context usage indicator */}
+          <AnimatePresence>
+            {contextUsage > 0 && localMessages.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 pb-1"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+                    <motion.div
+                      className={cn(
+                        'h-full rounded-full transition-colors duration-300',
+                        contextUsage >= 90
+                          ? 'bg-red-500'
+                          : contextUsage >= 70
+                            ? 'bg-amber-500'
+                            : 'bg-primary-500/60'
+                      )}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(contextUsage, 100)}%` }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                    />
+                  </div>
+                  <span className={cn(
+                    'text-[10px] tabular-nums font-medium shrink-0',
+                    contextUsage >= 90
+                      ? 'text-red-500'
+                      : contextUsage >= 70
+                        ? 'text-amber-500'
+                        : 'text-neutral-400'
+                  )}>
+                    Memory {contextUsage}%
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <ChatInput
             onSend={handleSendMessage}
             isGenerating={isGenerating}
@@ -740,13 +1141,11 @@ interface WelcomeScreenProps {
 
 function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
   const greeting = getGreeting();
+  const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  const suggestions = [
-    { icon: Code, text: 'ช่วยเขียนโค้ด Python สำหรับเว็บ scraping', color: 'text-blue-500' },
-    { icon: Lightbulb, text: 'อธิบาย Quantum Computing แบบง่ายๆ', color: 'text-amber-500' },
-    { icon: Languages, text: 'แปลข้อความนี้เป็นภาษาอังกฤษ', color: 'text-green-500' },
-    { icon: Brain, text: 'วิเคราะห์ข้อดีข้อเสียของการลงทุน', color: 'text-purple-500' },
-  ];
+  const filteredTemplates = activeCategory === 'all'
+    ? PROMPT_TEMPLATES
+    : PROMPT_TEMPLATES.filter(t => t.category === activeCategory);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-full px-4 py-8 sm:py-12">
@@ -768,6 +1167,7 @@ function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
               src="/images/logo.jpg"
               alt="RabbitHub"
               fill
+              sizes="80px"
               className="object-cover"
               priority
             />
@@ -796,54 +1196,60 @@ function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
           วันนี้ให้ผมช่วยอะไรดีครับ?
         </motion.p>
 
-        {/* Suggestions Grid */}
+        {/* Category Tabs */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          className="flex flex-wrap justify-center gap-2 mb-5"
+        >
+          {PROMPT_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200',
+                activeCategory === cat.id
+                  ? 'bg-primary-500 text-white shadow-md shadow-primary-500/25'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+              )}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </motion.div>
+
+        {/* Template Cards Grid */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
           className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
         >
-          {suggestions.map((suggestion, index) => (
-            <SuggestionCard
-              key={suggestion.text}
-              icon={suggestion.icon}
-              text={suggestion.text}
-              color={suggestion.color}
-              delay={0.5 + index * 0.1}
-              onClick={() => onSendMessage(suggestion.text)}
-            />
+          {filteredTemplates.slice(0, 6).map((template, index) => (
+            <motion.button
+              key={template.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.5 + index * 0.05 }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onSendMessage(template.prompt)}
+              className="group flex items-start gap-3 p-3 sm:p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-primary-200 dark:hover:border-primary-800 hover:shadow-lg hover:shadow-primary-500/5 transition-all duration-200 text-left"
+            >
+              <div className="text-xl shrink-0 mt-0.5">{template.icon}</div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-neutral-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                  {template.title}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-0.5 truncate">
+                  {template.description}
+                </p>
+              </div>
+            </motion.button>
           ))}
         </motion.div>
       </motion.div>
     </div>
-  );
-}
-
-interface SuggestionCardProps {
-  icon: React.ElementType;
-  text: string;
-  color: string;
-  delay: number;
-  onClick: () => void;
-}
-
-function SuggestionCard({ icon: Icon, text, color, delay, onClick }: SuggestionCardProps) {
-  return (
-    <motion.button
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay }}
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className="group flex items-start gap-3 p-3 sm:p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-primary-200 dark:hover:border-primary-800 hover:shadow-lg hover:shadow-primary-500/5 transition-all duration-200 text-left"
-    >
-      <div className={`p-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/30 transition-colors ${color}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <span className="text-sm text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors leading-relaxed">
-        {text}
-      </span>
-    </motion.button>
   );
 }

@@ -1,16 +1,21 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X } from 'lucide-react';
+import { VideoPlayer } from '@/components/ui/VideoPlayer';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { toast } from 'sonner';
 import { getModelById } from '@/lib/byteplus';
 import { type Message } from '@/store/chatStore';
 import { cn, formatMessageTime } from '@/lib/utils';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface MessageBubbleProps {
   message: Message;
   isLast?: boolean;
+  onEdit?: (messageId: string, newContent: string) => void;
+  onRegenerate?: (messageId: string) => void;
 }
 
 // Parse content for generated media markers
@@ -67,10 +72,50 @@ function parseMessageContent(content: string): ParsedContent[] {
   return parts;
 }
 
-export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
+export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === 'user';
+
+  // Auto-focus and auto-resize textarea when editing starts
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      editTextareaRef.current.style.height = 'auto';
+      editTextareaRef.current.style.height = editTextareaRef.current.scrollHeight + 'px';
+    }
+  }, [isEditing]);
+
+  const handleStartEdit = () => {
+    setEditContent(message.content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(message.content);
+  };
+
+  const handleSaveEdit = () => {
+    const trimmed = editContent.trim();
+    if (trimmed && trimmed !== message.content && onEdit) {
+      onEdit(message.id, trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveEdit();
+    }
+    if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
 
   // Find model definition by ID
   const model = message.modelId
@@ -94,6 +139,7 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
+    toast.success('คัดลอกแล้ว');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -115,14 +161,68 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
           animate={{ opacity: 1, x: 0 }}
           className="max-w-[85%] sm:max-w-[75%]"
         >
-          <div className="bg-gradient-to-br from-primary-600 to-primary-700 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl rounded-br-md shadow-lg shadow-primary-500/20">
-            <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">
-              {message.content}
+          {isEditing ? (
+            // Inline edit mode
+            <div className="space-y-2">
+              <textarea
+                ref={editTextareaRef}
+                value={editContent}
+                onChange={(e) => {
+                  setEditContent(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                onKeyDown={handleEditKeyDown}
+                className="w-full px-4 py-3 rounded-2xl border-2 border-primary-400 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm sm:text-[15px] leading-relaxed resize-none focus:outline-none focus:border-primary-500"
+                rows={1}
+              />
+              <div className="flex justify-end gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  ยกเลิก
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSaveEdit}
+                  disabled={!editContent.trim() || editContent.trim() === message.content}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  บันทึกและส่ง
+                </motion.button>
+              </div>
+            </div>
+          ) : (
+            // Normal display mode
+            <div>
+              <div className="bg-gradient-to-br from-primary-600 to-primary-700 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl rounded-br-md shadow-lg shadow-primary-500/20">
+                <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">
+                  {message.content}
+                </p>
+              </div>
+            </div>
+          )}
+          {/* Timestamp + Edit button row */}
+          <div className="flex items-center justify-end gap-1.5 mt-1.5 pr-1">
+            {!isEditing && onEdit && (
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleStartEdit}
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded-md text-neutral-400 hover:text-neutral-300 hover:bg-neutral-700/50"
+                title="แก้ไข"
+              >
+                <Pencil className="h-3 w-3" />
+              </motion.button>
+            )}
+            <p className="text-[10px] sm:text-xs text-neutral-400">
+              {formatMessageTime(message.timestamp)}
             </p>
           </div>
-          <p className="text-[10px] sm:text-xs text-neutral-400 mt-1.5 text-right pr-1">
-            {formatMessageTime(message.timestamp)}
-          </p>
         </motion.div>
       ) : (
         // AI Message - Full width with avatar
@@ -188,28 +288,22 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
                       <GeneratedVideoBlock key={`vid-${idx}`} url={part.urls[0]} />
                     );
                   }
-                  // Text part
+                  // Text part - render as markdown
                   return (
-                    <p key={`txt-${idx}`} className="text-sm sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap m-0">
-                      {part.content}
-                    </p>
+                    <MarkdownRenderer key={`txt-${idx}`} content={part.content} />
                   );
                 })}
               </div>
             ) : (
-              // Regular text message
-              <div className="prose prose-sm sm:prose-base prose-neutral dark:prose-invert max-w-none">
-                <div className="relative">
-                  <p className="text-sm sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap m-0">
-                    {displayContent}
-                    {/* Typing cursor */}
-                    {message.isStreaming && (
-                      <span
-                        className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5 align-middle animate-[cursorBlink_1s_step-end_infinite]"
-                      />
-                    )}
-                  </p>
-                </div>
+              // Regular text message - render as markdown
+              <div className="relative">
+                <MarkdownRenderer content={displayContent} />
+                {/* Typing cursor */}
+                {message.isStreaming && (
+                  <span
+                    className="inline-block w-0.5 h-4 bg-primary-500 ml-0.5 align-middle animate-[cursorBlink_1s_step-end_infinite]"
+                  />
+                )}
               </div>
             )}
 
@@ -292,11 +386,13 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
                     onClick={() => setFeedback('down')}
                     active={feedback === 'down'}
                   />
-                  <ActionButton
-                    icon={RotateCcw}
-                    label="สร้างใหม่"
-                    onClick={() => {}}
-                  />
+                  {onRegenerate && (
+                    <ActionButton
+                      icon={RotateCcw}
+                      label="สร้างใหม่"
+                      onClick={() => onRegenerate(message.id)}
+                    />
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -372,16 +468,6 @@ function GeneratedImageBlock({ urls }: { urls: string[] }) {
 
 // Generated Video Block Component
 function GeneratedVideoBlock({ url }: { url: string }) {
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `rabbithub-video-${Date.now()}.mp4`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -395,28 +481,8 @@ function GeneratedVideoBlock({ url }: { url: string }) {
         <span className="text-xs font-medium">วิดีโอที่สร้างโดย AI</span>
       </div>
 
-      {/* Video player */}
-      <div className="relative rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-lg bg-neutral-900">
-        <video
-          src={url}
-          controls
-          playsInline
-          className="w-full max-h-[400px] rounded-xl"
-          preload="metadata"
-        />
-        {/* Download button */}
-        <div className="flex justify-end px-3 py-2 bg-neutral-800/50">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-500/20 text-pink-400 text-xs font-medium hover:bg-pink-500/30 transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            ดาวน์โหลดวิดีโอ
-          </motion.button>
-        </div>
-      </div>
+      {/* Custom Video Player */}
+      <VideoPlayer src={url} compact />
     </motion.div>
   );
 }

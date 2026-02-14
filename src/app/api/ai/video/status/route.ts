@@ -1,5 +1,6 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { checkVideoStatus } from '@/lib/byteplus'
+import { validateInput, INPUT_LIMITS } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -21,6 +22,12 @@ export async function GET(request: Request) {
         { error: 'taskId query parameter is required' },
         { status: 400 }
       )
+    }
+
+    // Validate taskId length
+    const taskIdErr = validateInput(taskId, { type: 'string', maxLength: INPUT_LIMITS.taskId, fieldName: 'taskId' })
+    if (taskIdErr) {
+      return NextResponse.json({ error: taskIdErr }, { status: 400 })
     }
 
     const result = await checkVideoStatus(taskId)

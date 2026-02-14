@@ -18,6 +18,7 @@ import {
   Crown,
   UserCog,
   Activity,
+  FileEdit,
 } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -37,6 +38,7 @@ const iconMap: Record<string, React.ElementType> = {
   History,
   UserCog,
   Activity,
+  FileEdit,
 };
 
 const roleColors = {
@@ -92,6 +94,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
               src="/images/logo.jpg"
               alt="RabbitHub"
               fill
+              sizes="40px"
               className="object-cover"
             />
           </div>

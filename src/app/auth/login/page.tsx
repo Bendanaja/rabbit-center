@@ -54,7 +54,7 @@ function LoginForm() {
     }
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+  const handleOAuthLogin = async (provider: 'google' | 'github' | 'facebook') => {
     await signInWithOAuth(provider);
   };
 
@@ -71,6 +71,7 @@ function LoginForm() {
                   src="/images/logo.jpg"
                   alt="RabbitHub Logo"
                   fill
+                  sizes="48px"
                   className="object-cover"
                 />
               </div>
@@ -138,12 +139,12 @@ function LoginForm() {
                     จดจำฉัน
                   </span>
                 </label>
-                <a
-                  href="#"
+                <Link
+                  href="/auth/reset-password"
                   className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                 >
                   ลืมรหัสผ่าน?
-                </a>
+                </Link>
               </div>
 
               <Button
@@ -172,7 +173,7 @@ function LoginForm() {
             </div>
 
             {/* Social login buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Button
                 variant="outline"
                 className="justify-center"
@@ -198,6 +199,17 @@ function LoginForm() {
                   />
                 </svg>
                 Google
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-center"
+                onClick={() => handleOAuthLogin('facebook')}
+                type="button"
+              >
+                <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook
               </Button>
               <Button
                 variant="outline"
@@ -247,6 +259,7 @@ function LoginForm() {
                 src="/images/logo.jpg"
                 alt="RabbitHub"
                 fill
+                sizes="112px"
                 className="object-cover"
               />
             </div>
@@ -254,7 +267,7 @@ function LoginForm() {
               เริ่มแชทกับ AI วันนี้
             </h2>
             <p className="text-primary-100">
-              เข้าถึง GPT-4, Claude, Gemini และอื่นๆ ในที่เดียว ราคาเรียบง่าย
+              เข้าถึง DeepSeek, Doubao และ AI อื่นๆ ในที่เดียว ราคาเรียบง่าย
             </p>
             <div className="flex items-center justify-center gap-4 mt-8">
               <div className="flex items-center gap-2">

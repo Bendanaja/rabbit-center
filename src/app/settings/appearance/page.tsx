@@ -15,7 +15,9 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import Link from 'next/link';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Button, Card, Badge } from '@/components/ui';
 import { FadeIn } from '@/components/animations';
 
@@ -430,7 +432,7 @@ export default function AppearancePage() {
         </section>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

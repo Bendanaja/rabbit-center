@@ -32,6 +32,18 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // Proxy Supabase requests through Next.js to avoid CORS
+  async rewrites() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl) return []
+    return [
+      {
+        source: '/supabase/:path*',
+        destination: `${supabaseUrl}/:path*`,
+      },
+    ]
+  },
+
   // Headers for caching static assets and security
   async headers() {
     return [

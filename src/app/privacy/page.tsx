@@ -14,7 +14,9 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Badge } from '@/components/ui';
 import { FadeIn } from '@/components/animations';
 import { PageHero } from '@/components/shared';
@@ -318,7 +320,7 @@ export default function PrivacyPage() {
         </section>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

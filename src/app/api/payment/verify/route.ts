@@ -1,6 +1,7 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { verifySlip, verifySlipByImage } from '@/lib/thunder'
 import { checkRateLimit, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { validateContentType, validateInput, INPUT_LIMITS } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -25,6 +26,12 @@ export async function POST(request: Request) {
     return res
   }
 
+  // Content-Type validation
+  const ctError = validateContentType(request)
+  if (ctError) {
+    return NextResponse.json({ error: ctError }, { status: 415 })
+  }
+
   const body = await request.json()
   const { payload, imageBase64, checkDuplicate } = body as {
     payload?: string
@@ -37,6 +44,19 @@ export async function POST(request: Request) {
       { error: 'Either payload or imageBase64 is required' },
       { status: 400 }
     )
+  }
+
+  // Input validation
+  if (payload) {
+    const payloadErr = validateInput(payload, { type: 'string', maxLength: INPUT_LIMITS.payload, fieldName: 'payload' })
+    if (payloadErr) return NextResponse.json({ error: payloadErr }, { status: 400 })
+  }
+  if (imageBase64) {
+    const imgErr = validateInput(imageBase64, { type: 'string', maxLength: INPUT_LIMITS.imageBase64, fieldName: 'imageBase64' })
+    if (imgErr) return NextResponse.json({ error: imgErr }, { status: 400 })
+  }
+  if (checkDuplicate !== undefined && typeof checkDuplicate !== 'boolean') {
+    return NextResponse.json({ error: 'checkDuplicate must be a boolean' }, { status: 400 })
   }
 
   try {

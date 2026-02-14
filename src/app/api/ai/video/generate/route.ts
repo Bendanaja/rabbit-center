@@ -1,6 +1,10 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateVideo } from '@/lib/byteplus'
-import { checkRateLimit, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
+import { calculateUsageCost } from '@/lib/token-costs'
+import { validateContentType, validateInput, INPUT_LIMITS } from '@/lib/security'
+import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -13,9 +17,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Rate limiting
+  // Rate limiting (Redis-backed)
   const rateLimitKey = getRateLimitKey(request, user.id, 'video')
-  const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.video)
+  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, RATE_LIMITS.video)
   if (!rateLimitResult.allowed) {
     const res = NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before generating more videos.' },
@@ -26,6 +30,21 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Plan limit check: video quota
+    const planCheck = await checkPlanLimit(user.id, 'video')
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.reason, planId: planCheck.planId, limit: planCheck.limit, used: planCheck.used },
+        { status: 403 }
+      )
+    }
+
+    // Content-Type validation
+    const ctError = validateContentType(request)
+    if (ctError) {
+      return NextResponse.json({ error: ctError }, { status: 415 })
+    }
+
     const body = await request.json()
     const { prompt, model, duration, image_url } = body as {
       prompt: string
@@ -41,7 +60,35 @@ export async function POST(request: Request) {
       )
     }
 
+    // Input validation
+    const promptErr = validateInput(prompt, { type: 'string', maxLength: INPUT_LIMITS.prompt, fieldName: 'prompt' })
+    if (promptErr) {
+      return NextResponse.json({ error: promptErr }, { status: 400 })
+    }
+    if (model) {
+      const modelErr = validateInput(model, { type: 'string', maxLength: INPUT_LIMITS.modelId, fieldName: 'model' })
+      if (modelErr) return NextResponse.json({ error: modelErr }, { status: 400 })
+    }
+    if (duration !== undefined && (typeof duration !== 'number' || duration < 1 || duration > 30)) {
+      return NextResponse.json({ error: 'duration must be between 1 and 30 seconds' }, { status: 400 })
+    }
+
+    // Track activity in customer_profiles (non-blocking)
+    trackActivity(user.id, 'video')
+
     const result = await generateVideo({ prompt, model, duration, image_url })
+
+    // Increment usage AFTER successful generation
+    await incrementUsage(user.id, 'video')
+
+    // Internal cost tracking (non-blocking)
+    const videoModelKey = model || 'seedance-1-5-pro'
+    const costUsd = calculateUsageCost({
+      userId: user.id,
+      modelKey: videoModelKey,
+      action: 'video',
+    })
+    logUsageCost(user.id, 'video', videoModelKey, costUsd)
 
     return NextResponse.json(result)
   } catch (error) {

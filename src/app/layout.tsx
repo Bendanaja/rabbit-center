@@ -4,6 +4,7 @@ import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorSuppressor } from "@/components/ErrorSuppressor";
 import { BottomNav } from "@/components/layout";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -162,6 +163,13 @@ export default function RootLayout({
           <ErrorSuppressor />
           {children}
           <BottomNav />
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              className: 'dark:bg-neutral-800 dark:text-white dark:border-neutral-700',
+            }}
+            richColors
+          />
         </ThemeProvider>
       </body>
     </html>

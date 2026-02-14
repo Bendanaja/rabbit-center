@@ -15,11 +15,11 @@ export const testUsers = {
     name: 'Pro User',
     createdAt: new Date('2024-01-01'),
   },
-  enterprise: {
-    id: 'user-ent-001',
-    email: 'enterprise@test.com',
-    plan: 'enterprise',
-    name: 'Enterprise User',
+  premium: {
+    id: 'user-premium-001',
+    email: 'premium@test.com',
+    plan: 'premium',
+    name: 'Premium User',
     createdAt: new Date('2024-01-01'),
   },
 } as const;

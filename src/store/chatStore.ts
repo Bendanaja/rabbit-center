@@ -108,7 +108,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       chats: [],
       activeChat: null,
-      selectedModel: 'gpt-3.5',
+      selectedModel: 'deepseek-r1',
       isTyping: false,
       sidebarOpen: true,
       streamingMessageId: null,

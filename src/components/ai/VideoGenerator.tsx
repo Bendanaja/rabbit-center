@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Video, Download, Loader2, ChevronDown, Sparkles, Upload, X, ImagePlus } from 'lucide-react';
+import { VideoPlayer } from '@/components/ui/VideoPlayer';
 import { getVideoModels } from '@/lib/byteplus';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/lib/api-client';
@@ -26,13 +27,29 @@ export function VideoGenerator() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const pollingStartRef = useRef<Map<string, number>>(new Map());
+
+  const MAX_POLLING_MS = 10 * 60 * 1000; // 10 minutes
+
+  // Cleanup all polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      for (const interval of pollingRef.current.values()) {
+        clearInterval(interval);
+      }
+      pollingRef.current.clear();
+      pollingStartRef.current.clear();
+    };
+  }, []);
 
   const videoModels = getVideoModels();
 
-  // Set default model
-  if (!selectedModel && videoModels.length > 0) {
-    setSelectedModel(videoModels[videoModels.length - 1].id);
-  }
+  // Set default model on mount
+  useEffect(() => {
+    if (!selectedModel && videoModels.length > 0) {
+      setSelectedModel(videoModels[videoModels.length - 1].id);
+    }
+  }, [videoModels.length]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,8 +69,33 @@ export function VideoGenerator() {
     }
   };
 
+  const stopPolling = useCallback((taskId: string) => {
+    const interval = pollingRef.current.get(taskId);
+    if (interval) {
+      clearInterval(interval);
+      pollingRef.current.delete(taskId);
+    }
+    pollingStartRef.current.delete(taskId);
+  }, []);
+
   const pollStatus = useCallback((taskId: string) => {
+    pollingStartRef.current.set(taskId, Date.now());
+
     const interval = setInterval(async () => {
+      // Check timeout
+      const startTime = pollingStartRef.current.get(taskId) ?? 0;
+      if (Date.now() - startTime > MAX_POLLING_MS) {
+        stopPolling(taskId);
+        setVideos(prev =>
+          prev.map(v =>
+            v.taskId === taskId
+              ? { ...v, status: 'failed', error: 'หมดเวลารอ (10 นาที) กรุณาลองใหม่อีกครั้ง' }
+              : v
+          )
+        );
+        return;
+      }
+
       try {
         const response = await authFetch(`/api/ai/video/status?taskId=${taskId}`);
         if (!response.ok) return;
@@ -69,16 +111,15 @@ export function VideoGenerator() {
         );
 
         if (data.status === 'completed' || data.status === 'failed') {
-          clearInterval(interval);
-          pollingRef.current.delete(taskId);
+          stopPolling(taskId);
         }
       } catch {
-        // Keep polling on network errors
+        // Keep polling on transient network errors
       }
     }, 5000);
 
     pollingRef.current.set(taskId, interval);
-  }, []);
+  }, [stopPolling]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -347,25 +388,11 @@ export function VideoGenerator() {
 
                     {video.status === 'completed' && video.videoUrl && (
                       <div>
-                        <video
-                          src={video.videoUrl}
-                          controls
-                          className="w-full rounded-t-xl"
-                          playsInline
-                        />
+                        <VideoPlayer src={video.videoUrl} />
                         <div className="flex items-center justify-between p-3 border-t border-neutral-700">
                           <p className="text-xs text-neutral-400 truncate flex-1">
                             {video.prompt}
                           </p>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleDownload(video.videoUrl!, index)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            ดาวน์โหลด
-                          </motion.button>
                         </div>
                       </div>
                     )}

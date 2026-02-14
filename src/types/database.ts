@@ -78,6 +78,8 @@ export interface Database {
           model_id: string
           is_pinned: boolean
           is_archived: boolean
+          share_token: string | null
+          is_shared: boolean
           created_at: string
           updated_at: string
         }
@@ -88,6 +90,8 @@ export interface Database {
           model_id?: string
           is_pinned?: boolean
           is_archived?: boolean
+          share_token?: string | null
+          is_shared?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -98,6 +102,8 @@ export interface Database {
           model_id?: string
           is_pinned?: boolean
           is_archived?: boolean
+          share_token?: string | null
+          is_shared?: boolean
           created_at?: string
           updated_at?: string
         }

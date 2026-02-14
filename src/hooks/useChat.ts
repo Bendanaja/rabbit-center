@@ -187,10 +187,21 @@ export function useChat(chatId: string | undefined) {
   const clearMessages = useCallback(async (): Promise<{ error?: Error }> => {
     if (!chatId) return { error: new Error('No chat ID') }
 
-    // Note: We would need a dedicated endpoint for this
-    // For now, just clear local state
-    setState(prev => ({ ...prev, messages: [] }))
-    return {}
+    try {
+      const response = await authFetch(`/api/chat/${chatId}/messages`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to clear messages')
+      }
+
+      setState(prev => ({ ...prev, messages: [] }))
+      return {}
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error('Failed to clear messages') }
+    }
   }, [chatId])
 
   // Optimistic add message (for streaming)

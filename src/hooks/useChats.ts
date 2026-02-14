@@ -87,7 +87,7 @@ export function useChats(userId: string | undefined) {
         method: 'POST',
         body: JSON.stringify({
           title: title || 'แชทใหม่',
-          model_id: modelId || 'stepfun/step-3.5-flash:free',
+          model_id: modelId || 'deepseek-v3-2-251201',
         }),
       })
 
@@ -143,12 +143,17 @@ export function useChats(userId: string | undefined) {
     return updateChat(chatId, { is_archived: true })
   }, [updateChat])
 
+  const togglePinChat = useCallback(async (chatId: string, currentlyPinned: boolean) => {
+    return updateChat(chatId, { is_pinned: !currentlyPinned })
+  }, [updateChat])
+
   return {
     ...state,
     createChat,
     updateChat,
     deleteChat,
     archiveChat,
+    togglePinChat,
     refetch: fetchChats,
   }
 }

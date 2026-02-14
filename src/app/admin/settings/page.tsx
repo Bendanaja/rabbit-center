@@ -17,6 +17,10 @@ import {
   EyeOff,
   Check,
   AlertTriangle,
+  Image as ImageIcon,
+  Video,
+  Power,
+  Gauge,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
@@ -29,14 +33,6 @@ interface SettingItem {
   description: string | null;
   is_public: boolean;
   category: string;
-}
-
-interface SettingsGroup {
-  category: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  settings: SettingItem[];
 }
 
 export default function AdminSettingsPage() {
@@ -117,37 +113,65 @@ export default function AdminSettingsPage() {
     key.toLowerCase().includes('token');
 
   const categoryConfig: { [key: string]: { icon: React.ReactNode; title: string; description: string } } = {
-    general: { icon: <Globe className="h-5 w-5" />, title: 'ทั่วไป', description: 'การตั้งค่าพื้นฐานของระบบ' },
-    security: { icon: <Shield className="h-5 w-5" />, title: 'ความปลอดภัย', description: 'การตั้งค่าความปลอดภัยและการเข้าถึง' },
-    ai: { icon: <Zap className="h-5 w-5" />, title: 'AI Models', description: 'การตั้งค่า AI และ rate limits' },
-    notifications: { icon: <Bell className="h-5 w-5" />, title: 'การแจ้งเตือน', description: 'การตั้งค่าการแจ้งเตือนและอีเมล' },
-    billing: { icon: <CreditCard className="h-5 w-5" />, title: 'การชำระเงิน', description: 'การตั้งค่าแผนและการชำระเงิน' },
-    chat: { icon: <MessageSquare className="h-5 w-5" />, title: 'แชท', description: 'การตั้งค่าฟีเจอร์แชท' },
+    general: { icon: <Globe className="h-5 w-5" />, title: 'ทั่วไป', description: 'ชื่อเว็บ, คำอธิบาย, โลโก้' },
+    features: { icon: <Power className="h-5 w-5" />, title: 'ฟีเจอร์', description: 'เปิด/ปิดฟีเจอร์ต่างๆ' },
+    rate_limits: { icon: <Gauge className="h-5 w-5" />, title: 'Rate Limits', description: 'จำกัดการใช้งานต่อแผน' },
+    ai: { icon: <Zap className="h-5 w-5" />, title: 'AI Models', description: 'การตั้งค่า AI และ API Keys' },
+    billing: { icon: <CreditCard className="h-5 w-5" />, title: 'การชำระเงิน', description: 'PromptPay, การตั้งค่าชำระเงิน' },
+    security: { icon: <Shield className="h-5 w-5" />, title: 'ความปลอดภัย', description: 'การเข้าถึงและความปลอดภัย' },
   };
 
-  // Mock settings if none loaded
+  // Full mock settings with feature toggles and rate limits
   const mockSettings: SettingItem[] = [
-    { key: 'site_name', value: 'RabbitHub', description: 'ชื่อเว็บไซต์', is_public: true, category: 'general' },
-    { key: 'site_description', value: 'AI Chat Platform', description: 'คำอธิบายเว็บไซต์', is_public: true, category: 'general' },
-    { key: 'maintenance_mode', value: 'false', description: 'เปิด/ปิดโหมดบำรุงรักษา', is_public: false, category: 'general' },
-    { key: 'allow_registration', value: 'true', description: 'อนุญาตให้สมัครสมาชิกใหม่', is_public: false, category: 'security' },
-    { key: 'require_email_verification', value: 'true', description: 'ต้องยืนยันอีเมล', is_public: false, category: 'security' },
-    { key: 'max_login_attempts', value: '5', description: 'จำนวนครั้งสูงสุดที่ login ผิดได้', is_public: false, category: 'security' },
+    // General
+    { key: 'site_name', value: 'RabbitHub AI', description: 'ชื่อเว็บไซต์', is_public: true, category: 'general' },
+    { key: 'site_description', value: 'แพลตฟอร์ม AI อัจฉริยะ', description: 'คำอธิบายเว็บไซต์', is_public: true, category: 'general' },
+    { key: 'maintenance_mode', value: 'false', description: 'เปิด/ปิดโหมดบำรุงรักษา (ปิดเว็บทั้งหมด)', is_public: false, category: 'general' },
+    { key: 'default_plan', value: 'free', description: 'แผนเริ่มต้นสำหรับสมาชิกใหม่ (free/starter/pro/premium)', is_public: false, category: 'general' },
+
+    // Feature Toggles
+    { key: 'feature_chat', value: 'true', description: 'เปิด/ปิดระบบแชท AI', is_public: false, category: 'features' },
+    { key: 'feature_image_gen', value: 'true', description: 'เปิด/ปิดระบบสร้างรูปภาพ', is_public: false, category: 'features' },
+    { key: 'feature_video_gen', value: 'true', description: 'เปิด/ปิดระบบสร้างวิดีโอ', is_public: false, category: 'features' },
+    { key: 'feature_export', value: 'true', description: 'เปิด/ปิดการส่งออกบทสนทนา', is_public: false, category: 'features' },
+    { key: 'feature_custom_prompts', value: 'true', description: 'เปิด/ปิดคำสั่งกำหนดเอง', is_public: false, category: 'features' },
+    { key: 'allow_registration', value: 'true', description: 'อนุญาตให้สมัครสมาชิกใหม่', is_public: false, category: 'features' },
+
+    // Rate Limits per plan (calibrated for profitability with 40% BytePlus discount)
+    { key: 'rate_limit_free_messages', value: '30', description: 'ข้อความต่อวัน (แผน Free)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_starter_messages', value: '100', description: 'ข้อความต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_pro_messages', value: '200', description: 'ข้อความต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_premium_messages', value: '400', description: 'ข้อความต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_free_images', value: '0', description: 'รูปภาพต่อวัน (แผน Free) - 0 = ไม่อนุญาต', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_starter_images', value: '3', description: 'รูปภาพต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_pro_images', value: '8', description: 'รูปภาพต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_premium_images', value: '10', description: 'รูปภาพต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_free_videos', value: '0', description: 'วิดีโอต่อวัน (แผน Free) - 0 = ไม่อนุญาต', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_starter_videos', value: '1', description: 'วิดีโอต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_pro_videos', value: '2', description: 'วิดีโอต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
+    { key: 'rate_limit_premium_videos', value: '3', description: 'วิดีโอต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
+
+    // AI
     { key: 'byteplus_api_key', value: 'bp-***', description: 'BytePlus API Key', is_public: false, category: 'ai' },
-    { key: 'default_model', value: 'gpt-4', description: 'Model เริ่มต้น', is_public: true, category: 'ai' },
+    { key: 'default_model', value: 'seed-1-6-flash', description: 'Model เริ่มต้น', is_public: true, category: 'ai' },
     { key: 'max_tokens_per_request', value: '4096', description: 'จำนวน tokens สูงสุดต่อ request', is_public: false, category: 'ai' },
-    { key: 'rate_limit_per_minute', value: '20', description: 'จำนวน requests สูงสุดต่อนาที', is_public: false, category: 'ai' },
-    { key: 'smtp_host', value: 'smtp.gmail.com', description: 'SMTP Server', is_public: false, category: 'notifications' },
-    { key: 'smtp_port', value: '587', description: 'SMTP Port', is_public: false, category: 'notifications' },
-    { key: 'stripe_publishable_key', value: 'pk_***', description: 'Stripe Publishable Key', is_public: true, category: 'billing' },
-    { key: 'stripe_secret_key', value: 'sk_***', description: 'Stripe Secret Key', is_public: false, category: 'billing' },
-    { key: 'free_daily_messages', value: '50', description: 'ข้อความฟรีต่อวัน', is_public: true, category: 'chat' },
-    { key: 'max_conversation_length', value: '100', description: 'ความยาวสูงสุดของการสนทนา', is_public: false, category: 'chat' },
+
+    // Billing
+    { key: 'promptpay_number', value: '0812345678', description: 'เบอร์โทรศัพท์ PromptPay สำหรับรับชำระเงิน', is_public: false, category: 'billing' },
+    { key: 'promptpay_name', value: 'RabbitHub Co., Ltd.', description: 'ชื่อบัญชี PromptPay', is_public: false, category: 'billing' },
+    { key: 'starter_price', value: '199', description: 'ราคาแผน Starter (บาท)', is_public: true, category: 'billing' },
+    { key: 'pro_price', value: '499', description: 'ราคาแผน Pro (บาท)', is_public: true, category: 'billing' },
+    { key: 'premium_price', value: '799', description: 'ราคาแผน Premium (บาท)', is_public: true, category: 'billing' },
+
+    // Security
+    { key: 'require_email_verification', value: 'true', description: 'ต้องยืนยันอีเมลก่อนใช้งาน', is_public: false, category: 'security' },
+    { key: 'max_login_attempts', value: '5', description: 'จำนวนครั้งสูงสุดที่ login ผิดได้', is_public: false, category: 'security' },
+    { key: 'session_timeout_hours', value: '72', description: 'Session timeout (ชั่วโมง)', is_public: false, category: 'security' },
   ];
 
   const displaySettings = settings.length > 0 ? settings : mockSettings;
 
-  const groupedSettings: SettingsGroup[] = Object.entries(categoryConfig).map(([category, config]) => ({
+  const groupedSettings = Object.entries(categoryConfig).map(([category, config]) => ({
     category,
     ...config,
     settings: displaySettings.filter(s => s.category === category),
@@ -169,7 +193,7 @@ export default function AdminSettingsPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">การตั้งค่าระบบ</h1>
             <p className="text-neutral-400 mt-1">
-              จัดการการตั้งค่าทั้งหมดของ RabbitHub
+              จัดการการตั้งค่าทั้งหมดของ RabbitHub AI
             </p>
           </div>
           <PermissionGate permission={PERMISSIONS.MANAGE_SYSTEM_SETTINGS}>
@@ -249,6 +273,18 @@ export default function AdminSettingsPage() {
           ))}
         </motion.div>
 
+        {/* Active Category Description */}
+        {categoryConfig[activeCategory] && (
+          <motion.p
+            key={activeCategory}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-sm text-neutral-500"
+          >
+            {categoryConfig[activeCategory].description}
+          </motion.p>
+        )}
+
         {/* Settings Content */}
         {loading ? (
           <div className="space-y-4">
@@ -261,6 +297,7 @@ export default function AdminSettingsPage() {
           </div>
         ) : (
           <motion.div
+            key={activeCategory}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -272,6 +309,7 @@ export default function AdminSettingsPage() {
                 const value = changes[setting.key] !== undefined ? changes[setting.key] : setting.value;
                 const isSecretField = isSecret(setting.key);
                 const showValue = showSecrets[setting.key];
+                const isBooleanField = setting.value === 'true' || setting.value === 'false';
 
                 return (
                   <motion.div
@@ -286,22 +324,20 @@ export default function AdminSettingsPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-white">{setting.key}</p>
+                        <p className="font-medium text-white">{setting.description || setting.key}</p>
                         {isSecretField && (
                           <Lock className="h-3 w-3 text-yellow-500" />
                         )}
-                        {setting.is_public && (
-                          <span className="px-1.5 py-0.5 text-[10px] bg-green-500/10 text-green-400 rounded">
-                            Public
+                        {changes[setting.key] !== undefined && (
+                          <span className="px-1.5 py-0.5 text-[10px] bg-primary-500/10 text-primary-400 rounded">
+                            แก้ไขแล้ว
                           </span>
                         )}
                       </div>
-                      {setting.description && (
-                        <p className="text-sm text-neutral-400 mt-1">{setting.description}</p>
-                      )}
+                      <p className="text-xs text-neutral-500 mt-1 font-mono">{setting.key}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {setting.value === 'true' || setting.value === 'false' ? (
+                      {isBooleanField ? (
                         <PermissionGate permission={PERMISSIONS.MANAGE_SYSTEM_SETTINGS}>
                           <button
                             onClick={() => handleChange(setting.key, value === 'true' ? 'false' : 'true')}

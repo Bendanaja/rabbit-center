@@ -51,7 +51,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`user_id.ilike.%${search}%`);
+      // Sanitize search to prevent PostgREST operator injection
+      const safeSearch = search.replace(/[%_\\]/g, '\\$&').slice(0, 200);
+      query = query.or(`user_id.ilike.%${safeSearch}%`);
     }
 
     const { data: subscriptions, count, error } = await query;
@@ -69,7 +71,7 @@ export async function GET(request: NextRequest) {
         user_avatar: sub.user?.avatar_url || null,
         plan: sub.tier,
         status: sub.status,
-        amount: sub.tier === 'pro' ? 299 : sub.tier === 'enterprise' ? 1499 : 0,
+        amount: sub.tier === 'premium' ? 799 : sub.tier === 'pro' ? 499 : sub.tier === 'starter' ? 199 : 0,
         currency: 'THB',
         interval: 'monthly',
         current_period_start: sub.current_period_start,

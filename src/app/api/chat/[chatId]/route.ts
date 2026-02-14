@@ -1,5 +1,6 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 // GET /api/chat/[chatId] - Get a specific chat
@@ -52,10 +53,30 @@ export async function PATCH(
     updated_at: new Date().toISOString(),
   }
 
-  if (title !== undefined) updates.title = title
-  if (model_id !== undefined) updates.model_id = model_id
-  if (is_pinned !== undefined) updates.is_pinned = is_pinned
-  if (is_archived !== undefined) updates.is_archived = is_archived
+  if (title !== undefined) {
+    if (typeof title !== 'string') {
+      return NextResponse.json({ error: 'title must be a string' }, { status: 400 })
+    }
+    updates.title = sanitizeInput(title).slice(0, INPUT_LIMITS.title)
+  }
+  if (model_id !== undefined) {
+    if (typeof model_id !== 'string') {
+      return NextResponse.json({ error: 'model_id must be a string' }, { status: 400 })
+    }
+    updates.model_id = String(model_id).slice(0, INPUT_LIMITS.modelId)
+  }
+  if (is_pinned !== undefined) {
+    if (typeof is_pinned !== 'boolean') {
+      return NextResponse.json({ error: 'is_pinned must be a boolean' }, { status: 400 })
+    }
+    updates.is_pinned = is_pinned
+  }
+  if (is_archived !== undefined) {
+    if (typeof is_archived !== 'boolean') {
+      return NextResponse.json({ error: 'is_archived must be a boolean' }, { status: 400 })
+    }
+    updates.is_archived = is_archived
+  }
 
   const { data, error } = await adminSupabase
     .from('chats')

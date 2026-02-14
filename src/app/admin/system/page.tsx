@@ -17,6 +17,10 @@ import {
   Clock,
   Zap,
   Globe,
+  MessageSquare,
+  Image as ImageIcon,
+  Video,
+  Users,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { cn } from '@/lib/utils';
@@ -32,6 +36,15 @@ interface SystemHealth {
   requests: { total: number; success: number; failed: number; rate: number };
 }
 
+interface DatabaseStats {
+  totalChats: number;
+  totalMessages: number;
+  totalImages: number;
+  totalVideos: number;
+  totalUsers: number;
+  storageUsed: string;
+}
+
 interface LogEntry {
   id: string;
   level: 'info' | 'warning' | 'error';
@@ -42,6 +55,7 @@ interface LogEntry {
 
 export default function AdminSystemPage() {
   const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,8 +63,6 @@ export default function AdminSystemPage() {
 
   const fetchHealth = useCallback(async () => {
     try {
-      // In real app, this would call /api/admin/system/health
-      // For now, use mock data
       const mockHealth: SystemHealth = {
         api: { status: 'online', latency: 45 + Math.random() * 20, uptime: 99.98 },
         database: { status: 'online', connections: 12 + Math.floor(Math.random() * 5), latency: 8 + Math.random() * 5 },
@@ -69,13 +81,22 @@ export default function AdminSystemPage() {
 
       setHealth(mockHealth);
 
-      // Mock logs
+      setDbStats({
+        totalChats: 3420,
+        totalMessages: 85600,
+        totalImages: 2150,
+        totalVideos: 340,
+        totalUsers: 128,
+        storageUsed: '2.4 GB',
+      });
+
       const mockLogs: LogEntry[] = [
-        { id: '1', level: 'info', message: 'API response time within normal range', timestamp: new Date().toISOString(), source: 'api' },
-        { id: '2', level: 'info', message: 'Database backup completed successfully', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), source: 'database' },
-        { id: '3', level: 'warning', message: 'High memory usage detected (85%)', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), source: 'system' },
-        { id: '4', level: 'info', message: 'SSL certificate renewed', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), source: 'security' },
-        { id: '5', level: 'error', message: 'BytePlus rate limit exceeded - retrying', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), source: 'byteplus' },
+        { id: '1', level: 'info', message: 'API response time ปกติ', timestamp: new Date().toISOString(), source: 'api' },
+        { id: '2', level: 'info', message: 'สำรองฐานข้อมูลสำเร็จ', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), source: 'database' },
+        { id: '3', level: 'warning', message: 'การใช้หน่วยความจำสูง (85%)', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), source: 'system' },
+        { id: '4', level: 'info', message: 'ต่ออายุ SSL certificate สำเร็จ', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), source: 'security' },
+        { id: '5', level: 'error', message: 'BytePlus rate limit เกิน - กำลังลองใหม่', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), source: 'byteplus' },
+        { id: '6', level: 'info', message: 'สมาชิกใหม่สมัคร Pro plan', timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), source: 'billing' },
       ];
       setLogs(mockLogs);
     } catch (error) {
@@ -90,7 +111,7 @@ export default function AdminSystemPage() {
     fetchHealth();
 
     if (autoRefresh) {
-      const interval = setInterval(fetchHealth, 10000); // Refresh every 10 seconds
+      const interval = setInterval(fetchHealth, 10000);
       return () => clearInterval(interval);
     }
   }, [fetchHealth, autoRefresh]);
@@ -120,7 +141,6 @@ export default function AdminSystemPage() {
 
   const formatUptime = (percent: number) => `${percent.toFixed(2)}%`;
   const formatBytes = (gb: number) => `${gb.toFixed(1)} GB`;
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   if (loading) {
     return (
@@ -142,7 +162,7 @@ export default function AdminSystemPage() {
           className="flex items-center justify-between"
         >
           <div>
-            <h1 className="text-2xl font-bold text-white">System Health</h1>
+            <h1 className="text-2xl font-bold text-white">สถานะระบบ</h1>
             <p className="text-neutral-400 mt-1">
               ตรวจสอบสถานะระบบแบบ Real-time
             </p>
@@ -158,7 +178,7 @@ export default function AdminSystemPage() {
               )}
             >
               {autoRefresh ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-              {autoRefresh ? 'Auto Refresh: ON' : 'Auto Refresh: OFF'}
+              {autoRefresh ? 'รีเฟรชอัตโนมัติ: เปิด' : 'รีเฟรชอัตโนมัติ: ปิด'}
             </button>
           </div>
         </motion.div>
@@ -214,11 +234,45 @@ export default function AdminSystemPage() {
           })}
         </div>
 
+        {/* Database Stats */}
+        {dbStats && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+          >
+            <h3 className="text-lg font-semibold text-white mb-4">สถิติฐานข้อมูล</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { label: 'ผู้ใช้ทั้งหมด', value: dbStats.totalUsers.toLocaleString(), icon: Users, color: 'text-blue-400' },
+                { label: 'แชททั้งหมด', value: dbStats.totalChats.toLocaleString(), icon: MessageSquare, color: 'text-green-400' },
+                { label: 'ข้อความทั้งหมด', value: dbStats.totalMessages.toLocaleString(), icon: MessageSquare, color: 'text-purple-400' },
+                { label: 'รูปภาพที่สร้าง', value: dbStats.totalImages.toLocaleString(), icon: ImageIcon, color: 'text-orange-400' },
+                { label: 'วิดีโอที่สร้าง', value: dbStats.totalVideos.toLocaleString(), icon: Video, color: 'text-pink-400' },
+                { label: 'พื้นที่ใช้งาน', value: dbStats.storageUsed, icon: HardDrive, color: 'text-yellow-400' },
+              ].map((stat, index) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 + index * 0.05 }}
+                  className="p-4 bg-neutral-800/50 rounded-xl text-center"
+                >
+                  <stat.icon className={cn('h-5 w-5 mx-auto mb-2', stat.color)} />
+                  <p className="text-xl font-bold text-white">{stat.value}</p>
+                  <p className="text-xs text-neutral-400 mt-1">{stat.label}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Resource Usage */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {health && [
             {
-              name: 'CPU Usage',
+              name: 'CPU',
               icon: Cpu,
               value: health.cpu.usage,
               max: 100,
@@ -227,7 +281,7 @@ export default function AdminSystemPage() {
               color: health.cpu.usage > 80 ? 'red' : health.cpu.usage > 50 ? 'yellow' : 'green',
             },
             {
-              name: 'Memory',
+              name: 'หน่วยความจำ',
               icon: Activity,
               value: health.memory.percentage,
               max: 100,
@@ -236,7 +290,7 @@ export default function AdminSystemPage() {
               color: health.memory.percentage > 80 ? 'red' : health.memory.percentage > 50 ? 'yellow' : 'green',
             },
             {
-              name: 'Storage',
+              name: 'พื้นที่จัดเก็บ',
               icon: HardDrive,
               value: health.storage.percentage,
               max: 100,
@@ -249,7 +303,7 @@ export default function AdminSystemPage() {
               key={resource.name}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + index * 0.1 }}
+              transition={{ delay: 0.6 + index * 0.1 }}
               className="p-5 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
             >
               <div className="flex items-center gap-3 mb-4">
@@ -285,39 +339,39 @@ export default function AdminSystemPage() {
           ))}
         </div>
 
-        {/* Request Stats */}
+        {/* API Usage Today */}
         {health && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
+            transition={{ delay: 0.9 }}
             className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
           >
-            <h3 className="text-lg font-semibold text-white mb-4">Request Statistics (24h)</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">การใช้งาน API วันนี้ (24 ชม.)</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div>
                 <p className="text-3xl font-bold text-white">
                   {health.requests.total.toLocaleString()}
                 </p>
-                <p className="text-sm text-neutral-400 mt-1">Total Requests</p>
+                <p className="text-sm text-neutral-400 mt-1">Requests ทั้งหมด</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-green-400">
                   {health.requests.success.toLocaleString()}
                 </p>
-                <p className="text-sm text-neutral-400 mt-1">Successful</p>
+                <p className="text-sm text-neutral-400 mt-1">สำเร็จ</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-red-400">
                   {health.requests.failed.toLocaleString()}
                 </p>
-                <p className="text-sm text-neutral-400 mt-1">Failed</p>
+                <p className="text-sm text-neutral-400 mt-1">ล้มเหลว</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-primary-400">
                   {health.requests.rate.toFixed(1)}/s
                 </p>
-                <p className="text-sm text-neutral-400 mt-1">Avg Rate</p>
+                <p className="text-sm text-neutral-400 mt-1">อัตราเฉลี่ย</p>
               </div>
             </div>
           </motion.div>
@@ -327,17 +381,17 @@ export default function AdminSystemPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
+          transition={{ delay: 1.0 }}
           className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
         >
-          <h3 className="text-lg font-semibold text-white mb-4">Recent Logs</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Logs ล่าสุด</h3>
           <div className="space-y-3">
             {logs.map((log, index) => (
               <motion.div
                 key={log.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.9 + index * 0.05 }}
+                transition={{ delay: 1.1 + index * 0.05 }}
                 className="flex items-start gap-4 p-3 bg-neutral-800/50 rounded-lg"
               >
                 <span className={cn(
@@ -353,7 +407,7 @@ export default function AdminSystemPage() {
                       <Clock className="h-3 w-3" />
                       {new Date(log.timestamp).toLocaleString('th-TH')}
                     </span>
-                    <span>Source: {log.source}</span>
+                    <span>แหล่งที่มา: {log.source}</span>
                   </div>
                 </div>
               </motion.div>

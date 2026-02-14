@@ -43,8 +43,9 @@ export async function GET(request: NextRequest) {
     // Calculate MRR
     const planPrices: Record<string, number> = {
       free: 0,
-      pro: 299,
-      enterprise: 1499,
+      starter: 199,
+      pro: 499,
+      premium: 799,
     };
 
     const mrr = subscriptions?.reduce((sum, sub) => {
@@ -69,14 +70,19 @@ export async function GET(request: NextRequest) {
 
     const planBreakdown = [
       {
-        plan: 'Enterprise',
-        count: planCounts['enterprise'] || 0,
-        revenue: (planCounts['enterprise'] || 0) * 1499
+        plan: 'Premium',
+        count: planCounts['premium'] || 0,
+        revenue: (planCounts['premium'] || 0) * 799
       },
       {
         plan: 'Pro',
         count: planCounts['pro'] || 0,
-        revenue: (planCounts['pro'] || 0) * 299
+        revenue: (planCounts['pro'] || 0) * 499
+      },
+      {
+        plan: 'Starter',
+        count: planCounts['starter'] || 0,
+        revenue: (planCounts['starter'] || 0) * 199
       },
       {
         plan: 'Free',

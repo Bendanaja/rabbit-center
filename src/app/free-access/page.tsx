@@ -24,7 +24,9 @@ import {
   Coins,
   X
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 
 // Config
 const FREE_ACCESS_CONFIG = {
@@ -727,7 +729,7 @@ export default function FreeAccessPage() {
         </div>
       </section>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

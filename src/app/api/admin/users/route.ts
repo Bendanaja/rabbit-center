@@ -1,19 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+import { sanitizeSearchQuery } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  // Verify admin access
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const adminSupabase = createAdminClient();
+  const { data: adminData } = await adminSupabase
+    .from('admin_users')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (!adminData) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(request.url);
 
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20') || 20));
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status'); // 'active', 'banned', 'all'
-    const sortBy = searchParams.get('sortBy') || 'created_at';
-    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const allowedSortFields = ['created_at', 'updated_at', 'full_name'];
+    const sortBy = allowedSortFields.includes(searchParams.get('sortBy') || '') ? searchParams.get('sortBy')! : 'created_at';
+    const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
 
     const offset = (page - 1) * limit;
 
@@ -34,9 +55,10 @@ export async function GET(request: NextRequest) {
         )
       `, { count: 'exact' });
 
-    // Search filter
+    // Search filter (sanitize to prevent injection via PostgREST operators)
     if (search) {
-      query = query.or(`full_name.ilike.%${search}%,user_id.eq.${search}`);
+      const safeSearch = sanitizeSearchQuery(search);
+      query = query.or(`full_name.ilike.%${safeSearch}%,user_id.eq.${safeSearch}`);
     }
 
     // Sort

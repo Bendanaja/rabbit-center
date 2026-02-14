@@ -1,9 +1,28 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Verify admin access
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const adminSupabase = createAdminClient();
+  const { data: adminData } = await adminSupabase
+    .from('admin_users')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (!adminData) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  }
+
   try {
     const supabase = createAdminClient();
 

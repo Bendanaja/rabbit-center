@@ -9,10 +9,10 @@ export function resetClient() {
 }
 
 // Browser client using localStorage for auth persistence
-// Uses api.rabbithub.ai as Supabase endpoint
+// Uses /supabase proxy to avoid CORS with self-hosted Supabase
 export function createClient() {
   if (typeof window === 'undefined') {
-    // Server-side: create fresh instance
+    // Server-side: use direct URL (no CORS issue)
     return createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,16 +24,15 @@ export function createClient() {
     )
   }
 
-  // Client-side: use singleton with localStorage persistence
+  // Client-side: use singleton with proxy URL + localStorage persistence
   if (!supabaseInstance) {
     supabaseInstance = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      `${window.location.origin}/supabase`,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         auth: {
-          persistSession: true,
           storageKey: 'rabbithub-auth',
-          storage: window.localStorage,
+          persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },

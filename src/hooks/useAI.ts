@@ -136,8 +136,8 @@ export function useAI() {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        // User cancelled, not an error
-        options.onDone?.(fullResponseRef.current)
+        // User cancelled or switched chats - don't call onDone to prevent cross-chat leakage
+        // The partial content is already saved by handleStop if user explicitly stopped
       } else {
         const err = error instanceof Error ? error : new Error('Unknown error')
         setState(prev => ({ ...prev, error: err }))

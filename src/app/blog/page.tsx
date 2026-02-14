@@ -17,7 +17,9 @@ import {
   ChevronRight,
   X
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Button } from '@/components/ui';
 
 type Category = 'all' | 'tutorials' | 'news' | 'tips' | 'engineering';
@@ -569,7 +571,7 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

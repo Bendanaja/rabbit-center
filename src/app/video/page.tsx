@@ -49,6 +49,7 @@ export default function VideoPage() {
               src="/images/logo.jpg"
               alt={SITE_CONFIG.name}
               fill
+              sizes="32px"
               className="object-cover"
             />
           </div>

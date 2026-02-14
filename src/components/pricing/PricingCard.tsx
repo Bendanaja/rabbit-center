@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Check, X, Sparkles, Crown } from 'lucide-react';
 import { type PricingPlan } from '@/lib/constants';
@@ -13,6 +14,7 @@ interface PricingCardProps {
 
 export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
   const isPro = plan.id === 'pro';
+  const paymentHref = plan.price > 0 ? `/payment?plan=${plan.id}` : '/chat';
 
   return (
     <motion.div
@@ -29,7 +31,7 @@ export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
           : 'hover:shadow-xl hover:border-neutral-300 dark:hover:border-neutral-700'
       )}
     >
-      {/* Popular badge - Premium golden style */}
+      {/* Popular badge */}
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
           <motion.div
@@ -38,14 +40,9 @@ export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
           >
             <div className="relative">
-              {/* Glow effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur-md opacity-60" />
-
-              {/* Badge */}
               <div className="relative px-5 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 shadow-lg shadow-amber-500/40">
-                {/* Shine effect */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-white/30 via-transparent to-transparent" />
-
                 <div className="relative flex items-center gap-1.5">
                   <Crown className="h-3.5 w-3.5 text-amber-900" />
                   <span className="text-xs font-bold text-amber-900 tracking-wide">
@@ -78,19 +75,19 @@ export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
             /{plan.period}
           </span>
         </div>
-        {plan.id === 'free' && (
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2">
-            ฟรีตลอดชีพ ไม่ต้องใช้บัตรเครดิต
+        {plan.id === 'starter' && (
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
+            เริ่มต้นเพียง 6.6 บาท/วัน
           </p>
         )}
         {plan.id === 'pro' && (
           <p className="text-xs text-primary-600 dark:text-primary-400 mt-2 font-medium">
-            ทดลองใช้ฟรี 7 วัน
+            คุ้มค่าที่สุด - ครบทุกฟีเจอร์
           </p>
         )}
-        {plan.id === 'enterprise' && (
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2">
-            เหมาะสำหรับทีมและองค์กร
+        {plan.id === 'premium' && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+            ระดับสูงสุด ไม่มีข้อจำกัด
           </p>
         )}
       </div>
@@ -103,8 +100,11 @@ export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
           'w-full justify-center mb-6',
           isPro && 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white border-0'
         )}
+        asChild
       >
-        {plan.cta}
+        <Link href={paymentHref}>
+          {plan.cta}
+        </Link>
       </Button>
 
       {/* Features */}

@@ -24,7 +24,9 @@ import {
   Image as ImageIcon,
   Users
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Button, Badge } from '@/components/ui';
 
 type UpdateType = 'new' | 'improved' | 'fixed';
@@ -602,7 +604,7 @@ export default function UpdatesPage() {
         </section>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

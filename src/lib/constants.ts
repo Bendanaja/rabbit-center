@@ -1,59 +1,83 @@
 export const AI_MODELS = [
   {
-    id: 'gpt-4',
-    name: 'GPT-4',
-    provider: 'OpenAI',
-    icon: '/images/models/openai.svg',
-    description: 'โมเดลที่ทรงพลังที่สุดสำหรับงานซับซ้อน',
-    tier: 'pro'
-  },
-  {
-    id: 'gpt-3.5',
-    name: 'GPT-3.5 Turbo',
-    provider: 'OpenAI',
-    icon: '/images/models/openai.svg',
-    description: 'เร็วและมีประสิทธิภาพสำหรับงานทั่วไป',
+    id: 'deepseek-r1',
+    name: 'DeepSeek R1',
+    provider: 'DeepSeek',
+    icon: '/images/models/deepseek.svg',
+    description: 'โมเดลเหตุผลขั้นสูง คิดวิเคราะห์เชิงลึก',
     tier: 'free'
   },
   {
-    id: 'claude-3-opus',
-    name: 'Claude 3 Opus',
-    provider: 'Anthropic',
-    icon: '/images/models/claude.svg',
-    description: 'เหมาะสำหรับคำตอบที่ละเอียดและรอบคอบ',
-    tier: 'pro'
+    id: 'deepseek-v3-2',
+    name: 'DeepSeek V3.2',
+    provider: 'DeepSeek',
+    icon: '/images/models/deepseek.svg',
+    description: 'โมเดลรุ่นใหม่ล่าสุด เร็วและแม่นยำ',
+    tier: 'free'
   },
   {
-    id: 'claude-2',
-    name: 'Claude 2',
-    provider: 'Anthropic',
-    icon: '/images/models/claude.svg',
-    description: 'ผู้ช่วย AI ที่เชื่อถือได้',
-    tier: 'pro'
+    id: 'deepseek-v3-1',
+    name: 'DeepSeek V3.1',
+    provider: 'DeepSeek',
+    icon: '/images/models/deepseek.svg',
+    description: 'โมเดลอเนกประสงค์ประสิทธิภาพสูง',
+    tier: 'free'
   },
   {
-    id: 'gemini-pro',
-    name: 'Gemini Pro',
-    provider: 'Google',
-    icon: '/images/models/gemini.svg',
-    description: 'โมเดลขั้นสูงจาก Google',
-    tier: 'pro'
+    id: 'seed-1-8',
+    name: 'Seed 1.8',
+    provider: 'ByteDance',
+    icon: '/images/models/byteplus.svg',
+    description: 'โมเดลล่าสุดจาก ByteDance ทรงพลังรอบด้าน',
+    tier: 'free'
   },
   {
-    id: 'mistral-large',
-    name: 'Mistral Large',
-    provider: 'Mistral',
-    icon: '/images/models/mistral.svg',
-    description: 'AI จากยุโรปที่มีความสามารถในการใช้เหตุผล',
-    tier: 'pro'
+    id: 'seed-1-6',
+    name: 'Seed 1.6',
+    provider: 'ByteDance',
+    icon: '/images/models/byteplus.svg',
+    description: 'โมเดลสมดุลระหว่างความเร็วและคุณภาพ',
+    tier: 'free'
   },
   {
-    id: 'llama-3-70b',
-    name: 'Llama 3 70B',
-    provider: 'Meta',
-    icon: '/images/models/llama.svg',
-    description: 'โมเดล Open-source ที่ทรงพลัง',
-    tier: 'pro'
+    id: 'seed-1-6-flash',
+    name: 'Seed 1.6 Flash',
+    provider: 'ByteDance',
+    icon: '/images/models/byteplus.svg',
+    description: 'เวอร์ชันเร็วพิเศษ เหมาะกับงานทั่วไป',
+    tier: 'free'
+  },
+  {
+    id: 'kimi-k2-thinking',
+    name: 'Kimi K2 Thinking',
+    provider: 'Moonshot',
+    icon: '/images/models/kimi.svg',
+    description: 'โมเดลเหตุผลจาก Moonshot คิดก่อนตอบ',
+    tier: 'free'
+  },
+  {
+    id: 'kimi-k2',
+    name: 'Kimi K2',
+    provider: 'Moonshot',
+    icon: '/images/models/kimi.svg',
+    description: 'โมเดลสนทนาอัจฉริยะจาก Moonshot',
+    tier: 'free'
+  },
+  {
+    id: 'glm-4',
+    name: 'GLM-4.7',
+    provider: 'Zhipu AI',
+    icon: '/images/models/zhipu.svg',
+    description: 'โมเดลภาษาขั้นสูงจาก Zhipu AI',
+    tier: 'free'
+  },
+  {
+    id: 'gpt-oss-120b',
+    name: 'GPT-OSS 120B',
+    provider: 'BytePlus',
+    icon: '/images/models/gpt-oss.svg',
+    description: 'โมเดล 120B พารามิเตอร์ ประสิทธิภาพเยี่ยม',
+    tier: 'free'
   },
 ] as const;
 
@@ -69,14 +93,38 @@ export const PRICING_PLANS = [
     period: 'เดือน',
     description: 'เหมาะสำหรับทดลองใช้งาน',
     features: [
-      '50 ข้อความต่อวัน',
-      'ใช้ได้เฉพาะ GPT-3.5 Turbo',
+      '30 ข้อความต่อวัน',
+      'ใช้ได้เฉพาะ Seed 1.6 Flash',
       'ประวัติแชท 7 วัน',
       'ความเร็วปกติ',
     ],
     limitations: [
       'จำกัดการเข้าถึงโมเดล',
+      'ไม่สามารถสร้างรูปภาพได้',
+      'ไม่สามารถสร้างวิดีโอได้',
       'ไม่มีการสนับสนุนพิเศษ',
+    ],
+    cta: 'เริ่มต้นใช้งาน',
+    popular: false,
+  },
+  {
+    id: 'starter',
+    name: 'เริ่มต้น',
+    price: 199,
+    currency: '฿',
+    period: 'เดือน',
+    description: 'เหมาะสำหรับผู้เริ่มใช้งาน',
+    features: [
+      '100 ข้อความต่อวัน',
+      'ใช้ได้ 3 โมเดล (Seed 1.6 Flash, DeepSeek V3.2, GLM-4.7)',
+      'สร้างรูปได้ 3 รูป/วัน',
+      'สร้างวิดีโอได้ 1 ชิ้น/วัน',
+      'ประวัติแชท 30 วัน',
+      'ความเร็วปกติ',
+    ],
+    limitations: [
+      'จำกัดจำนวนโมเดล',
+      'วิดีโอเฉพาะ Seedance Lite/Fast',
     ],
     cta: 'เริ่มต้นใช้งาน',
     popular: false,
@@ -84,41 +132,40 @@ export const PRICING_PLANS = [
   {
     id: 'pro',
     name: 'โปร',
-    price: 299,
+    price: 499,
     currency: '฿',
     period: 'เดือน',
     description: 'สำหรับผู้ใช้งานจริงจัง',
     features: [
-      'ข้อความไม่จำกัด',
+      '200 ข้อความต่อวัน',
       'ใช้ได้ทุกโมเดล AI',
+      'สร้างรูปได้ 8 รูป/วัน',
+      'สร้างวิดีโอได้ 2 ชิ้น/วัน',
       'ประวัติแชทไม่จำกัด',
-      'ความเร็วสูงสุด',
-      'ส่งออกบทสนทนา',
-      'คำสั่งกำหนดเอง',
+      'ความเร็วสูง',
     ],
     limitations: [],
     cta: 'อัปเกรดเป็น Pro',
     popular: true,
   },
   {
-    id: 'enterprise',
-    name: 'องค์กร',
-    price: 1499,
+    id: 'premium',
+    name: 'พรีเมียม',
+    price: 799,
     currency: '฿',
     period: 'เดือน',
-    description: 'สำหรับทีมและธุรกิจ',
+    description: 'สำหรับผู้ใช้ระดับมืออาชีพ',
     features: [
-      'ทุกอย่างใน Pro',
+      '400 ข้อความต่อวัน',
+      'ใช้ได้ทุกโมเดล AI',
+      'สร้างรูปได้ 10 รูป/วัน',
+      'สร้างวิดีโอได้ 3 ชิ้น/วัน',
+      'ความเร็วสูงสุด',
+      'การสนับสนุนพิเศษ',
       'เข้าถึง API',
-      'สมาชิกทีม (สูงสุด 10 คน)',
-      'แดชบอร์ดผู้ดูแล',
-      'เชื่อมต่อ SSO',
-      'การสนับสนุนเฉพาะ',
-      'ปรับแต่งโมเดลได้',
-      'SLA รับประกัน',
     ],
     limitations: [],
-    cta: 'ติดต่อฝ่ายขาย',
+    cta: 'อัปเกรดเป็น Premium',
     popular: false,
   },
 ] as const;
@@ -142,6 +189,6 @@ export const NAV_LINKS = [
 export const SITE_CONFIG = {
   name: 'RabbitHub AI',
   tagline: 'แพลตฟอร์ม AI อัจฉริยะ',
-  description: 'แพลตฟอร์ม AI ครบวงจร แชทอัจฉริยะ สร้างรูปภาพ สร้างวิดีโอ ด้วย AI ชั้นนำ GPT-4, Claude, Gemini, DeepSeek และอื่นๆ ในที่เดียว',
+  description: 'แพลตฟอร์ม AI ครบวงจร แชทอัจฉริยะ สร้างรูปภาพ สร้างวิดีโอ ด้วย AI ชั้นนำ DeepSeek, Kimi, Seed, GLM และอื่นๆ ในที่เดียว',
   url: 'https://rabbithub.ai',
 } as const;

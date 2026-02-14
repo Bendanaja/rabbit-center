@@ -14,7 +14,7 @@ export const createTestChat = (overrides: Partial<Chat> = {}): Chat => ({
   id: `chat-${Math.random().toString(36).slice(2)}`,
   title: 'Test Chat',
   messages: [],
-  modelId: 'gpt-3.5',
+  modelId: 'deepseek-r1',
   createdAt: new Date('2024-01-15T09:00:00'),
   updatedAt: new Date('2024-01-15T10:00:00'),
   ...overrides,
@@ -54,7 +54,7 @@ export const testChats = {
         role: 'assistant',
         content: 'TypeScript is a strongly typed programming language that builds on JavaScript.',
         timestamp: new Date('2024-01-15T10:00:05'),
-        modelId: 'gpt-3.5',
+        modelId: 'deepseek-r1',
       }),
       createTestMessage({
         id: 'msg-conv-3',
@@ -67,7 +67,7 @@ export const testChats = {
         role: 'assistant',
         content: 'You can start using TypeScript by installing it via npm and creating a tsconfig.json file.',
         timestamp: new Date('2024-01-15T10:01:05'),
-        modelId: 'gpt-3.5',
+        modelId: 'deepseek-r1',
       }),
     ],
   }),
@@ -94,7 +94,7 @@ export const testChats = {
   withDifferentModels: createTestChat({
     id: 'chat-models',
     title: 'Chat with Different Models',
-    modelId: 'gpt-4',
+    modelId: 'seed-1-8',
     messages: [
       createTestMessage({
         id: 'msg-model-1',
@@ -105,7 +105,7 @@ export const testChats = {
         id: 'msg-model-2',
         role: 'assistant',
         content: 'Response from GPT-4',
-        modelId: 'gpt-4',
+        modelId: 'seed-1-8',
       }),
     ],
   }),
@@ -122,7 +122,7 @@ export const testMessages = {
     id: 'msg-test-assistant',
     role: 'assistant',
     content: 'Assistant test message',
-    modelId: 'gpt-3.5',
+    modelId: 'deepseek-r1',
   }),
 
   long: createTestMessage({

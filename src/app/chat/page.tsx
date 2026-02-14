@@ -22,9 +22,22 @@ import {
   Zap,
   Shield,
   Brain,
-  Search
+  Search,
+  Pin,
+  Archive,
+  FileText,
+  FileJson,
+  Link2,
+  Check,
+  X,
+  BarChart3,
+  ImagePlus,
+  Video,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { ModelSelector } from '@/components/chat/ModelSelector';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Dynamic import for ChatWindow to reduce initial bundle
 const ChatWindow = dynamic(
@@ -234,13 +247,33 @@ function PreviewChatWindow() {
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading: authLoading, signOut } = useAuth();
-  const { chats, loading: chatsLoading, createChat, deleteChat } = useChats(user?.id);
+  const { chats, loading: chatsLoading, createChat, deleteChat, archiveChat, togglePinChat } = useChats(user?.id);
 
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedModel, setSelectedModel] = useState('deepseek-v3-2-251201');
   const [searchQuery, setSearchQuery] = useState('');
+  const [usage, setUsage] = useState<UsageData | null>(null);
+
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/user/usage');
+      if (res.ok) {
+        const data = await res.json();
+        setUsage(data);
+      }
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
+  // Fetch usage on mount
+  useEffect(() => {
+    if (user) {
+      fetchUsage();
+    }
+  }, [user, fetchUsage]);
 
   // Set first chat as active on load
   useEffect(() => {
@@ -253,13 +286,13 @@ export default function ChatPage() {
     if (isCreating) return;
     setIsCreating(true);
 
-    const { data, error } = await createChat();
+    const { data, error } = await createChat(undefined, selectedModel);
     if (data && !error) {
       setActiveChat(data.id);
     }
 
     setIsCreating(false);
-  }, [createChat, isCreating]);
+  }, [createChat, isCreating, selectedModel]);
 
   const handleDeleteChat = useCallback(async (chatId: string) => {
     await deleteChat(chatId);
@@ -289,11 +322,18 @@ export default function ChatPage() {
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
-  // Filter and group chats by date
+  // Filter and group chats by date (exclude archived, sort pinned first)
   const filteredChats = useMemo(() => {
-    if (!searchQuery.trim()) return chats;
-    const q = searchQuery.toLowerCase();
-    return chats.filter(c => c.title.toLowerCase().includes(q));
+    let result = chats.filter(c => !c.is_archived);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(c => c.title.toLowerCase().includes(q));
+    }
+    return result.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return 0;
+    });
   }, [chats, searchQuery]);
 
   const groupedChats = useMemo(() => {
@@ -368,6 +408,7 @@ export default function ChatPage() {
                   src="/images/logo.jpg"
                   alt="RabbitHub"
                   fill
+                  sizes="32px"
                   className="object-cover"
                 />
               </div>
@@ -464,6 +505,8 @@ export default function ChatPage() {
                             isActive={chat.id === activeChat}
                             onSelect={() => setActiveChat(chat.id)}
                             onDelete={() => handleDeleteChat(chat.id)}
+                            onArchive={() => archiveChat(chat.id)}
+                            onTogglePin={() => togglePinChat(chat.id, chat.is_pinned)}
                           />
                         ))}
                       </div>
@@ -475,6 +518,9 @@ export default function ChatPage() {
 
             {/* Sidebar Footer */}
             <div className="p-2 border-t border-neutral-800">
+              {/* Usage Indicator */}
+              {usage && <UsageIndicator usage={usage} />}
+
               <Link
                 href="/settings"
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
@@ -543,9 +589,7 @@ export default function ChatPage() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-1">
-            <button className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors hidden sm:flex">
-              <Share className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-            </button>
+            <ExportShareMenu chatId={activeChat} />
             <Link
               href="/settings"
               className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -557,16 +601,137 @@ export default function ChatPage() {
 
         {/* Chat Window */}
         <main className="flex-1 overflow-hidden">
-          <ChatWindow
-            chatId={activeChat}
-            userId={user.id}
-            onChatCreated={(newChatId) => setActiveChat(newChatId)}
-            onCreateChat={handleCreateChat}
-            selectedModel={selectedModel}
-            onModelChange={handleModelChange}
-          />
+          <ErrorBoundary>
+            <ChatWindow
+              chatId={activeChat}
+              userId={user.id}
+              onChatCreated={(newChatId) => setActiveChat(newChatId)}
+              onCreateChat={handleCreateChat}
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+              onMessageSent={fetchUsage}
+            />
+          </ErrorBoundary>
         </main>
       </div>
+    </div>
+  );
+}
+
+// Export / Share dropdown menu
+function ExportShareMenu({ chatId }: { chatId: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'copied'>('idle');
+
+  const handleExport = async (format: 'markdown' | 'json') => {
+    if (!chatId) return;
+    setOpen(false);
+    try {
+      const res = await authFetch(`/api/chat/${chatId}/export?format=${format}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : `chat.${format === 'json' ? 'json' : 'md'}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!chatId) return;
+    setShareStatus('loading');
+    try {
+      const res = await authFetch(`/api/chat/${chatId}/share`, { method: 'POST' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const fullUrl = `${window.location.origin}${data.share_url}`;
+      await navigator.clipboard.writeText(fullUrl);
+      setShareStatus('copied');
+      setTimeout(() => {
+        setShareStatus('idle');
+        setOpen(false);
+      }, 2000);
+    } catch (err) {
+      console.error('Share failed:', err);
+      setShareStatus('idle');
+    }
+  };
+
+  return (
+    <div className="relative hidden sm:block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+      >
+        <Share className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 top-full mt-1 z-50 w-52 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-xl py-1"
+            >
+              <button
+                onClick={() => handleExport('markdown')}
+                disabled={!chatId}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              >
+                <FileText className="h-4 w-4 text-neutral-500" />
+                <span>ส่งออก Markdown</span>
+              </button>
+              <button
+                onClick={() => handleExport('json')}
+                disabled={!chatId}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              >
+                <FileJson className="h-4 w-4 text-neutral-500" />
+                <span>ส่งออก JSON</span>
+              </button>
+              <div className="border-t border-neutral-200 dark:border-neutral-700 my-1" />
+              <button
+                onClick={handleShare}
+                disabled={!chatId || shareStatus === 'loading'}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              >
+                {shareStatus === 'copied' ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span className="text-green-600 dark:text-green-400">คัดลอกลิงก์แล้ว!</span>
+                  </>
+                ) : shareStatus === 'loading' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-neutral-500" />
+                    <span>กำลังสร้างลิงก์...</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="h-4 w-4 text-neutral-500" />
+                    <span>แชร์ลิงก์</span>
+                  </>
+                )}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -576,9 +741,11 @@ interface ChatListItemProps {
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onArchive: () => void;
+  onTogglePin: () => void;
 }
 
-function ChatListItem({ chat, isActive, onSelect, onDelete }: ChatListItemProps) {
+function ChatListItem({ chat, isActive, onSelect, onDelete, onArchive, onTogglePin }: ChatListItemProps) {
   return (
     <motion.div
       layout
@@ -590,24 +757,149 @@ function ChatListItem({ chat, isActive, onSelect, onDelete }: ChatListItemProps)
       )}
       onClick={onSelect}
     >
+      {chat.is_pinned && (
+        <Pin className="h-3 w-3 mr-1.5 shrink-0 text-amber-400" />
+      )}
       <span className="text-sm truncate flex-1">{truncate(chat.title, 32)}</span>
 
-      {/* Gradient fade + delete button on hover */}
+      {/* Gradient fade + action buttons on hover */}
       <div className={cn(
-        'absolute right-0 top-0 bottom-0 flex items-center pl-8 pr-2 opacity-0 group-hover:opacity-100 transition-opacity',
+        'absolute right-0 top-0 bottom-0 flex items-center gap-0.5 pl-8 pr-2 opacity-0 group-hover:opacity-100 transition-opacity',
         'bg-gradient-to-l from-neutral-800 via-neutral-800/90 to-transparent',
         isActive && 'opacity-100 from-neutral-800 via-neutral-800/90'
       )}>
         <button
           onClick={(e) => {
             e.stopPropagation();
+            onTogglePin();
+          }}
+          className="p-1 rounded hover:bg-neutral-700 transition-colors"
+          title={chat.is_pinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
+        >
+          <Pin className={cn('h-3.5 w-3.5', chat.is_pinned && 'text-amber-400')} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchive();
+          }}
+          className="p-1 rounded hover:bg-neutral-700 transition-colors"
+          title="เก็บถาวร"
+        >
+          <Archive className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             onDelete();
           }}
           className="p-1 rounded hover:bg-neutral-700 transition-colors"
+          title="ลบ"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </motion.div>
+  );
+}
+
+// Usage Indicator Component
+interface UsageData {
+  plan: string;
+  planName: string;
+  usage: {
+    messages: { used: number; limit: number; remaining: number; unlimited?: boolean };
+    images: { used: number; limit: number; remaining: number; unlimited?: boolean };
+    videos: { used: number; limit: number; remaining: number; unlimited?: boolean };
+  };
+}
+
+function UsageIndicator({ usage }: { usage: UsageData }) {
+  const [expanded, setExpanded] = useState(false);
+  const { messages, images, videos } = usage.usage;
+
+  const isUnlimitedMsg = messages.unlimited || messages.limit === 0;
+  const msgPercent = isUnlimitedMsg ? 0 : (messages.used / messages.limit) * 100;
+  const barColor = msgPercent < 50 ? 'bg-green-500' : msgPercent < 80 ? 'bg-amber-500' : 'bg-red-500';
+
+  return (
+    <div className="px-2 pb-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-3 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-left"
+      >
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5 text-neutral-500" />
+            <span className="text-xs text-neutral-400">
+              {isUnlimitedMsg ? `${messages.used} ข้อความวันนี้` : `${messages.used}/${messages.limit} ข้อความวันนี้`}
+            </span>
+          </div>
+          {expanded ? (
+            <ChevronUp className="h-3 w-3 text-neutral-500" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-neutral-500" />
+          )}
+        </div>
+        {!isUnlimitedMsg && (
+          <div className="w-full h-1.5 bg-neutral-700 rounded-full overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all duration-300', barColor)}
+              style={{ width: `${Math.min(msgPercent, 100)}%` }}
+            />
+          </div>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 py-2 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-500">แพลน: {usage.planName}</span>
+              </div>
+              {images.limit > 0 && (
+                <div className="flex items-center gap-2">
+                  <ImagePlus className="h-3 w-3 text-violet-400" />
+                  <span className="text-xs text-neutral-400">
+                    {images.used}/{images.limit} รูปภาพ
+                  </span>
+                  <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-violet-500 rounded-full"
+                      style={{ width: `${Math.min((images.used / images.limit) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {videos.limit > 0 && (
+                <div className="flex items-center gap-2">
+                  <Video className="h-3 w-3 text-pink-400" />
+                  <span className="text-xs text-neutral-400">
+                    {videos.used}/{videos.limit} วิดีโอ
+                  </span>
+                  <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-pink-500 rounded-full"
+                      style={{ width: `${Math.min((videos.used / videos.limit) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {images.limit === 0 && videos.limit === 0 && (
+                <Link href="/pricing" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">
+                  อัปเกรดเพื่อสร้างรูปภาพและวิดีโอ
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

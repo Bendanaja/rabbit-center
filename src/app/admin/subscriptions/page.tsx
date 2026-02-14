@@ -28,7 +28,7 @@ interface Subscription {
   user_name: string;
   user_email: string;
   user_avatar: string | null;
-  plan: 'free' | 'pro' | 'enterprise';
+  plan: 'free' | 'starter' | 'pro' | 'premium';
   status: 'active' | 'cancelled' | 'past_due' | 'trialing';
   amount: number;
   currency: string;
@@ -55,7 +55,7 @@ export default function AdminSubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'pro' | 'enterprise'>('all');
+  const [filterPlan, setFilterPlan] = useState<'all' | 'free' | 'starter' | 'pro' | 'premium'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'cancelled' | 'past_due'>('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -112,8 +112,9 @@ export default function AdminSubscriptionsPage() {
     churnedThisMonth: 12,
     newThisMonth: 45,
     planBreakdown: [
-      { plan: 'Enterprise', count: 23, revenue: 34477 },
-      { plan: 'Pro', count: 245, revenue: 73255 },
+      { plan: 'Premium', count: 23, revenue: 18377 },
+      { plan: 'Pro', count: 245, revenue: 122255 },
+      { plan: 'Starter', count: 150, revenue: 29850 },
       { plan: 'Free', count: 1532, revenue: 0 },
     ],
   };
@@ -125,9 +126,9 @@ export default function AdminSubscriptionsPage() {
       user_name: 'บริษัท ABC จำกัด',
       user_email: 'admin@abc.co.th',
       user_avatar: null,
-      plan: 'enterprise',
+      plan: 'premium',
       status: 'active',
-      amount: 1499,
+      amount: 799,
       currency: 'THB',
       interval: 'monthly',
       current_period_start: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
@@ -175,23 +176,25 @@ export default function AdminSubscriptionsPage() {
   const displayStats = stats || mockStats;
   const displaySubscriptions = subscriptions.length > 0 ? subscriptions : mockSubscriptions;
 
-  const planColors = {
+  const planColors: Record<string, string> = {
     free: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',
+    starter: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     pro: 'bg-primary-500/10 text-primary-400 border-primary-500/20',
-    enterprise: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    premium: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   };
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     active: 'bg-green-500/10 text-green-400',
     cancelled: 'bg-red-500/10 text-red-400',
     past_due: 'bg-yellow-500/10 text-yellow-400',
     trialing: 'bg-blue-500/10 text-blue-400',
   };
 
-  const planIcons = {
+  const planIcons: Record<string, typeof Crown> = {
     free: Users,
+    starter: Shield,
     pro: Shield,
-    enterprise: Crown,
+    premium: Crown,
   };
 
   const formatDate = (date: string) => {
@@ -261,9 +264,9 @@ export default function AdminSubscriptionsPage() {
           className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
         >
           <h3 className="text-lg font-semibold text-white mb-4">Plan Breakdown</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {displayStats.planBreakdown.map((plan, index) => {
-              const Icon = plan.plan === 'Enterprise' ? Crown : plan.plan === 'Pro' ? Shield : Users;
+              const Icon = plan.plan === 'Premium' ? Crown : plan.plan === 'Pro' ? Shield : plan.plan === 'Starter' ? Shield : Users;
               return (
                 <motion.div
                   key={plan.plan}
@@ -272,16 +275,18 @@ export default function AdminSubscriptionsPage() {
                   transition={{ delay: 0.4 + index * 0.1 }}
                   className={cn(
                     'p-4 rounded-xl border',
-                    plan.plan === 'Enterprise' && 'bg-purple-500/5 border-purple-500/20',
+                    plan.plan === 'Premium' && 'bg-purple-500/5 border-purple-500/20',
                     plan.plan === 'Pro' && 'bg-primary-500/5 border-primary-500/20',
+                    plan.plan === 'Starter' && 'bg-blue-500/5 border-blue-500/20',
                     plan.plan === 'Free' && 'bg-neutral-500/5 border-neutral-500/20'
                   )}
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <Icon className={cn(
                       'h-6 w-6',
-                      plan.plan === 'Enterprise' && 'text-purple-400',
+                      plan.plan === 'Premium' && 'text-purple-400',
                       plan.plan === 'Pro' && 'text-primary-400',
+                      plan.plan === 'Starter' && 'text-blue-400',
                       plan.plan === 'Free' && 'text-neutral-400'
                     )} />
                     <span className="font-medium text-white">{plan.plan}</span>
@@ -322,7 +327,7 @@ export default function AdminSubscriptionsPage() {
 
           {/* Plan Filter */}
           <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
-            {(['all', 'enterprise', 'pro', 'free'] as const).map((plan) => (
+            {(['all', 'premium', 'pro', 'starter', 'free'] as const).map((plan) => (
               <button
                 key={plan}
                 onClick={() => setFilterPlan(plan)}

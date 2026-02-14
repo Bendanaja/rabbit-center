@@ -1,10 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
 
 export const dynamic = 'force-dynamic';
 
+// Verify admin access
+async function verifyAdminAccess(request: Request) {
+  const { user, error } = await getUserFromRequest(request);
+  if (error || !user) return { authorized: false as const };
+
+  const supabase = createAdminClient();
+  const { data: adminData } = await supabase
+    .from('admin_users')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (!adminData) return { authorized: false as const };
+  return { authorized: true as const, user, role: adminData.role as string };
+}
+
 // Get all models
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await verifyAdminAccess(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const supabase = createAdminClient();
 
@@ -50,6 +73,11 @@ export async function GET() {
 
 // Create new model
 export async function POST(request: NextRequest) {
+  const auth = await verifyAdminAccess(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const supabase = createAdminClient();

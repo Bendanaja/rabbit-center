@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Mail, Lock, User, Eye, EyeOff, Check } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Check, Phone } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -13,8 +13,8 @@ import { SITE_CONFIG } from '@/lib/constants';
 import { useAuth } from '@/hooks/useAuth';
 
 const benefits = [
-  '50 ข้อความฟรีต่อวัน',
-  'ใช้ GPT-3.5 Turbo ได้',
+  '30 ข้อความฟรีต่อวัน',
+  'ใช้ Seed 1.6 Flash ได้',
   'ประวัติแชท 7 วัน',
   'ไม่ต้องใช้บัตรเครดิต',
 ];
@@ -24,6 +24,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -42,6 +43,16 @@ export default function SignupPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
+    // Validate phone number if provided (Thai format)
+    if (phoneNumber) {
+      const cleaned = phoneNumber.replace(/[-\s]/g, '');
+      const thaiPhoneRegex = /^0[0-9]{8,9}$/;
+      if (!thaiPhoneRegex.test(cleaned)) {
+        setErrorMessage('เบอร์โทรศัพท์ไม่ถูกต้อง (รูปแบบ: 0x-xxxx-xxxx)');
+        return;
+      }
+    }
+
     // Validate password - must match server-side validation
     // At least 8 chars, with uppercase, lowercase, and number
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
@@ -50,7 +61,10 @@ export default function SignupPage() {
       return;
     }
 
-    const { data, error } = await signUpWithEmail(email, password, { full_name: fullName });
+    const { data, error } = await signUpWithEmail(email, password, {
+      full_name: fullName,
+      phone_number: phoneNumber || undefined,
+    });
 
     if (error) {
       if (error.message.includes('already registered')) {
@@ -77,7 +91,7 @@ export default function SignupPage() {
     }
   };
 
-  const handleOAuthSignup = async (provider: 'google' | 'github') => {
+  const handleOAuthSignup = async (provider: 'google' | 'github' | 'facebook') => {
     await signInWithOAuth(provider);
   };
 
@@ -103,6 +117,7 @@ export default function SignupPage() {
                 src="/images/logo.jpg"
                 alt="RabbitHub"
                 fill
+                sizes="112px"
                 className="object-cover"
               />
             </div>
@@ -144,6 +159,7 @@ export default function SignupPage() {
                   src="/images/logo.jpg"
                   alt="RabbitHub Logo"
                   fill
+                  sizes="48px"
                   className="object-cover"
                 />
               </div>
@@ -194,6 +210,15 @@ export default function SignupPage() {
                 required
               />
 
+              <Input
+                label="เบอร์โทรศัพท์ (ไม่บังคับ)"
+                type="tel"
+                placeholder="08x-xxx-xxxx"
+                leftIcon={<Phone className="h-4 w-4" />}
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+
               <div className="relative">
                 <Input
                   label="รหัสผ่าน"
@@ -229,13 +254,13 @@ export default function SignupPage() {
                 />
                 <span className="text-sm text-neutral-600 dark:text-neutral-400">
                   ฉันยอมรับ{' '}
-                  <a href="#" className="text-primary-600 hover:text-primary-700">
+                  <Link href="/terms" className="text-primary-600 hover:text-primary-700">
                     เงื่อนไขการใช้บริการ
-                  </a>{' '}
+                  </Link>{' '}
                   และ{' '}
-                  <a href="#" className="text-primary-600 hover:text-primary-700">
+                  <Link href="/privacy" className="text-primary-600 hover:text-primary-700">
                     นโยบายความเป็นส่วนตัว
-                  </a>
+                  </Link>
                 </span>
               </label>
 
@@ -265,7 +290,7 @@ export default function SignupPage() {
             </div>
 
             {/* Social signup buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Button
                 variant="outline"
                 className="justify-center"
@@ -291,6 +316,17 @@ export default function SignupPage() {
                   />
                 </svg>
                 Google
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-center"
+                onClick={() => handleOAuthSignup('facebook')}
+                type="button"
+              >
+                <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                Facebook
               </Button>
               <Button
                 variant="outline"

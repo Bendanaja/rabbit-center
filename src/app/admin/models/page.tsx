@@ -27,7 +27,7 @@ interface AIModel {
   provider: string;
   description: string | null;
   icon: string | null;
-  tier: 'free' | 'pro' | 'enterprise';
+  tier: 'free' | 'starter' | 'pro' | 'premium';
   is_active: boolean;
   daily_limit: number | null;
   hourly_limit: number | null;
@@ -109,10 +109,11 @@ export default function AdminModelsPage() {
     }
   };
 
-  const tierColors = {
+  const tierColors: Record<string, string> = {
     free: 'bg-green-500/10 text-green-400 border-green-500/20',
+    starter: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     pro: 'bg-primary-500/10 text-primary-400 border-primary-500/20',
-    enterprise: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    premium: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   };
 
   return (
@@ -315,7 +316,7 @@ export default function AdminModelsPage() {
                     ระดับ
                   </label>
                   <div className="flex gap-2">
-                    {(['free', 'pro', 'enterprise'] as const).map((tier) => (
+                    {(['free', 'starter', 'pro', 'premium'] as const).map((tier) => (
                       <button
                         key={tier}
                         onClick={() => setEditingModel({ ...editingModel, tier })}

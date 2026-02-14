@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
 
 export const dynamic = 'force-dynamic';
+
+// Verify admin access
+async function verifyAdminAccess(request: Request) {
+  const { user, error } = await getUserFromRequest(request);
+  if (error || !user) return { authorized: false as const };
+
+  const supabase = createAdminClient();
+  const { data: adminData } = await supabase
+    .from('admin_users')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (!adminData) return { authorized: false as const };
+  return { authorized: true as const, user, role: adminData.role as string };
+}
 
 // Update model
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ modelId: string }> }
 ) {
+  const auth = await verifyAdminAccess(request);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { modelId } = await params;
     const body = await request.json();
@@ -62,6 +85,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ modelId: string }> }
 ) {
+  const auth2 = await verifyAdminAccess(request);
+  if (!auth2.authorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { modelId } = await params;
     const supabase = createAdminClient();

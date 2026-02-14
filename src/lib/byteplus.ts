@@ -22,22 +22,23 @@ export interface ModelDefinition {
   isLocked: boolean
   modelType: ModelType
   capabilities?: string[] // e.g. ['t2i', 'i2i'] or ['t2v', 'i2v']
+  maxContextTokens?: number // Max input context window for chat models
 }
 
 export const MODELS: Record<string, ModelDefinition> = {
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Chat/LLM (Free)
   // ═══════════════════════════════════════════
-  'deepseek-r1': { id: 'deepseek-r1-250528', name: 'DeepSeek R1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'deepseek-v3-2': { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3.2', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'deepseek-v3-1': { id: 'deepseek-v3-1-250821', name: 'DeepSeek V3.1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'seed-1-8': { id: 'seed-1-8-251228', name: 'Seed 1.8', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'seed-1-6': { id: 'seed-1-6-250915', name: 'Seed 1.6', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'seed-1-6-flash': { id: 'seed-1-6-flash-250715', name: 'Seed 1.6 Flash', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, modelType: 'chat' },
-  'gpt-oss-120b': { id: 'gpt-oss-120b-250805', name: 'GPT-OSS 120B', provider: 'BytePlus', icon: '/images/models/gpt-oss.svg', isFree: true, isLocked: false, modelType: 'chat' },
+  'deepseek-r1': { id: 'deepseek-r1-250528', name: 'DeepSeek R1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'deepseek-v3-2': { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3.2', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'deepseek-v3-1': { id: 'deepseek-v3-1-250821', name: 'DeepSeek V3.1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'seed-1-8': { id: 'seed-1-8-251228', name: 'Seed 1.8', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'seed-1-6': { id: 'seed-1-6-250915', name: 'Seed 1.6', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'seed-1-6-flash': { id: 'seed-1-6-flash-250715', name: 'Seed 1.6 Flash', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'gpt-oss-120b': { id: 'gpt-oss-120b-250805', name: 'GPT-OSS 120B', provider: 'BytePlus', icon: '/images/models/gpt-oss.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
 
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Image Generation (Free)
@@ -61,7 +62,17 @@ export type ModelKey = keyof typeof MODELS
 // ─── Query helpers ───────────────────────────────────────
 
 export function getModelById(modelId: string) {
-  return Object.values(MODELS).find(m => m.id === modelId)
+  // Try matching by full versioned ID first (e.g. 'deepseek-v3-2-251201')
+  const byId = Object.values(MODELS).find(m => m.id === modelId)
+  if (byId) return byId
+  // Fallback: try matching by short key (e.g. 'deepseek-v3-2')
+  return MODELS[modelId] || undefined
+}
+
+/** Resolve a full model ID (e.g. 'deepseek-v3-2-251201') to its short key (e.g. 'deepseek-v3-2') */
+export function getModelKey(modelId: string): string | undefined {
+  const entry = Object.entries(MODELS).find(([, model]) => model.id === modelId)
+  return entry?.[0]
 }
 
 export function getModelType(modelId: string): ModelType {
@@ -108,6 +119,41 @@ export function getVideoModels() {
   return Object.entries(MODELS)
     .filter(([, model]) => model.modelType === 'video')
     .map(([key, model]) => ({ key, ...model }))
+}
+
+// ─── Token estimation & context building ─────────────────
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+const DEFAULT_MAX_CONTEXT_TOKENS = 128_000
+const RESPONSE_RESERVE_TOKENS = 4_000
+
+/** Cheapest/fastest model for internal tasks (compaction, title gen, etc.) */
+export const COMPACT_MODEL = 'seed-1-6-flash-250715'
+
+export function buildContextMessages<T extends { content: string }>(
+  messages: T[],
+  maxTokens: number = DEFAULT_MAX_CONTEXT_TOKENS
+): { messages: T[]; usagePercent: number } {
+  const availableTokens = maxTokens - RESPONSE_RESERVE_TOKENS
+
+  const result: T[] = []
+  let totalTokens = 0
+
+  // Work backwards from newest to oldest
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msgTokens = estimateTokens(messages[i].content) + 4 // +4 for role overhead
+    if (totalTokens + msgTokens > availableTokens) break
+    result.unshift(messages[i])
+    totalTokens += msgTokens
+  }
+
+  return {
+    messages: result,
+    usagePercent: Math.round((totalTokens / availableTokens) * 100),
+  }
 }
 
 // ─── Chat fallback logic ─────────────────────────────────
@@ -445,7 +491,7 @@ export async function checkVideoStatus(taskId: string): Promise<{
   const data = await response.json()
 
   if (data.status === 'completed' || data.status === 'succeeded') {
-    const videoUrl = data.content?.[0]?.url || data.data?.[0]?.url
+    const videoUrl = data.content?.video_url || data.content?.[0]?.url || data.data?.[0]?.url
     return { status: 'completed', videoUrl }
   }
 

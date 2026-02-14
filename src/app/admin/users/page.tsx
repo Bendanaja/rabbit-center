@@ -4,11 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
-  Filter,
-  UserPlus,
   Ban,
   MoreHorizontal,
-  Mail,
   Calendar,
   MessageSquare,
   Crown,
@@ -16,6 +13,10 @@ import {
   X,
   Check,
   AlertTriangle,
+  ChevronDown,
+  Star,
+  Zap,
+  User as UserIcon,
 } from 'lucide-react';
 import Image from 'next/image';
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -29,12 +30,22 @@ interface User {
   full_name: string | null;
   avatar_url: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
   subscription_tier: string;
   subscription_status: string | null;
   total_messages: number;
   is_banned: boolean;
   ban_reason: string | null;
 }
+
+type PlanType = 'free' | 'starter' | 'pro' | 'premium';
+
+const planConfig: Record<PlanType, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
+  free: { label: 'Free', icon: UserIcon, color: 'text-neutral-400', bgColor: 'bg-neutral-500/10' },
+  starter: { label: 'Starter', icon: Zap, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
+  pro: { label: 'Pro', icon: Star, color: 'text-primary-400', bgColor: 'bg-primary-500/10' },
+  premium: { label: 'Premium', icon: Crown, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
+};
 
 export default function AdminUsersPage() {
   const { role } = useAdmin();
@@ -46,11 +57,15 @@ export default function AdminUsersPage() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all');
+  const [planFilter, setPlanFilter] = useState<'all' | PlanType>('all');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showBanModal, setShowBanModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [banReason, setBanReason] = useState('');
+  const [changingPlan, setChangingPlan] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -62,6 +77,9 @@ export default function AdminUsersPage() {
         sortBy,
         sortOrder,
       });
+      if (planFilter !== 'all') {
+        params.set('plan', planFilter);
+      }
 
       const response = await fetch(`/api/admin/users?${params}`);
       if (response.ok) {
@@ -76,7 +94,7 @@ export default function AdminUsersPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, search, statusFilter, sortBy, sortOrder]);
+  }, [page, search, statusFilter, planFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     setLoading(true);
@@ -108,7 +126,6 @@ export default function AdminUsersPage() {
         body: JSON.stringify({
           reason: banReason,
           is_permanent: true,
-          admin_user_id: 'current-admin-id', // TODO: Get from auth
         }),
       });
 
@@ -128,7 +145,6 @@ export default function AdminUsersPage() {
       const response = await fetch(`/api/admin/users/${userId}/ban`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_user_id: 'current-admin-id' }),
       });
 
       if (response.ok) {
@@ -136,6 +152,27 @@ export default function AdminUsersPage() {
       }
     } catch (error) {
       console.error('Failed to unban user:', error);
+    }
+  };
+
+  const handleChangePlan = async (userId: string, newPlan: PlanType) => {
+    setChangingPlan(true);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/plan`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+
+      if (response.ok) {
+        setShowPlanModal(false);
+        setSelectedUser(null);
+        fetchUsers();
+      }
+    } catch (error) {
+      console.error('Failed to change plan:', error);
+    } finally {
+      setChangingPlan(false);
     }
   };
 
@@ -165,18 +202,29 @@ export default function AdminUsersPage() {
       key: 'subscription_tier',
       title: 'แผน',
       sortable: true,
-      render: (row) => (
-        <span className={cn(
-          'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
-          row.subscription_tier === 'enterprise' && 'bg-purple-500/10 text-purple-400',
-          row.subscription_tier === 'pro' && 'bg-primary-500/10 text-primary-400',
-          row.subscription_tier === 'free' && 'bg-neutral-500/10 text-neutral-400'
-        )}>
-          {row.subscription_tier === 'enterprise' && <Crown className="h-3 w-3" />}
-          {row.subscription_tier === 'pro' && <Shield className="h-3 w-3" />}
-          {row.subscription_tier.charAt(0).toUpperCase() + row.subscription_tier.slice(1)}
-        </span>
-      ),
+      render: (row) => {
+        const plan = planConfig[(row.subscription_tier as PlanType) || 'free'] || planConfig.free;
+        const PlanIcon = plan.icon;
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedUser(row);
+              setShowPlanModal(true);
+            }}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all hover:ring-2 hover:ring-white/20',
+              plan.bgColor,
+              plan.color,
+            )}
+            title="คลิกเพื่อเปลี่ยนแผน"
+          >
+            <PlanIcon className="h-3 w-3" />
+            {plan.label}
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </button>
+        );
+      },
     },
     {
       key: 'total_messages',
@@ -198,6 +246,18 @@ export default function AdminUsersPage() {
           <Calendar className="h-4 w-4" />
           {new Date(row.created_at).toLocaleDateString('th-TH')}
         </div>
+      ),
+    },
+    {
+      key: 'last_sign_in_at',
+      title: 'ใช้งานล่าสุด',
+      sortable: true,
+      render: (row) => (
+        <span className="text-sm text-neutral-400">
+          {row.last_sign_in_at
+            ? new Date(row.last_sign_in_at).toLocaleDateString('th-TH')
+            : '-'}
+        </span>
       ),
     },
     {
@@ -227,9 +287,20 @@ export default function AdminUsersPage() {
     {
       key: 'actions',
       title: '',
-      width: '100px',
+      width: '120px',
       render: (row) => (
         <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedUser(row);
+              setShowDetailModal(true);
+            }}
+            className="p-2 text-neutral-400 hover:bg-neutral-800 rounded-lg transition-colors"
+            title="ดูรายละเอียด"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
           {row.is_banned ? (
             <button
               onClick={(e) => {
@@ -254,9 +325,6 @@ export default function AdminUsersPage() {
               <Ban className="h-4 w-4" />
             </button>
           )}
-          <button className="p-2 text-neutral-400 hover:bg-neutral-800 rounded-lg transition-colors">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
         </div>
       ),
     },
@@ -293,7 +361,7 @@ export default function AdminUsersPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
             <input
               type="text"
-              placeholder="ค้นหาผู้ใช้..."
+              placeholder="ค้นหาผู้ใช้ (ชื่อ, อีเมล)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-10 pl-10 pr-4 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
@@ -314,6 +382,24 @@ export default function AdminUsersPage() {
                 )}
               >
                 {status === 'all' ? 'ทั้งหมด' : status === 'active' ? 'ปกติ' : 'ถูกแบน'}
+              </button>
+            ))}
+          </div>
+
+          {/* Plan Filter */}
+          <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+            {(['all', 'free', 'starter', 'pro', 'premium'] as const).map((plan) => (
+              <button
+                key={plan}
+                onClick={() => setPlanFilter(plan)}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-sm transition-colors',
+                  planFilter === plan
+                    ? 'bg-primary-500 text-white'
+                    : 'text-neutral-400 hover:text-white'
+                )}
+              >
+                {plan === 'all' ? 'ทุกแผน' : planConfig[plan]?.label || plan}
               </button>
             ))}
           </div>
@@ -341,6 +427,199 @@ export default function AdminUsersPage() {
           />
         </motion.div>
       </div>
+
+      {/* Plan Change Modal */}
+      <AnimatePresence>
+        {showPlanModal && selectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setShowPlanModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">เปลี่ยนแผนผู้ใช้</h3>
+                  <p className="text-sm text-neutral-400 mt-1">
+                    {selectedUser.full_name || 'ไม่ระบุชื่อ'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPlanModal(false)}
+                  className="p-2 text-neutral-400 hover:text-white rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {(Object.entries(planConfig) as [PlanType, typeof planConfig[PlanType]][]).map(([planId, config]) => {
+                  const isCurrentPlan = (selectedUser.subscription_tier || 'free') === planId;
+                  const PlanIcon = config.icon;
+                  return (
+                    <button
+                      key={planId}
+                      onClick={() => !isCurrentPlan && handleChangePlan(selectedUser.user_id, planId)}
+                      disabled={isCurrentPlan || changingPlan}
+                      className={cn(
+                        'w-full flex items-center gap-3 p-4 rounded-xl border transition-all',
+                        isCurrentPlan
+                          ? 'border-primary-500 bg-primary-500/10 cursor-default'
+                          : 'border-neutral-700 hover:border-neutral-600 hover:bg-neutral-800/50 cursor-pointer',
+                        changingPlan && !isCurrentPlan && 'opacity-50 cursor-not-allowed',
+                      )}
+                    >
+                      <div className={cn('p-2 rounded-lg', config.bgColor)}>
+                        <PlanIcon className={cn('h-5 w-5', config.color)} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-white">{config.label}</p>
+                        <p className="text-xs text-neutral-400">
+                          {planId === 'free' ? 'ฟรี' : planId === 'starter' ? '199 บาท/เดือน' : planId === 'pro' ? '499 บาท/เดือน' : '799 บาท/เดือน'}
+                        </p>
+                      </div>
+                      {isCurrentPlan && (
+                        <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded-full">
+                          แผนปัจจุบัน
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* User Detail Modal */}
+      <AnimatePresence>
+        {showDetailModal && selectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setShowDetailModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white">รายละเอียดผู้ใช้</h3>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-2 text-neutral-400 hover:text-white rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative h-16 w-16 rounded-full overflow-hidden bg-neutral-800">
+                    {selectedUser.avatar_url ? (
+                      <Image src={selectedUser.avatar_url} alt="" fill className="object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-2xl text-neutral-400">
+                        {(selectedUser.full_name || 'U')[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-white">{selectedUser.full_name || 'ไม่ระบุชื่อ'}</p>
+                    <p className="text-sm text-neutral-400">ID: {selectedUser.user_id}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 p-4 bg-neutral-800/50 rounded-xl">
+                  <div>
+                    <p className="text-xs text-neutral-500">แผน</p>
+                    <p className="text-sm font-medium text-white mt-1">
+                      {planConfig[(selectedUser.subscription_tier as PlanType) || 'free']?.label || 'Free'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">สถานะ</p>
+                    <p className={cn('text-sm font-medium mt-1', selectedUser.is_banned ? 'text-red-400' : 'text-green-400')}>
+                      {selectedUser.is_banned ? 'ถูกแบน' : 'ปกติ'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">ข้อความทั้งหมด</p>
+                    <p className="text-sm font-medium text-white mt-1">{selectedUser.total_messages.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">สมัครเมื่อ</p>
+                    <p className="text-sm font-medium text-white mt-1">
+                      {new Date(selectedUser.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500">ใช้งานล่าสุด</p>
+                    <p className="text-sm font-medium text-white mt-1">
+                      {selectedUser.last_sign_in_at
+                        ? new Date(selectedUser.last_sign_in_at).toLocaleDateString('th-TH')
+                        : '-'}
+                    </p>
+                  </div>
+                  {selectedUser.ban_reason && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-neutral-500">เหตุผลที่แบน</p>
+                      <p className="text-sm font-medium text-red-400 mt-1">{selectedUser.ban_reason}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowPlanModal(true);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors text-sm"
+                  >
+                    เปลี่ยนแผน
+                  </button>
+                  {selectedUser.is_banned ? (
+                    <button
+                      onClick={() => {
+                        handleUnbanUser(selectedUser.user_id);
+                        setShowDetailModal(false);
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm"
+                    >
+                      ปลดแบน
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShowDetailModal(false);
+                        setShowBanModal(true);
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm"
+                    >
+                      แบนผู้ใช้
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Ban Modal */}
       <AnimatePresence>

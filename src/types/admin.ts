@@ -122,7 +122,7 @@ export interface AdminUserView {
   avatar_url: string | null;
   created_at: string;
   last_sign_in_at: string | null;
-  subscription_tier: 'free' | 'pro' | 'enterprise' | null;
+  subscription_tier: 'free' | 'starter' | 'pro' | 'premium' | null;
   subscription_status: 'active' | 'cancelled' | 'expired' | null;
   total_messages: number;
   total_chats: number;
@@ -138,7 +138,7 @@ export interface AdminAIModel {
   provider: string;
   description: string | null;
   icon: string | null;
-  tier: 'free' | 'pro' | 'enterprise';
+  tier: 'free' | 'starter' | 'pro' | 'premium';
   is_active: boolean;
   daily_limit: number | null;
   hourly_limit: number | null;
@@ -258,6 +258,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: 'แดชบอร์ด', href: '/admin', icon: 'LayoutDashboard', permission: PERMISSIONS.VIEW_DASHBOARD },
   { name: 'ผู้ใช้งาน', href: '/admin/users', icon: 'Users', permission: PERMISSIONS.VIEW_USERS },
   { name: 'AI Models', href: '/admin/models', icon: 'Bot', permission: PERMISSIONS.VIEW_MODELS },
+  { name: 'จัดการเนื้อหา', href: '/admin/content', icon: 'FileEdit', permission: PERMISSIONS.EDIT_SITE_CONFIG },
   { name: 'วิเคราะห์', href: '/admin/analytics', icon: 'BarChart3', permission: PERMISSIONS.VIEW_DASHBOARD },
   { name: 'ตั้งค่าระบบ', href: '/admin/settings', icon: 'Settings', permission: PERMISSIONS.VIEW_SETTINGS },
   { name: 'ตรวจสอบ', href: '/admin/moderation', icon: 'Shield', permission: PERMISSIONS.VIEW_FLAGS },

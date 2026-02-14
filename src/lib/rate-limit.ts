@@ -1,5 +1,7 @@
-// Simple in-memory rate limiter
+// Rate limiter with Redis-backed sliding window (falls back to in-memory)
 // Tracks requests per key (user ID or IP) with sliding window
+
+import { redisRateLimit } from '@/lib/redis'
 
 interface RateLimitEntry {
   count: number
@@ -116,4 +118,30 @@ export function applyRateLimitHeaders(
   headers.set('X-RateLimit-Limit', result.limit.toString())
   headers.set('X-RateLimit-Remaining', result.remaining.toString())
   headers.set('X-RateLimit-Reset', Math.ceil(result.resetAt / 1000).toString())
+}
+
+/**
+ * Redis-backed rate limiting with sliding window.
+ * Falls back to in-memory if Redis is unavailable.
+ * Use this for Node.js API routes (not Edge middleware).
+ */
+export async function checkRateLimitRedis(
+  key: string,
+  config: RateLimitConfig
+): Promise<RateLimitResult> {
+  const windowSeconds = Math.ceil(config.windowMs / 1000)
+  const redisKey = `rl:${key}`
+
+  try {
+    const result = await redisRateLimit(redisKey, config.maxRequests, windowSeconds)
+    return {
+      allowed: result.allowed,
+      remaining: result.remaining,
+      resetAt: result.resetAt,
+      limit: config.maxRequests,
+    }
+  } catch {
+    // Fallback to in-memory rate limiting
+    return checkRateLimit(key, config)
+  }
 }

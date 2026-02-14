@@ -42,15 +42,10 @@ export function useAdmin(): UseAdminReturn {
 
       const supabase = createClient();
 
+      // First: check admin_users (simple query, no join issues)
       const { data, error: fetchError } = await supabase
         .from('admin_users')
-        .select(`
-          *,
-          user_profile:user_profiles!admin_users_user_id_fkey(
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .single();
@@ -66,9 +61,25 @@ export function useAdmin(): UseAdminReturn {
           throw fetchError;
         }
       } else if (data) {
+        // Fetch profile info separately (no FK relationship needed)
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('display_name, avatar_url')
+          .eq('user_id', user.id)
+          .single();
+
+        const adminWithProfile = {
+          ...data,
+          user_profile: profileData ? {
+            full_name: profileData.display_name,
+            avatar_url: profileData.avatar_url,
+            email: user.email || '',
+          } : { full_name: null, avatar_url: null, email: user.email || '' },
+        } as AdminUser;
+
         setIsAdmin(true);
         setIsOwner(data.role === 'owner');
-        setAdminData(data as AdminUser);
+        setAdminData(adminWithProfile);
         setRole(data.role as AdminRole);
 
         // Log admin login

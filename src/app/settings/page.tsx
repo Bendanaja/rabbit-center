@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   User,
   Bell,
@@ -14,10 +15,15 @@ import {
   Moon,
   Sun,
   Gift,
+  Loader2,
+  Phone,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
+import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -39,8 +45,123 @@ const tabs = [
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const { user, loading, signOut } = useAuth();
+  const { user, session, loading, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const router = useRouter();
+
+  // Profile form state
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [userPlan, setUserPlan] = useState<{ plan: string; planName: string }>({ plan: 'free', planName: 'ฟรี' });
+
+  // Notification toggles state
+  const [notifications, setNotifications] = useState({
+    email_notifications: true,
+    product_updates: true,
+    usage_alerts: true,
+    promotional_emails: false,
+  });
+
+  // Initialize profile form when user loads
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+      setProfileEmail(user.email || '');
+    }
+  }, [user]);
+
+  // Fetch customer profile (phone number) and plan
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch('/api/user/profile', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.phone_number) setProfilePhone(data.phone_number);
+        if (data?.display_name) setProfileName(data.display_name);
+      })
+      .catch(() => { /* non-blocking */ });
+
+    // Fetch actual plan
+    fetch('/api/user/usage', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.plan) {
+          setUserPlan({ plan: data.plan, planName: data.planName || data.plan });
+        }
+      })
+      .catch(() => { /* non-blocking */ });
+  }, [session]);
+
+  const handleProfileSave = useCallback(async () => {
+    if (!session?.access_token) return;
+    setProfileSaving(true);
+    setProfileError('');
+    setProfileSuccess(false);
+
+    // Validate phone number if provided
+    if (profilePhone) {
+      const cleaned = profilePhone.replace(/[-\s]/g, '');
+      const thaiPhoneRegex = /^0[0-9]{8,9}$/;
+      if (!thaiPhoneRegex.test(cleaned)) {
+        setProfileError('เบอร์โทรศัพท์ไม่ถูกต้อง (รูปแบบ: 0x-xxxx-xxxx)');
+        setProfileSaving(false);
+        return;
+      }
+    }
+
+    try {
+      // Save to customer_profiles via PUT
+      const putResponse = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          display_name: profileName,
+          phone_number: profilePhone || null,
+        }),
+      });
+
+      // Also update user_profiles via PATCH for backward compat
+      const patchResponse = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ full_name: profileName }),
+      });
+
+      if (putResponse.ok || patchResponse.ok) {
+        setProfileSuccess(true);
+        toast.success('บันทึกโปรไฟล์เรียบร้อยแล้ว');
+        setTimeout(() => setProfileSuccess(false), 3000);
+      } else {
+        const data = await (putResponse.ok ? patchResponse : putResponse).json();
+        const errorMsg = data.error || 'ไม่สามารถบันทึกได้';
+        setProfileError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch {
+      setProfileError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [session, profileName, profilePhone]);
+
+  const handleNotificationToggle = (key: keyof typeof notifications) => {
+    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -64,10 +185,12 @@ export default function SettingsPage() {
   }
 
   // User data from auth
+  const planDisplayName = userPlan.plan === 'free' ? 'Free' : userPlan.planName;
   const userData = {
     name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'ผู้ใช้',
     email: user.email || '',
-    plan: 'Free',
+    plan: planDisplayName,
+    planId: userPlan.plan,
     avatar: user.user_metadata?.avatar_url || null,
   };
 
@@ -79,13 +202,23 @@ export default function SettingsPage() {
         <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
           {/* Header */}
           <FadeIn>
-            <div className="mb-6 sm:mb-8">
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-neutral-900 dark:text-white mb-1 sm:mb-2">
-                ตั้งค่า
-              </h1>
-              <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400">
-                จัดการบัญชีและค่ากำหนดของคุณ
-              </p>
+            <div className="mb-6 sm:mb-8 flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-display font-bold text-neutral-900 dark:text-white mb-1 sm:mb-2">
+                  ตั้งค่า
+                </h1>
+                <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400">
+                  จัดการบัญชีและค่ากำหนดของคุณ
+                </p>
+              </div>
+              {isAdmin && (
+                <Link href="/admin">
+                  <Button variant="outline" className="gap-2 shrink-0">
+                    <Shield className="h-4 w-4" />
+                    Admin Dashboard
+                  </Button>
+                </Link>
+              )}
             </div>
           </FadeIn>
 
@@ -163,7 +296,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-6 space-y-6">
                     <div className="flex items-center gap-4">
-                      <Avatar name={userData.name} size="xl" />
+                      <Avatar name={profileName || userData.name} size="xl" />
                       <div>
                         <Button variant="outline" size="sm">
                           เปลี่ยนรูปภาพ
@@ -174,22 +307,63 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
+                    {profileSuccess && (
+                      <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+                          <Check className="h-4 w-4" />
+                          บันทึกโปรไฟล์เรียบร้อยแล้ว
+                        </p>
+                      </div>
+                    )}
+
+                    {profileError && (
+                      <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                        <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Input label="ชื่อ-นามสกุล" defaultValue={userData.name} />
-                      <Input label="อีเมล" type="email" defaultValue={userData.email} />
+                      <Input
+                        label="ชื่อ-นามสกุล"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                      />
+                      <Input
+                        label="อีเมล"
+                        type="email"
+                        value={profileEmail}
+                        disabled
+                      />
+                      <Input
+                        label="เบอร์โทรศัพท์"
+                        type="tel"
+                        placeholder="08x-xxx-xxxx"
+                        leftIcon={<Phone className="h-4 w-4" />}
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                      />
                     </div>
 
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
                       <Badge variant="primary">แผน {userData.plan}</Badge>
                       <span className="text-sm text-primary-700 dark:text-primary-400">
-                        {userData.plan === 'Free'
+                        {userData.planId === 'free'
                           ? 'คุณใช้แผนฟรี อัปเกรดเพื่อใช้งานได้มากขึ้น'
                           : 'คุณใช้แผนที่เข้าถึงทุกฟีเจอร์ได้'}
                       </span>
                     </div>
 
                     <div className="flex justify-end">
-                      <Button>บันทึกการเปลี่ยนแปลง</Button>
+                      <Button onClick={handleProfileSave} disabled={profileSaving}>
+                        {profileSaving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            กำลังบันทึก...
+                          </>
+                        ) : (
+                          'บันทึกการเปลี่ยนแปลง'
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -207,14 +381,14 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="p-6 space-y-4">
-                    {[
-                      { title: 'การแจ้งเตือนทางอีเมล', description: 'รับอัปเดตผ่านอีเมล', checked: true },
-                      { title: 'อัปเดตผลิตภัณฑ์', description: 'ข่าวสารเกี่ยวกับฟีเจอร์ใหม่', checked: true },
-                      { title: 'แจ้งเตือนการใช้งาน', description: 'แจ้งเตือนเมื่อใกล้ถึงขีดจำกัด', checked: true },
-                      { title: 'อีเมลโปรโมชั่น', description: 'เคล็ดลับและโปรโมชั่น', checked: false },
-                    ].map((item) => (
+                    {([
+                      { key: 'email_notifications' as const, title: 'การแจ้งเตือนทางอีเมล', description: 'รับอัปเดตผ่านอีเมล' },
+                      { key: 'product_updates' as const, title: 'อัปเดตผลิตภัณฑ์', description: 'ข่าวสารเกี่ยวกับฟีเจอร์ใหม่' },
+                      { key: 'usage_alerts' as const, title: 'แจ้งเตือนการใช้งาน', description: 'แจ้งเตือนเมื่อใกล้ถึงขีดจำกัด' },
+                      { key: 'promotional_emails' as const, title: 'อีเมลโปรโมชั่น', description: 'เคล็ดลับและโปรโมชั่น' },
+                    ]).map((item) => (
                       <div
-                        key={item.title}
+                        key={item.key}
                         className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50"
                       >
                         <div>
@@ -222,7 +396,12 @@ export default function SettingsPage() {
                           <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.description}</p>
                         </div>
                         <label className="relative inline-flex cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" defaultChecked={item.checked} />
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={notifications[item.key]}
+                            onChange={() => handleNotificationToggle(item.key)}
+                          />
                           <div className="w-11 h-6 bg-neutral-200 peer-focus:ring-2 peer-focus:ring-primary-500/50 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600" />
                         </label>
                       </div>
@@ -342,19 +521,35 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="p-6 space-y-4">
-                    {[
-                      { title: 'รหัสผ่าน', desc: 'เปลี่ยนล่าสุด 30 วันที่แล้ว', btn: 'เปลี่ยนรหัสผ่าน' },
-                      { title: 'การยืนยันตัวตนสองชั้น', desc: 'เพิ่มความปลอดภัยอีกระดับ', btn: 'เปิดใช้งาน 2FA' },
-                      { title: 'เซสชันที่ใช้งานอยู่', desc: '2 เซสชันที่ใช้งานอยู่', btn: 'จัดการเซสชัน' },
-                    ].map((item) => (
-                      <div key={item.title} className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                        <div>
-                          <p className="font-medium text-neutral-900 dark:text-white">{item.title}</p>
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">{item.desc}</p>
-                        </div>
-                        <Button variant="outline">{item.btn}</Button>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                      <div>
+                        <p className="font-medium text-neutral-900 dark:text-white">รหัสผ่าน</p>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">เปลี่ยนรหัสผ่านของคุณ</p>
                       </div>
-                    ))}
+                      <Link href="/auth/reset-password">
+                        <Button variant="outline">เปลี่ยนรหัสผ่าน</Button>
+                      </Link>
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 opacity-60">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-neutral-900 dark:text-white">การยืนยันตัวตนสองชั้น</p>
+                          <Badge variant="secondary" className="text-[10px]">เร็วๆ นี้</Badge>
+                        </div>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">เพิ่มความปลอดภัยอีกระดับ</p>
+                      </div>
+                      <Button variant="outline" disabled>เปิดใช้งาน 2FA</Button>
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 opacity-60">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-neutral-900 dark:text-white">เซสชันที่ใช้งานอยู่</p>
+                          <Badge variant="secondary" className="text-[10px]">เร็วๆ นี้</Badge>
+                        </div>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">จัดการเซสชันที่ใช้งานอยู่</p>
+                      </div>
+                      <Button variant="outline" disabled>จัดการเซสชัน</Button>
+                    </div>
                   </div>
                 </Card>
               )}
@@ -372,7 +567,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-6 space-y-6">
                     <div className={`p-4 rounded-lg ${
-                      userData.plan === 'Free'
+                      userData.planId === 'free'
                         ? 'bg-gradient-to-r from-neutral-500 to-neutral-600 text-white'
                         : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white'
                     }`}>
@@ -384,12 +579,17 @@ export default function SettingsPage() {
                         <Badge className="bg-white/20 text-white">ใช้งานอยู่</Badge>
                       </div>
                       <div className="mt-4 pt-4 border-t border-white/20 flex justify-between text-sm">
-                        <span>{userData.plan === 'Free' ? 'ฟรี' : '฿299/เดือน'}</span>
-                        {userData.plan !== 'Free' && <span>ต่ออายุ 1 ก.พ. 2569</span>}
+                        <span>
+                          {userData.planId === 'free' ? 'ฟรี' :
+                           userData.planId === 'starter' ? '฿199/เดือน' :
+                           userData.planId === 'pro' ? '฿499/เดือน' :
+                           userData.planId === 'premium' ? '฿990/เดือน' : 'ฟรี'}
+                        </span>
+                        {isAdmin && <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Admin</span>}
                       </div>
                     </div>
 
-                    {userData.plan === 'Free' ? (
+                    {userData.planId === 'free' ? (
                       <div className="flex items-center justify-between p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
                         <div>
                           <p className="font-medium text-neutral-900 dark:text-white">อัปเกรดเป็น Pro</p>
@@ -402,25 +602,17 @@ export default function SettingsPage() {
                         </Link>
                       </div>
                     ) : (
-                      <>
-                        <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                          <div>
-                            <p className="font-medium text-neutral-900 dark:text-white">วิธีการชำระเงิน</p>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Visa ลงท้าย 4242</p>
-                          </div>
-                          <Button variant="outline">อัปเดต</Button>
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
+                        <div>
+                          <p className="font-medium text-neutral-900 dark:text-white">เปลี่ยนแผน</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                            ดูแผนทั้งหมดและอัปเกรด/ดาวน์เกรด
+                          </p>
                         </div>
-
-                        <div className="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-800/50">
-                          <div>
-                            <p className="font-medium text-neutral-900 dark:text-white">ประวัติการเรียกเก็บเงิน</p>
-                            <p className="text-sm text-neutral-500 dark:text-neutral-400">ดูใบแจ้งหนี้ที่ผ่านมา</p>
-                          </div>
-                          <Button variant="outline" rightIcon={<ChevronRight className="h-4 w-4" />}>
-                            ดูทั้งหมด
-                          </Button>
-                        </div>
-                      </>
+                        <Link href="/pricing">
+                          <Button variant="outline">ดูแผนทั้งหมด</Button>
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </Card>
@@ -430,7 +622,7 @@ export default function SettingsPage() {
         </div>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

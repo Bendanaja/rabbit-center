@@ -14,7 +14,9 @@ import {
   Layers,
   Check,
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/animations';
@@ -377,7 +379,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }

@@ -29,7 +29,9 @@ import {
   Megaphone,
   Settings
 } from 'lucide-react';
-import { Navbar, Footer } from '@/components/layout';
+import { Navbar } from '@/components/layout';
+import { FooterClient } from '@/components/layout/FooterClient';
+import { DEFAULT_FOOTER } from '@/lib/content';
 import { Button, Badge } from '@/components/ui';
 
 type Department = 'all' | 'engineering' | 'product' | 'design' | 'marketing' | 'operations';
@@ -620,7 +622,7 @@ export default function CareersPage() {
         </section>
       </main>
 
-      <Footer />
+      <FooterClient content={DEFAULT_FOOTER} />
     </div>
   );
 }
