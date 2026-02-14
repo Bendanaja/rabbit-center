@@ -18,6 +18,7 @@ import Image from 'next/image';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { PERMISSIONS } from '@/types/admin';
+import { authFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 interface AIModel {
@@ -46,7 +47,7 @@ export default function AdminModelsPage() {
 
   const fetchModels = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/models');
+      const response = await authFetch('/api/admin/models');
       if (response.ok) {
         const data = await response.json();
         setModels(data || []);
@@ -68,9 +69,12 @@ export default function AdminModelsPage() {
     fetchModels();
   };
 
+  const [toggling, setToggling] = useState<string | null>(null);
+
   const handleToggleModel = async (model: AIModel) => {
+    setToggling(model.id);
     try {
-      const response = await fetch(`/api/admin/models/${model.id}`, {
+      const response = await authFetch(`/api/admin/models/${model.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !model.is_active }),
@@ -83,12 +87,14 @@ export default function AdminModelsPage() {
       }
     } catch (error) {
       console.error('Failed to toggle model:', error);
+    } finally {
+      setToggling(null);
     }
   };
 
   const handleSaveModel = async (model: AIModel) => {
     try {
-      const response = await fetch(`/api/admin/models/${model.id}`, {
+      const response = await authFetch(`/api/admin/models/${model.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,12 +198,15 @@ export default function AdminModelsPage() {
                   <PermissionGate permission={PERMISSIONS.TOGGLE_MODELS}>
                     <button
                       onClick={() => handleToggleModel(model)}
+                      disabled={toggling === model.id}
                       className={cn(
                         'p-2 rounded-lg transition-colors',
+                        toggling === model.id && 'animate-pulse',
                         model.is_active
                           ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
                           : 'bg-neutral-800 text-neutral-500 hover:bg-neutral-700'
                       )}
+                      title={model.is_active ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
                     >
                       <Power className="h-4 w-4" />
                     </button>

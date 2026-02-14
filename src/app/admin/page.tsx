@@ -7,12 +7,9 @@ import {
   MessageSquare,
   CreditCard,
   TrendingUp,
-  Bot,
   Shield,
   Activity,
   Clock,
-  Image as ImageIcon,
-  Video,
   Settings,
   Eye,
   Phone,
@@ -78,55 +75,14 @@ export default function AdminDashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setStats(data);
-      } else {
-        // Use mock data for display
-        setStats({
-          totalUsers: 128,
-          activeUsersToday: 34,
-          totalMessages: 15420,
-          totalRevenue: 24850,
-          newUsersThisWeek: 12,
-          activeSubscriptions: 45,
-          pendingFlags: 2,
-          modelUsage: [
-            { model: 'DeepSeek R1', count: 4520 },
-            { model: 'Seed 1.8', count: 3200 },
-            { model: 'Kimi K2', count: 2800 },
-            { model: 'GLM-4.7', count: 1950 },
-            { model: 'GPT-OSS 120B', count: 1200 },
-          ],
-        });
       }
     } catch {
-      setStats({
-        totalUsers: 128,
-        activeUsersToday: 34,
-        totalMessages: 15420,
-        totalRevenue: 24850,
-        newUsersThisWeek: 12,
-        activeSubscriptions: 45,
-        pendingFlags: 2,
-        modelUsage: [
-          { model: 'DeepSeek R1', count: 4520 },
-          { model: 'Seed 1.8', count: 3200 },
-          { model: 'Kimi K2', count: 2800 },
-          { model: 'GLM-4.7', count: 1950 },
-          { model: 'GPT-OSS 120B', count: 1200 },
-        ],
-      });
+      // API failed - stats remain null, UI will show 0
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
 
-    // Mock recent activity
-    setRecentActivity([
-      { id: '1', type: 'subscription', description: 'สมัครแผน Pro (499 บาท)', timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(), user: 'สมชาย' },
-      { id: '2', type: 'user_signup', description: 'สมาชิกใหม่ลงทะเบียน', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), user: 'สุดา' },
-      { id: '3', type: 'payment', description: 'ชำระเงินแผน Premium (799 บาท)', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), user: 'วิชัย' },
-      { id: '4', type: 'subscription', description: 'สมัครแผน Starter (199 บาท)', timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(), user: 'มาลี' },
-      { id: '5', type: 'user_signup', description: 'สมาชิกใหม่ลงทะเบียน', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), user: 'ประเสริฐ' },
-    ]);
   }, []);
 
   useEffect(() => {
@@ -465,48 +421,6 @@ export default function AdminDashboardPage() {
           </div>
         </motion.div>
 
-        {/* System Status */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
-        >
-          <h3 className="text-lg font-semibold text-white mb-4">สถานะระบบ</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { name: 'API Server', status: 'online' },
-              { name: 'Database', status: 'online' },
-              { name: 'BytePlus', status: 'online' },
-              { name: 'Supabase', status: 'online' },
-            ].map((service, index) => (
-              <motion.div
-                key={service.name}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.9 + index * 0.1 }}
-                className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-lg"
-              >
-                <span className="relative flex h-3 w-3">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    service.status === 'online' ? 'bg-green-400' : 'bg-red-400'
-                  }`}></span>
-                  <span className={`relative inline-flex rounded-full h-3 w-3 ${
-                    service.status === 'online' ? 'bg-green-500' : 'bg-red-500'
-                  }`}></span>
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-white">{service.name}</p>
-                  <p className={`text-xs ${
-                    service.status === 'online' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {service.status === 'online' ? 'ออนไลน์' : 'ออฟไลน์'}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
       </div>
     </div>
   );

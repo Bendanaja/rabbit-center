@@ -172,14 +172,6 @@ export const PRICING_PLANS = [
 
 export type PricingPlan = typeof PRICING_PLANS[number];
 
-export const MOCK_RESPONSES = [
-  "คำถามดีมากครับ! ให้ผมคิดดูสักครู่...",
-  "ผมเข้าใจสิ่งที่คุณต้องการ นี่คือความเห็นของผม:",
-  "น่าสนใจมากครับ! นี่คือสิ่งที่ผมอยากจะแบ่งปัน:",
-  "ขอบคุณที่ถามครับ! จากความรู้ของผม:",
-  "ให้ผมอธิบายให้ฟังนะครับ:",
-];
-
 export const NAV_LINKS = [
   { href: '/', label: 'หน้าแรก' },
   { href: '/chat', label: 'แชท' },

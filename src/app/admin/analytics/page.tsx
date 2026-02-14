@@ -11,9 +11,9 @@ import {
   Bot,
   Calendar,
   Download,
-  RefreshCw,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { authFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 interface AnalyticsData {
@@ -38,7 +38,7 @@ export default function AdminAnalyticsPage() {
 
   const fetchAnalytics = useCallback(async () => {
     try {
-      const response = await fetch(`/api/admin/analytics?range=${dateRange}`);
+      const response = await authFetch(`/api/admin/analytics?range=${dateRange}`);
       if (response.ok) {
         const result = await response.json();
         setData(result);
@@ -73,46 +73,21 @@ export default function AdminAnalyticsPage() {
     linkElement.click();
   };
 
-  // Mock data for visualization
-  const mockData: AnalyticsData = {
-    userGrowth: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      count: 1000 + Math.floor(Math.random() * 500) + i * 20,
-      new_users: Math.floor(Math.random() * 50) + 10,
-    })),
-    messageStats: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      count: 5000 + Math.floor(Math.random() * 3000),
-      tokens: 500000 + Math.floor(Math.random() * 300000),
-    })),
-    revenueStats: Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      amount: 50000 + Math.floor(Math.random() * 30000),
-      subscriptions: Math.floor(Math.random() * 20) + 5,
-    })),
-    modelUsage: [
-      { model: 'GPT-4', requests: 45000, tokens: 12000000, percentage: 35 },
-      { model: 'Claude 3', requests: 38000, tokens: 9500000, percentage: 30 },
-      { model: 'Gemini Pro', requests: 25000, tokens: 6200000, percentage: 20 },
-      { model: 'Mistral', requests: 12000, tokens: 3100000, percentage: 10 },
-      { model: 'Llama 3', requests: 6000, tokens: 1500000, percentage: 5 },
-    ],
-    topUsers: [
-      { user_id: '1', name: 'สมชาย ใจดี', messages: 2500, spent: 1499 },
-      { user_id: '2', name: 'สมหญิง รักเรียน', messages: 2100, spent: 1499 },
-      { user_id: '3', name: 'วิชัย นักพัฒนา', messages: 1800, spent: 299 },
-      { user_id: '4', name: 'นภา สร้างสรรค์', messages: 1500, spent: 299 },
-      { user_id: '5', name: 'ธนา เทคโน', messages: 1200, spent: 0 },
-    ],
-    conversionRate: 12.5,
-    churnRate: 3.2,
-    avgSessionDuration: 25.4,
-    dailyActiveUsers: Array.from({ length: 7 }, () => Math.floor(Math.random() * 500) + 300),
+  const emptyData: AnalyticsData = {
+    userGrowth: [],
+    messageStats: [],
+    revenueStats: [],
+    modelUsage: [],
+    topUsers: [],
+    conversionRate: 0,
+    churnRate: 0,
+    avgSessionDuration: 0,
+    dailyActiveUsers: [0, 0, 0, 0, 0, 0, 0],
   };
 
-  const displayData = data || mockData;
+  const displayData = data || emptyData;
 
-  const getMaxValue = (arr: number[]) => Math.max(...arr);
+  const getMaxValue = (arr: number[]) => arr.length > 0 ? Math.max(...arr) : 1;
 
   return (
     <div className="min-h-screen">

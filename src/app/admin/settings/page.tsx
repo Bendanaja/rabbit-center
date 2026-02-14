@@ -121,55 +121,7 @@ export default function AdminSettingsPage() {
     security: { icon: <Shield className="h-5 w-5" />, title: 'ความปลอดภัย', description: 'การเข้าถึงและความปลอดภัย' },
   };
 
-  // Full mock settings with feature toggles and rate limits
-  const mockSettings: SettingItem[] = [
-    // General
-    { key: 'site_name', value: 'RabbitHub AI', description: 'ชื่อเว็บไซต์', is_public: true, category: 'general' },
-    { key: 'site_description', value: 'แพลตฟอร์ม AI อัจฉริยะ', description: 'คำอธิบายเว็บไซต์', is_public: true, category: 'general' },
-    { key: 'maintenance_mode', value: 'false', description: 'เปิด/ปิดโหมดบำรุงรักษา (ปิดเว็บทั้งหมด)', is_public: false, category: 'general' },
-    { key: 'default_plan', value: 'free', description: 'แผนเริ่มต้นสำหรับสมาชิกใหม่ (free/starter/pro/premium)', is_public: false, category: 'general' },
-
-    // Feature Toggles
-    { key: 'feature_chat', value: 'true', description: 'เปิด/ปิดระบบแชท AI', is_public: false, category: 'features' },
-    { key: 'feature_image_gen', value: 'true', description: 'เปิด/ปิดระบบสร้างรูปภาพ', is_public: false, category: 'features' },
-    { key: 'feature_video_gen', value: 'true', description: 'เปิด/ปิดระบบสร้างวิดีโอ', is_public: false, category: 'features' },
-    { key: 'feature_export', value: 'true', description: 'เปิด/ปิดการส่งออกบทสนทนา', is_public: false, category: 'features' },
-    { key: 'feature_custom_prompts', value: 'true', description: 'เปิด/ปิดคำสั่งกำหนดเอง', is_public: false, category: 'features' },
-    { key: 'allow_registration', value: 'true', description: 'อนุญาตให้สมัครสมาชิกใหม่', is_public: false, category: 'features' },
-
-    // Rate Limits per plan (calibrated for profitability with 40% BytePlus discount)
-    { key: 'rate_limit_free_messages', value: '30', description: 'ข้อความต่อวัน (แผน Free)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_starter_messages', value: '100', description: 'ข้อความต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_pro_messages', value: '200', description: 'ข้อความต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_premium_messages', value: '400', description: 'ข้อความต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_free_images', value: '0', description: 'รูปภาพต่อวัน (แผน Free) - 0 = ไม่อนุญาต', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_starter_images', value: '3', description: 'รูปภาพต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_pro_images', value: '8', description: 'รูปภาพต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_premium_images', value: '10', description: 'รูปภาพต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_free_videos', value: '0', description: 'วิดีโอต่อวัน (แผน Free) - 0 = ไม่อนุญาต', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_starter_videos', value: '1', description: 'วิดีโอต่อวัน (แผน Starter)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_pro_videos', value: '2', description: 'วิดีโอต่อวัน (แผน Pro)', is_public: false, category: 'rate_limits' },
-    { key: 'rate_limit_premium_videos', value: '3', description: 'วิดีโอต่อวัน (แผน Premium)', is_public: false, category: 'rate_limits' },
-
-    // AI
-    { key: 'byteplus_api_key', value: 'bp-***', description: 'BytePlus API Key', is_public: false, category: 'ai' },
-    { key: 'default_model', value: 'seed-1-6-flash', description: 'Model เริ่มต้น', is_public: true, category: 'ai' },
-    { key: 'max_tokens_per_request', value: '4096', description: 'จำนวน tokens สูงสุดต่อ request', is_public: false, category: 'ai' },
-
-    // Billing
-    { key: 'promptpay_number', value: '0812345678', description: 'เบอร์โทรศัพท์ PromptPay สำหรับรับชำระเงิน', is_public: false, category: 'billing' },
-    { key: 'promptpay_name', value: 'RabbitHub Co., Ltd.', description: 'ชื่อบัญชี PromptPay', is_public: false, category: 'billing' },
-    { key: 'starter_price', value: '199', description: 'ราคาแผน Starter (บาท)', is_public: true, category: 'billing' },
-    { key: 'pro_price', value: '499', description: 'ราคาแผน Pro (บาท)', is_public: true, category: 'billing' },
-    { key: 'premium_price', value: '799', description: 'ราคาแผน Premium (บาท)', is_public: true, category: 'billing' },
-
-    // Security
-    { key: 'require_email_verification', value: 'true', description: 'ต้องยืนยันอีเมลก่อนใช้งาน', is_public: false, category: 'security' },
-    { key: 'max_login_attempts', value: '5', description: 'จำนวนครั้งสูงสุดที่ login ผิดได้', is_public: false, category: 'security' },
-    { key: 'session_timeout_hours', value: '72', description: 'Session timeout (ชั่วโมง)', is_public: false, category: 'security' },
-  ];
-
-  const displaySettings = settings.length > 0 ? settings : mockSettings;
+  const displaySettings = settings;
 
   const groupedSettings = Object.entries(categoryConfig).map(([category, config]) => ({
     category,
@@ -295,6 +247,16 @@ export default function AdminSettingsPage() {
               />
             ))}
           </div>
+        ) : displaySettings.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-16 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+          >
+            <Settings className="h-10 w-10 text-neutral-600 mb-4" />
+            <p className="text-neutral-400 text-lg font-medium mb-2">ยังไม่มีการตั้งค่า</p>
+            <p className="text-neutral-500 text-sm">กรุณาเพิ่มค่าตั้งต้นในฐานข้อมูล (ตาราง system_config)</p>
+          </motion.div>
         ) : (
           <motion.div
             key={activeCategory}

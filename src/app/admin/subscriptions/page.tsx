@@ -104,77 +104,22 @@ export default function AdminSubscriptionsPage() {
     fetchSubscriptions();
   };
 
-  // Mock data
-  const mockStats: SubscriptionStats = {
-    totalRevenue: 1250000,
-    mrr: 156000,
-    activeSubscriptions: 523,
-    churnedThisMonth: 12,
-    newThisMonth: 45,
+  const emptyStats: SubscriptionStats = {
+    totalRevenue: 0,
+    mrr: 0,
+    activeSubscriptions: 0,
+    churnedThisMonth: 0,
+    newThisMonth: 0,
     planBreakdown: [
-      { plan: 'Premium', count: 23, revenue: 18377 },
-      { plan: 'Pro', count: 245, revenue: 122255 },
-      { plan: 'Starter', count: 150, revenue: 29850 },
-      { plan: 'Free', count: 1532, revenue: 0 },
+      { plan: 'Premium', count: 0, revenue: 0 },
+      { plan: 'Pro', count: 0, revenue: 0 },
+      { plan: 'Starter', count: 0, revenue: 0 },
+      { plan: 'Free', count: 0, revenue: 0 },
     ],
   };
 
-  const mockSubscriptions: Subscription[] = [
-    {
-      id: '1',
-      user_id: 'user-1',
-      user_name: 'บริษัท ABC จำกัด',
-      user_email: 'admin@abc.co.th',
-      user_avatar: null,
-      plan: 'premium',
-      status: 'active',
-      amount: 799,
-      currency: 'THB',
-      interval: 'monthly',
-      current_period_start: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-      current_period_end: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      cancelled_at: null,
-      stripe_subscription_id: 'sub_123',
-    },
-    {
-      id: '2',
-      user_id: 'user-2',
-      user_name: 'สมชาย ใจดี',
-      user_email: 'somchai@email.com',
-      user_avatar: null,
-      plan: 'pro',
-      status: 'active',
-      amount: 299,
-      currency: 'THB',
-      interval: 'monthly',
-      current_period_start: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      current_period_end: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      cancelled_at: null,
-      stripe_subscription_id: 'sub_456',
-    },
-    {
-      id: '3',
-      user_id: 'user-3',
-      user_name: 'วิชัย นักพัฒนา',
-      user_email: 'wichai@dev.com',
-      user_avatar: null,
-      plan: 'pro',
-      status: 'past_due',
-      amount: 299,
-      currency: 'THB',
-      interval: 'monthly',
-      current_period_start: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
-      current_period_end: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
-      cancelled_at: null,
-      stripe_subscription_id: 'sub_789',
-    },
-  ];
-
-  const displayStats = stats || mockStats;
-  const displaySubscriptions = subscriptions.length > 0 ? subscriptions : mockSubscriptions;
+  const displayStats = stats || emptyStats;
+  const displaySubscriptions = subscriptions;
 
   const planColors: Record<string, string> = {
     free: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',

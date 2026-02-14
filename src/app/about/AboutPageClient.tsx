@@ -195,7 +195,7 @@ export default function AboutPageClient({ content, footer }: { content: AboutCon
             </MagneticButton>
             <MagneticButton>
               <Button variant="outline" size="lg" className="border-white/20 hover:bg-white/5 px-8" asChild>
-                <Link href="/careers" className="flex items-center gap-2">
+                <Link href="/pricing" className="flex items-center gap-2">
                   {content.hero.ctaSecondary}
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
@@ -528,7 +528,7 @@ export default function AboutPageClient({ content, footer }: { content: AboutCon
               </MagneticButton>
               <MagneticButton>
                 <Button variant="outline" size="lg" className="border-white/30 text-white hover:bg-white/10 px-8" asChild>
-                  <Link href="/careers">{content.cta.ctaSecondary}</Link>
+                  <Link href="/pricing">{content.cta.ctaSecondary}</Link>
                 </Button>
               </MagneticButton>
             </div>

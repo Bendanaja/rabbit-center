@@ -102,56 +102,7 @@ export default function AdminModerationPage() {
     }
   };
 
-  // Mock data
-  const mockFlags: FlaggedChat[] = [
-    {
-      id: '1',
-      chat_id: 'chat-1',
-      user_id: 'user-1',
-      user_name: 'ผู้ใช้ทดสอบ 1',
-      user_avatar: null,
-      reason: 'inappropriate_content',
-      severity: 'high',
-      status: 'pending',
-      flagged_content: 'ข้อความที่ถูก flag เนื่องจากมีเนื้อหาไม่เหมาะสม...',
-      flagged_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      reviewed_by: null,
-      reviewed_at: null,
-      action_notes: null,
-    },
-    {
-      id: '2',
-      chat_id: 'chat-2',
-      user_id: 'user-2',
-      user_name: 'ผู้ใช้ทดสอบ 2',
-      user_avatar: null,
-      reason: 'spam',
-      severity: 'medium',
-      status: 'pending',
-      flagged_content: 'ข้อความ spam ที่ถูก flag โดยระบบ AI...',
-      flagged_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      reviewed_by: null,
-      reviewed_at: null,
-      action_notes: null,
-    },
-    {
-      id: '3',
-      chat_id: 'chat-3',
-      user_id: 'user-3',
-      user_name: 'ผู้ใช้ทดสอบ 3',
-      user_avatar: null,
-      reason: 'harassment',
-      severity: 'critical',
-      status: 'pending',
-      flagged_content: 'ข้อความที่มีการคุกคาม...',
-      flagged_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-      reviewed_by: null,
-      reviewed_at: null,
-      action_notes: null,
-    },
-  ];
-
-  const displayFlags = flags.length > 0 ? flags : mockFlags;
+  const displayFlags = flags;
 
   const severityColors = {
     low: 'bg-blue-500/10 text-blue-400 border-blue-500/20',

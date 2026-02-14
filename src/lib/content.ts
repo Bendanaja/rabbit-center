@@ -138,7 +138,7 @@ export type PageContent = AboutContent | FeaturesContent | PricingContent | Foot
 
 export const DEFAULT_ABOUT: AboutContent = {
   hero: {
-    overline: 'Established 2023',
+    overline: 'Established 2025',
     titleLine1: 'We Make',
     titleLine2: 'AI Simple',
     subtitle: 'เรากำลังสร้างอนาคตที่ทุกคนสามารถใช้พลังของ AI ได้อย่างง่ายดาย\nไม่ว่าคุณจะเป็นใคร อยู่ที่ไหน',
@@ -146,10 +146,10 @@ export const DEFAULT_ABOUT: AboutContent = {
     ctaSecondary: 'ร่วมงานกับเรา',
   },
   stats: [
-    { value: 100000, suffix: '+', label: 'Active Users', description: 'ผู้ใช้งานทั่วโลก' },
-    { value: 5, suffix: 'M+', label: 'Messages/Month', description: 'ข้อความต่อเดือน' },
+    { value: 10, suffix: '+', label: 'AI Models', description: 'โมเดล AI ชั้นนำ' },
     { value: 99.9, suffix: '%', label: 'Uptime', description: 'ความเสถียร' },
-    { value: 7, suffix: '+', label: 'AI Models', description: 'โมเดล AI' },
+    { value: 3, suffix: '+', label: 'Providers', description: 'ผู้ให้บริการ AI' },
+    { value: 24, suffix: '/7', label: 'Available', description: 'พร้อมใช้งานตลอดเวลา' },
   ],
   mission: {
     sectionLabel: 'Our Mission',
@@ -159,8 +159,8 @@ export const DEFAULT_ABOUT: AboutContent = {
       'เราเชื่อว่า AI ไม่ควรเป็นเทคโนโลยีที่สงวนไว้สำหรับบริษัทใหญ่หรือผู้เชี่ยวชาญเท่านั้น',
       'RabbitHub ถูกสร้างขึ้นเพื่อให้ทุกคน—นักเรียน ฟรีแลนซ์ เจ้าของธุรกิจ หรือใครก็ตาม—สามารถใช้พลังของ AI ในราคาที่เข้าถึงได้',
     ],
-    usersCount: '100,000+',
-    usersLabel: 'ผู้ใช้งานทั่วโลก',
+    usersCount: 'เติบโตต่อเนื่อง',
+    usersLabel: 'ผู้ใช้งานในไทย',
   },
   values: {
     sectionLabel: 'Our Values',
@@ -176,10 +176,8 @@ export const DEFAULT_ABOUT: AboutContent = {
     sectionLabel: 'Our Journey',
     title: 'เส้นทางของเรา',
     items: [
-      { year: '2023', event: 'Founded', detail: 'ก่อตั้งจาก 3 คนที่หลงใหลใน AI' },
-      { year: '2024', event: 'Series A', detail: 'ระดมทุน $5M จาก Top VCs' },
-      { year: '2025', event: '50K Users', detail: 'เติบโต 10x ในปีเดียว' },
-      { year: '2026', event: '100K+', detail: 'และยังคงเติบโตต่อเนื่อง' },
+      { year: '2025', event: 'Founded', detail: 'เริ่มต้นพัฒนาแพลตฟอร์ม AI สำหรับคนไทย' },
+      { year: '2026', event: 'Launch', detail: 'เปิดให้บริการ RabbitHub AI เวอร์ชันแรก' },
     ],
   },
   team: {
@@ -196,7 +194,7 @@ export const DEFAULT_ABOUT: AboutContent = {
     title: 'พร้อมที่จะเริ่มต้น?',
     subtitle: 'ลองใช้ RabbitHub ฟรีวันนี้ ไม่ต้องใช้บัตรเครดิต',
     ctaPrimary: 'เริ่มใช้งานฟรี',
-    ctaSecondary: 'ร่วมงานกับเรา',
+    ctaSecondary: 'ดูราคา',
   },
 }
 
@@ -310,26 +308,17 @@ export const DEFAULT_FOOTER: FooterContent = {
     product: [
       { label: 'ฟีเจอร์', href: '/features' },
       { label: 'ราคา', href: '/pricing' },
-      { label: 'API', href: '/api-docs' },
-      { label: 'อัพเดท', href: '/updates' },
     ],
     company: [
       { label: 'เกี่ยวกับเรา', href: '/about' },
-      { label: 'บล็อก', href: '/blog' },
-      { label: 'ร่วมงานกับเรา', href: '/careers' },
       { label: 'ติดต่อ', href: '/contact' },
     ],
     legal: [
       { label: 'นโยบายความเป็นส่วนตัว', href: '/privacy' },
       { label: 'ข้อกำหนดการใช้งาน', href: '/terms' },
-      { label: 'คุกกี้', href: '/privacy#cookies' },
     ],
   },
-  social: [
-    { platform: 'twitter', url: '#' },
-    { platform: 'github', url: '#' },
-    { platform: 'facebook', url: '#' },
-  ],
+  social: [],
   sectionTitles: {
     product: 'ผลิตภัณฑ์',
     company: 'บริษัท',

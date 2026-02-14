@@ -4,7 +4,9 @@ import type { NextRequest } from 'next/server'
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/chat', '/admin', '/settings']
 // Routes that are public
-const PUBLIC_ROUTES = ['/', '/auth', '/pricing', '/about', '/contact', '/terms', '/privacy', '/features', '/blog', '/careers', '/updates', '/api-docs', '/free-access', '/payment', '/shared']
+const PUBLIC_ROUTES = ['/', '/auth', '/pricing', '/about', '/contact', '/terms', '/privacy', '/features', '/free-access', '/payment', '/shared']
+// Pages removed from public access - redirect to home
+const REMOVED_PAGES = ['/blog', '/careers', '/updates', '/api-docs']
 // API routes that are public (no auth required)
 const PUBLIC_API_ROUTES = ['/api/auth', '/api/shared']
 
@@ -76,6 +78,11 @@ function addSecurityHeaders(response: NextResponse) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Skip in development
+  if (process.env.NODE_ENV === 'development') {
+    return NextResponse.next()
+  }
+
   // Skip static files, _next, favicon
   if (
     pathname.startsWith('/_next') ||
@@ -84,6 +91,11 @@ export function middleware(request: NextRequest) {
     pathname === '/favicon.ico'
   ) {
     return NextResponse.next()
+  }
+
+  // Redirect removed pages to home
+  if (REMOVED_PAGES.some(page => pathname === page || pathname.startsWith(page + '/'))) {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   // Global IP rate limit

@@ -1,158 +1,215 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getUserFromRequest } from '@/lib/supabase/auth-helper'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { user, error: authError } = await getUserFromRequest(request)
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Check admin access
+  const supabase = createAdminClient()
+
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
-    .single();
+    .eq('is_active', true)
+    .single()
 
   if (!adminData) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const searchParams = request.nextUrl.searchParams;
-  const range = searchParams.get('range') || '30d';
+  const searchParams = request.nextUrl.searchParams
+  const range = searchParams.get('range') || '30d'
 
-  // Calculate date range
-  const now = new Date();
-  let startDate: Date;
+  const now = new Date()
+  let startDate: Date
   switch (range) {
-    case '7d':
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case '90d':
-      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      break;
-    case 'all':
-      startDate = new Date('2020-01-01');
-      break;
-    default: // 30d
-      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break
+    case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break
+    case 'all': startDate = new Date('2024-01-01'); break
+    default: startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
   }
+
+  const startDateStr = startDate.toISOString().split('T')[0]
 
   try {
-    // Get user growth data
-    const { data: userGrowth } = await supabase
-      .from('analytics_daily')
-      .select('date, total_users, new_users')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+    // Run all queries in parallel
+    const [
+      usersInRange,
+      messagesInRange,
+      paymentsInRange,
+      usageInRange,
+      totalUsersResult,
+      activeSubsResult,
+      cancelledSubsResult,
+    ] = await Promise.all([
+      supabase.from('user_profiles').select('created_at')
+        .gte('created_at', startDateStr),
+      supabase.from('messages').select('created_at')
+        .gte('created_at', `${startDateStr}T00:00:00`)
+        .limit(10000),
+      supabase.from('payment_history').select('created_at, amount, status')
+        .gte('created_at', `${startDateStr}T00:00:00`)
+        .eq('status', 'completed'),
+      supabase.from('usage_records').select('model_id, tokens_input, tokens_output, date, user_id')
+        .gte('date', startDateStr),
+      supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('subscriptions').select('plan_id')
+        .eq('status', 'active'),
+      supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+        .eq('status', 'cancelled'),
+    ])
 
-    // Get message stats
-    const { data: messageStats } = await supabase
-      .from('analytics_daily')
-      .select('date, total_messages, total_tokens')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+    // Build date array for the range
+    const dates: string[] = []
+    const d = new Date(startDate)
+    while (d <= now) {
+      dates.push(d.toISOString().split('T')[0])
+      d.setDate(d.getDate() + 1)
+    }
 
-    // Get revenue stats
-    const { data: revenueStats } = await supabase
-      .from('analytics_daily')
-      .select('date, total_revenue, new_subscriptions')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+    // --- User Growth ---
+    const usersByDate = new Map<string, number>()
+    usersInRange.data?.forEach(u => {
+      const date = new Date(u.created_at).toISOString().split('T')[0]
+      usersByDate.set(date, (usersByDate.get(date) || 0) + 1)
+    })
 
-    // Get model usage
-    const { data: modelUsage } = await supabase
-      .from('chat_messages')
-      .select('model')
-      .gte('created_at', startDate.toISOString());
+    let cumulativeUsers = (totalUsersResult.count || 0) - (usersInRange.data?.length || 0)
+    const userGrowth = dates.map(date => {
+      const newUsers = usersByDate.get(date) || 0
+      cumulativeUsers += newUsers
+      return { date, count: cumulativeUsers, new_users: newUsers }
+    })
 
-    // Calculate model usage stats
-    const modelCounts: Record<string, number> = {};
-    modelUsage?.forEach(m => {
-      if (m.model) {
-        modelCounts[m.model] = (modelCounts[m.model] || 0) + 1;
-      }
-    });
+    // --- Message Stats ---
+    const msgsByDate = new Map<string, number>()
+    messagesInRange.data?.forEach(m => {
+      const date = new Date(m.created_at).toISOString().split('T')[0]
+      msgsByDate.set(date, (msgsByDate.get(date) || 0) + 1)
+    })
 
-    const totalRequests = Object.values(modelCounts).reduce((a, b) => a + b, 0);
-    const modelUsageStats = Object.entries(modelCounts)
-      .map(([model, requests]) => ({
+    // Token stats from usage_records
+    const tokensByDate = new Map<string, number>()
+    usageInRange.data?.forEach(u => {
+      const existing = tokensByDate.get(u.date) || 0
+      tokensByDate.set(u.date, existing + (u.tokens_input || 0) + (u.tokens_output || 0))
+    })
+
+    const messageStats = dates.map(date => ({
+      date,
+      count: msgsByDate.get(date) || 0,
+      tokens: tokensByDate.get(date) || 0,
+    }))
+
+    // --- Revenue Stats ---
+    const revByDate = new Map<string, { amount: number; count: number }>()
+    paymentsInRange.data?.forEach(p => {
+      const date = new Date(p.created_at).toISOString().split('T')[0]
+      const existing = revByDate.get(date) || { amount: 0, count: 0 }
+      revByDate.set(date, {
+        amount: existing.amount + (p.amount || 0),
+        count: existing.count + 1,
+      })
+    })
+    const revenueStats = dates.map(date => ({
+      date,
+      amount: revByDate.get(date)?.amount || 0,
+      subscriptions: revByDate.get(date)?.count || 0,
+    }))
+
+    // --- Model Usage ---
+    const modelMap = new Map<string, { requests: number; tokens: number }>()
+    usageInRange.data?.forEach(u => {
+      const existing = modelMap.get(u.model_id) || { requests: 0, tokens: 0 }
+      modelMap.set(u.model_id, {
+        requests: existing.requests + 1,
+        tokens: existing.tokens + (u.tokens_input || 0) + (u.tokens_output || 0),
+      })
+    })
+
+    const totalRequests = Array.from(modelMap.values()).reduce((sum, v) => sum + v.requests, 0)
+    const modelUsage = Array.from(modelMap.entries())
+      .map(([model, stats]) => ({
         model,
-        requests,
-        tokens: requests * 1000, // Estimate
-        percentage: totalRequests > 0 ? Math.round((requests / totalRequests) * 100) : 0,
+        requests: stats.requests,
+        tokens: stats.tokens,
+        percentage: totalRequests > 0 ? Math.round((stats.requests / totalRequests) * 100) : 0,
       }))
       .sort((a, b) => b.requests - a.requests)
-      .slice(0, 5);
+      .slice(0, 5)
 
-    // Get top users
-    const { data: topUsers } = await supabase
-      .from('user_profiles')
-      .select(`
-        user_id,
-        full_name,
-        total_messages
-      `)
-      .order('total_messages', { ascending: false })
-      .limit(5);
+    // --- Top Users (by usage) ---
+    const userUsageMap = new Map<string, number>()
+    usageInRange.data?.forEach(u => {
+      userUsageMap.set(u.user_id, (userUsageMap.get(u.user_id) || 0) + 1)
+    })
 
-    // Calculate metrics
-    const { data: subscriptions } = await supabase
-      .from('user_subscriptions')
-      .select('*')
-      .eq('status', 'active');
+    const topUserIds = Array.from(userUsageMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
 
-    const totalSubscriptions = subscriptions?.length || 0;
-    const { count: totalUsers } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true });
+    // Fetch profiles for top users
+    const topUsers = []
+    if (topUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, full_name')
+        .in('user_id', topUserIds.map(([id]) => id))
 
-    const conversionRate = totalUsers ? ((totalSubscriptions / (totalUsers || 1)) * 100).toFixed(1) : 0;
+      for (const [userId, msgCount] of topUserIds) {
+        const profile = profiles?.find(p => p.user_id === userId)
+        topUsers.push({
+          user_id: userId.substring(0, 8),
+          name: profile?.full_name || 'ผู้ใช้',
+          messages: msgCount,
+          spent: 0,
+        })
+      }
+    }
 
-    // Get daily active users for last 7 days
-    const dailyActiveUsers = [];
+    // --- Metrics ---
+    const totalUsers = totalUsersResult.count || 0
+    const activeSubs = activeSubsResult.data?.length || 0
+    const cancelledSubs = cancelledSubsResult.count || 0
+    const conversionRate = totalUsers > 0
+      ? Math.round((activeSubs / totalUsers) * 1000) / 10
+      : 0
+    const churnRate = (activeSubs + cancelledSubs) > 0
+      ? Math.round((cancelledSubs / (activeSubs + cancelledSubs)) * 1000) / 10
+      : 0
+
+    // --- Daily Active Users (last 7 days from usage_records) ---
+    const dauMap = new Map<string, Set<string>>()
+    usageInRange.data?.forEach(u => {
+      if (!dauMap.has(u.date)) dauMap.set(u.date, new Set())
+      dauMap.get(u.date)!.add(u.user_id)
+    })
+
+    const dailyActiveUsers: number[] = []
     for (let i = 6; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const { count } = await supabase
-        .from('chat_messages')
-        .select('user_id', { count: 'exact', head: true })
-        .gte('created_at', date.toISOString().split('T')[0])
-        .lt('created_at', new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-      dailyActiveUsers.push(count || 0);
+      const dayStr = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      dailyActiveUsers.push(dauMap.get(dayStr)?.size || 0)
     }
 
     return NextResponse.json({
-      userGrowth: userGrowth?.map(u => ({
-        date: u.date,
-        count: u.total_users || 0,
-        new_users: u.new_users || 0,
-      })) || [],
-      messageStats: messageStats?.map(m => ({
-        date: m.date,
-        count: m.total_messages || 0,
-        tokens: m.total_tokens || 0,
-      })) || [],
-      revenueStats: revenueStats?.map(r => ({
-        date: r.date,
-        amount: r.total_revenue || 0,
-        subscriptions: r.new_subscriptions || 0,
-      })) || [],
-      modelUsage: modelUsageStats,
-      topUsers: topUsers?.map(u => ({
-        user_id: u.user_id,
-        name: u.full_name || 'Unknown',
-        messages: u.total_messages || 0,
-        spent: 0, // Would need to join with subscriptions
-      })) || [],
-      conversionRate: Number(conversionRate),
-      churnRate: 3.2, // Placeholder
-      avgSessionDuration: 25.4, // Placeholder
+      userGrowth,
+      messageStats,
+      revenueStats,
+      modelUsage,
+      topUsers,
+      conversionRate,
+      churnRate,
+      avgSessionDuration: 0,
       dailyActiveUsers,
-    });
+    })
   } catch (error) {
-    console.error('Analytics error:', error);
-    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
+    console.error('Analytics error:', error)
+    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 })
   }
 }

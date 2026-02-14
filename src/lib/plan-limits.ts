@@ -255,6 +255,28 @@ async function isAdminUser(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if a model is active (not disabled by admin).
+ * Returns true if the model is active or not found in DB (defaults to active).
+ */
+async function isModelActive(modelKey: string): Promise<boolean> {
+  const cacheKey = `model_active:${modelKey}`
+  const cached = await cacheGet<boolean>(cacheKey)
+  if (cached !== null) return cached
+
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('ai_models')
+    .select('is_active')
+    .eq('model_id', modelKey)
+    .single()
+
+  // If not in DB, default to active (follows hardcoded MODELS list)
+  const isActive = data ? data.is_active !== false : true
+  await cacheSet(cacheKey, isActive, 60) // cache 1 min
+  return isActive
+}
+
+/**
  * Check whether a user is allowed to perform an action based on their plan.
  * Admin users bypass all limits.
  * Returns allowed/denied with reason.
@@ -275,6 +297,18 @@ export async function checkPlanLimit(
   // Resolve full model ID (e.g. 'deepseek-v3-2-251201') to short key (e.g. 'deepseek-v3-2')
   // The allowedModels lists use short keys, but the API receives full IDs
   const resolvedModelKey = modelKey ? (getModelKey(modelKey) || modelKey) : undefined
+
+  // Check if model is disabled by admin
+  if (resolvedModelKey) {
+    const active = await isModelActive(resolvedModelKey)
+    if (!active) {
+      return {
+        allowed: false,
+        reason: 'โมเดลนี้ถูกปิดใช้งานชั่วคราว กรุณาเลือกโมเดลอื่น',
+        planId: userPlan.planId,
+      }
+    }
+  }
 
   // Check model access for chat actions
   if (action === 'chat' && resolvedModelKey && limits.allowedModels.length > 0) {

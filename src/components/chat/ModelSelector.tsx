@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Check, Lock } from 'lucide-react';
+import { ChevronDown, Check, Lock, Ban } from 'lucide-react';
 import Image from 'next/image';
 import { getAvailableModels, getLockedModels, getImageModels, getVideoModels, getModelById } from '@/lib/byteplus';
 import type { ModelType } from '@/lib/byteplus';
@@ -21,11 +21,25 @@ export function ModelSelector({ selectedModel, onModelChange, variant = 'default
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [disabledModels, setDisabledModels] = useState<string[]>([]);
 
-  const chatModels = getAvailableModels();
-  const imageModels = getImageModels();
-  const videoModels = getVideoModels();
+  // Fetch disabled models from admin settings
+  useEffect(() => {
+    fetch('/api/models/active')
+      .then(r => r.json())
+      .then(data => setDisabledModels(data.disabledModels || []))
+      .catch(() => {});
+  }, []);
+
+  const allChatModels = getAvailableModels();
+  const allImageModels = getImageModels();
+  const allVideoModels = getVideoModels();
   const lockedModels = getLockedModels();
+
+  // Filter out admin-disabled models
+  const chatModels = allChatModels.filter(m => !disabledModels.includes(m.key));
+  const imageModels = allImageModels.filter(m => !disabledModels.includes(m.key));
+  const videoModels = allVideoModels.filter(m => !disabledModels.includes(m.key));
   const allAvailable = [...chatModels, ...imageModels, ...videoModels];
 
   const currentModel = getModelById(selectedModel) || chatModels[0];

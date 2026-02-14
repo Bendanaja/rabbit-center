@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { generateId, getTypingDelay } from '@/lib/utils';
-import { AI_MODELS, MOCK_RESPONSES, type ModelId } from '@/lib/constants';
+import { AI_MODELS, type ModelId } from '@/lib/constants';
 import { soundManager } from '@/lib/sounds';
 
 export interface Message {
@@ -48,7 +48,12 @@ interface ChatState {
 // Generate mock AI response
 function generateMockResponse(userMessage: string, modelId: ModelId): string {
   const model = AI_MODELS.find(m => m.id === modelId);
-  const randomResponse = MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)];
+  const fallbackResponses = [
+    "คำถามดีมากครับ! ให้ผมคิดดูสักครู่...",
+    "ผมเข้าใจสิ่งที่คุณต้องการ นี่คือความเห็นของผม:",
+    "น่าสนใจมากครับ! นี่คือสิ่งที่ผมอยากจะแบ่งปัน:",
+  ];
+  const randomResponse = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
 
   const responses: Record<string, string> = {
     hello: `สวัสดีครับ! ผมคือ ${model?.name || 'ผู้ช่วย AI'} ยินดีให้บริการครับ วันนี้ให้ช่วยอะไรดีครับ?`,

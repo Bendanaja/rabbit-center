@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X } from 'lucide-react';
-import { VideoPlayer } from '@/components/ui/VideoPlayer';
+import dynamic from 'next/dynamic';
+const VideoPlayer = dynamic(() => import('@/components/ui/VideoPlayer').then(mod => ({ default: mod.VideoPlayer })), { ssr: false });
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
