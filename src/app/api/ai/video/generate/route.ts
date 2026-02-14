@@ -1,5 +1,6 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateVideo } from '@/lib/byteplus'
+import { checkRateLimit, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -10,6 +11,18 @@ export async function POST(request: Request) {
   const { user, error: authError } = await getUserFromRequest(request)
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Rate limiting
+  const rateLimitKey = getRateLimitKey(request, user.id, 'video')
+  const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.video)
+  if (!rateLimitResult.allowed) {
+    const res = NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait before generating more videos.' },
+      { status: 429 }
+    )
+    applyRateLimitHeaders(res.headers, rateLimitResult)
+    return res
   }
 
   try {

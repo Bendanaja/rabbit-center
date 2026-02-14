@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /chat
+Disallow: /settings
+
+Sitemap: https://rabbithub.ai/sitemap.xml

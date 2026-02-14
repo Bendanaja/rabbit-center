@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Headers for caching static assets
+  // Headers for caching static assets and security
   async headers() {
     return [
       {
@@ -45,6 +45,24 @@ const nextConfig: NextConfig = {
         source: '/_next/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/manifest.json',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400' },
+        ],
+      },
+      {
+        source: '/robots.txt',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400' },
+        ],
+      },
+      {
+        source: '/favicon.ico',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=604800' },
         ],
       },
     ];

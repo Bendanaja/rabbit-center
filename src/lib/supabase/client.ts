@@ -8,9 +8,8 @@ export function resetClient() {
   supabaseInstance = null
 }
 
-// Browser client using localStorage (not cookies)
-// This is necessary because Supabase URL is on a different domain (traefik.me)
-// which causes cross-origin cookie issues
+// Browser client using localStorage for auth persistence
+// Uses api.rabbithub.ai as Supabase endpoint
 export function createClient() {
   if (typeof window === 'undefined') {
     // Server-side: create fresh instance

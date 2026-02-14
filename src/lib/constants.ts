@@ -140,7 +140,8 @@ export const NAV_LINKS = [
 ] as const;
 
 export const SITE_CONFIG = {
-  name: 'RabbitHub',
-  tagline: 'แชทกับ AI ที่ดีที่สุดในโลก',
-  description: 'เข้าถึง GPT-5, Claude, Gemini และอื่นๆ ในที่เดียว ราคาเรียบง่าย ฟีเจอร์ครบครัน',
+  name: 'RabbitHub AI',
+  tagline: 'แพลตฟอร์ม AI อัจฉริยะ',
+  description: 'แพลตฟอร์ม AI ครบวงจร แชทอัจฉริยะ สร้างรูปภาพ สร้างวิดีโอ ด้วย AI ชั้นนำ GPT-4, Claude, Gemini, DeepSeek และอื่นๆ ในที่เดียว',
+  url: 'https://rabbithub.ai',
 } as const;

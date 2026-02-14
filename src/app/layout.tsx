@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorSuppressor } from "@/components/ErrorSuppressor";
@@ -11,8 +12,20 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_CONFIG.name}`,
   },
   description: SITE_CONFIG.description,
-  keywords: ["AI", "ChatGPT", "Claude", "Gemini", "แชท AI", "AI หลายโมเดล", "RabbitHub"],
+  keywords: [
+    "AI", "ChatGPT", "Claude", "Gemini", "DeepSeek",
+    "แชท AI", "AI หลายโมเดล", "RabbitHub",
+    "สร้างรูปภาพ AI", "สร้างวิดีโอ AI",
+    "AI ภาษาไทย", "แพลตฟอร์ม AI",
+    "Image Generation", "Video Generation",
+  ],
   authors: [{ name: SITE_CONFIG.name }],
+  creator: SITE_CONFIG.name,
+  publisher: SITE_CONFIG.name,
+  metadataBase: new URL(SITE_CONFIG.url),
+  alternates: {
+    canonical: '/',
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -21,11 +34,40 @@ export const metadata: Metadata = {
     apple: '/images/logo-rounded.png',
   },
   openGraph: {
-    title: SITE_CONFIG.name,
+    title: `${SITE_CONFIG.name} - ${SITE_CONFIG.tagline}`,
     description: SITE_CONFIG.description,
     type: "website",
     locale: "th_TH",
+    url: SITE_CONFIG.url,
+    siteName: SITE_CONFIG.name,
+    images: [
+      {
+        url: '/images/logo.jpg',
+        width: 1200,
+        height: 630,
+        alt: SITE_CONFIG.name,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_CONFIG.name} - ${SITE_CONFIG.tagline}`,
+    description: SITE_CONFIG.description,
     images: ['/images/logo.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: 'GOOGLE_SITE_VERIFICATION',
   },
   appleWebApp: {
     capable: true,
@@ -35,6 +77,7 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {
@@ -49,6 +92,55 @@ export const viewport: Viewport = {
   ],
 };
 
+const jsonLdString = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_CONFIG.url}/#organization`,
+      name: SITE_CONFIG.name,
+      url: SITE_CONFIG.url,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${SITE_CONFIG.url}/images/logo.jpg`,
+      },
+      description: SITE_CONFIG.description,
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': `${SITE_CONFIG.url}/#webapp`,
+      name: SITE_CONFIG.name,
+      url: SITE_CONFIG.url,
+      description: SITE_CONFIG.description,
+      applicationCategory: 'UtilitiesApplication',
+      operatingSystem: 'Web',
+      offers: {
+        '@type': 'AggregateOffer',
+        lowPrice: '0',
+        highPrice: '1499',
+        priceCurrency: 'THB',
+        offerCount: '3',
+      },
+      provider: {
+        '@type': 'Organization',
+        '@id': `${SITE_CONFIG.url}/#organization`,
+      },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_CONFIG.url}/#website`,
+      url: SITE_CONFIG.url,
+      name: SITE_CONFIG.name,
+      description: SITE_CONFIG.description,
+      inLanguage: 'th-TH',
+      publisher: {
+        '@type': 'Organization',
+        '@id': `${SITE_CONFIG.url}/#organization`,
+      },
+    },
+  ],
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,6 +148,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" className="dark" suppressHydrationWarning>
+      <head>
+        <Script
+          id="json-ld"
+          type="application/ld+json"
+          strategy="afterInteractive"
+        >
+          {jsonLdString}
+        </Script>
+      </head>
       <body className="antialiased overflow-x-hidden mobile-scroll">
         <ThemeProvider>
           <ErrorSuppressor />

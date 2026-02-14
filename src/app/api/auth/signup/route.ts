@@ -1,8 +1,21 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkRateLimit, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
 
 // POST /api/auth/signup - Create user without email confirmation
 export async function POST(request: Request) {
+  // Rate limiting for signup (prevent abuse)
+  const rateLimitKey = getRateLimitKey(request, undefined, 'auth')
+  const rateLimitResult = checkRateLimit(rateLimitKey, RATE_LIMITS.auth)
+  if (!rateLimitResult.allowed) {
+    const res = NextResponse.json(
+      { error: 'Too many signup attempts. Please try again later.' },
+      { status: 429 }
+    )
+    applyRateLimitHeaders(res.headers, rateLimitResult)
+    return res
+  }
+
   const adminSupabase = createAdminClient()
 
   try {

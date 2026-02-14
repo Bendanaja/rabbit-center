@@ -1,0 +1,26 @@
+{
+  "name": "RabbitHub AI",
+  "short_name": "RabbitHub",
+  "description": "แพลตฟอร์ม AI ครบวงจร แชทอัจฉริยะ สร้างรูปภาพ สร้างวิดีโอ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#dc2626",
+  "orientation": "portrait-primary",
+  "categories": ["utilities", "productivity"],
+  "lang": "th",
+  "icons": [
+    {
+      "src": "/images/logo-rounded.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
