@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Video, Download, Loader2, ChevronDown, Sparkles, Upload, X, ImagePlus } from 'lucide-react';
-import { getVideoModels } from '@/lib/openrouter';
+import { getVideoModels } from '@/lib/byteplus';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/lib/api-client';
 

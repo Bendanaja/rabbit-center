@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { getAuthToken } from '@/lib/api-client'
-import type { ChatMessage } from '@/lib/openrouter'
+import type { ChatMessage } from '@/lib/byteplus'
 
 interface UseAIState {
   isGenerating: boolean

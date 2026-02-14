@@ -252,7 +252,7 @@ export default function AdminDashboardPage() {
             {[
               { name: 'API Server', status: 'online' },
               { name: 'Database', status: 'online' },
-              { name: 'OpenRouter', status: 'online' },
+              { name: 'BytePlus', status: 'online' },
               { name: 'Supabase', status: 'online' },
             ].map((service, index) => (
               <motion.div

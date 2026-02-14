@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -12,7 +12,6 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeft,
-  MoreHorizontal,
   Share,
   LogOut,
   Loader2,
@@ -22,8 +21,10 @@ import {
   Bot,
   Zap,
   Shield,
-  Brain
+  Brain,
+  Search
 } from 'lucide-react';
+import { ModelSelector } from '@/components/chat/ModelSelector';
 
 // Dynamic import for ChatWindow to reduce initial bundle
 const ChatWindow = dynamic(
@@ -38,6 +39,7 @@ const ChatWindow = dynamic(
   }
 );
 import { cn, truncate } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { RabbitLoader } from '@/components/ui/RabbitLoader';
@@ -237,6 +239,8 @@ export default function ChatPage() {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('deepseek-v3-2-251201');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Set first chat as active on load
   useEffect(() => {
@@ -265,11 +269,56 @@ export default function ChatPage() {
     }
   }, [deleteChat, activeChat, chats]);
 
+  const handleModelChange = useCallback(async (modelId: string) => {
+    setSelectedModel(modelId);
+    if (activeChat) {
+      try {
+        await authFetch(`/api/chat/${activeChat}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ model_id: modelId }),
+        });
+      } catch (error) {
+        console.error('Failed to update model:', error);
+      }
+    }
+  }, [activeChat]);
+
   const handleSignOut = () => {
     signOut();
   };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  // Filter and group chats by date
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) return chats;
+    const q = searchQuery.toLowerCase();
+    return chats.filter(c => c.title.toLowerCase().includes(q));
+  }, [chats, searchQuery]);
+
+  const groupedChats = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 86400000);
+    const weekAgo = new Date(today.getTime() - 7 * 86400000);
+
+    const groups: { label: string; chats: Chat[] }[] = [
+      { label: 'วันนี้', chats: [] },
+      { label: 'เมื่อวาน', chats: [] },
+      { label: '7 วันที่ผ่านมา', chats: [] },
+      { label: 'เก่ากว่า', chats: [] },
+    ];
+
+    for (const chat of filteredChats) {
+      const d = new Date(chat.updated_at);
+      if (d >= today) groups[0].chats.push(chat);
+      else if (d >= yesterday) groups[1].chats.push(chat);
+      else if (d >= weekAgo) groups[2].chats.push(chat);
+      else groups[3].chats.push(chat);
+    }
+
+    return groups.filter(g => g.chats.length > 0);
+  }, [filteredChats]);
 
   // Show loading state while checking auth
   if (authLoading) {
@@ -372,27 +421,53 @@ export default function ChatPage() {
               </button>
             </div>
 
-            {/* Chat List */}
+            {/* Search */}
+            <div className="px-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาบทสนทนา..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-neutral-600 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Chat List - Grouped by date */}
             <div className="flex-1 overflow-y-auto px-2 pb-2">
               {chatsLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin text-neutral-500" />
                 </div>
-              ) : chats.length === 0 ? (
+              ) : filteredChats.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-center px-4">
-                  <MessageSquare className="h-8 w-8 text-neutral-600 mb-2" />
-                  <p className="text-xs text-neutral-500">ยังไม่มีบทสนทนา</p>
+                  <p className="text-xs text-neutral-500">
+                    {searchQuery ? 'ไม่พบบทสนทนา' : 'ยังไม่มีบทสนทนา'}
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-0.5">
-                  {chats.map((chat) => (
-                    <ChatListItem
-                      key={chat.id}
-                      chat={chat}
-                      isActive={chat.id === activeChat}
-                      onSelect={() => setActiveChat(chat.id)}
-                      onDelete={() => handleDeleteChat(chat.id)}
-                    />
+                <div className="space-y-3">
+                  {groupedChats.map((group) => (
+                    <div key={group.label}>
+                      <div className="px-3 py-1">
+                        <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
+                          {group.label}
+                        </span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {group.chats.map((chat) => (
+                          <ChatListItem
+                            key={chat.id}
+                            chat={chat}
+                            isActive={chat.id === activeChat}
+                            onSelect={() => setActiveChat(chat.id)}
+                            onDelete={() => handleDeleteChat(chat.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -457,20 +532,14 @@ export default function ChatPage() {
             )}
           </div>
 
-          {/* Center - Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-lg overflow-hidden shadow-sm">
-              <Image
-                src="/images/logo.jpg"
-                alt="RabbitHub"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <span className="font-display font-semibold text-base sm:text-lg text-neutral-900 dark:text-white hidden sm:inline">
-              {SITE_CONFIG.name}
-            </span>
-          </Link>
+          {/* Center - Model Selector */}
+          <div className="flex-1 flex justify-center sm:justify-start sm:ml-2">
+            <ModelSelector
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+              variant="compact"
+            />
+          </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-1">
@@ -493,6 +562,8 @@ export default function ChatPage() {
             userId={user.id}
             onChatCreated={(newChatId) => setActiveChat(newChatId)}
             onCreateChat={handleCreateChat}
+            selectedModel={selectedModel}
+            onModelChange={handleModelChange}
           />
         </main>
       </div>
@@ -512,20 +583,20 @@ function ChatListItem({ chat, isActive, onSelect, onDelete }: ChatListItemProps)
     <motion.div
       layout
       className={cn(
-        'group relative flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors',
+        'group relative flex items-center px-3 py-2.5 rounded-lg cursor-pointer transition-colors overflow-hidden',
         isActive
           ? 'bg-neutral-800 text-white'
           : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200'
       )}
       onClick={onSelect}
     >
-      <MessageSquare className="h-4 w-4 shrink-0" />
-      <span className="text-sm truncate flex-1">{truncate(chat.title, 28)}</span>
+      <span className="text-sm truncate flex-1">{truncate(chat.title, 32)}</span>
 
-      {/* Actions on hover */}
+      {/* Gradient fade + delete button on hover */}
       <div className={cn(
-        'absolute right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
-        isActive && 'opacity-100'
+        'absolute right-0 top-0 bottom-0 flex items-center pl-8 pr-2 opacity-0 group-hover:opacity-100 transition-opacity',
+        'bg-gradient-to-l from-neutral-800 via-neutral-800/90 to-transparent',
+        isActive && 'opacity-100 from-neutral-800 via-neutral-800/90'
       )}>
         <button
           onClick={(e) => {

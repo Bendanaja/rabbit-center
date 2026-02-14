@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "cloudflare-dns": {
+      "command": "npx",
+      "args": ["-y", "@thelord/mcp-cloudflare"],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "sk99-HuWhlYg7JuTDHk4o17mWlZnkcC2mDBEBV6-",
+        "CLOUDFLARE_ZONE_ID": "c7769985fb51771263baa301e902467d"
+      }
+    },
+    "cloudflare-docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-dns-analytics": {
+      "type": "http",
+      "url": "https://dns-analytics.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-audit-logs": {
+      "type": "http",
+      "url": "https://auditlogs.mcp.cloudflare.com/mcp"
+    }
+  }
+}

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { getModelById } from '@/lib/openrouter';
+import { getModelById } from '@/lib/byteplus';
 import { type Message } from '@/store/chatStore';
 import { cn, formatMessageTime } from '@/lib/utils';
 
@@ -72,7 +72,7 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const isUser = message.role === 'user';
 
-  // Use getModelById from openrouter to find model by OpenRouter ID
+  // Find model definition by ID
   const model = message.modelId
     ? getModelById(message.modelId)
     : null;
@@ -104,7 +104,7 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'group py-4 sm:py-6',
+        'group py-3 sm:py-4',
         isUser ? 'flex justify-end' : ''
       )}
     >
@@ -136,7 +136,7 @@ export function MessageBubble({ message, isLast = false }: MessageBubbleProps) {
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-lg overflow-hidden shadow-md"
+              className="relative h-6 w-6 sm:h-7 sm:w-7 rounded-full overflow-hidden shadow-md"
             >
               {model?.icon ? (
                 <Image src={model.icon} alt={model.name} fill className="object-cover" />

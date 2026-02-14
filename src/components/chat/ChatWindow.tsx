@@ -6,11 +6,10 @@ import Image from 'next/image';
 import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw, ImagePlus, Video, Download } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
-import { ModelSelector } from './ModelSelector';
-import { getGreeting } from '@/lib/utils';
+import { getGreeting, cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
-import { getModelById } from '@/lib/openrouter';
+import { getModelById, getModelType } from '@/lib/byteplus';
 import { authFetch, getAuthToken } from '@/lib/api-client';
 import type { Message } from '@/types/database';
 
@@ -19,9 +18,11 @@ interface ChatWindowProps {
   userId: string;
   onChatCreated?: (chatId: string) => void;
   onCreateChat?: () => Promise<void>;
+  selectedModel: string;
+  onModelChange: (modelId: string) => void;
 }
 
-export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: ChatWindowProps) {
+export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, selectedModel, onModelChange }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<number>(0);
@@ -29,7 +30,6 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
   const { chat, messages, loading, sendMessage, updateChatTitle, refetch } = useChat(chatId || undefined);
   const { isGenerating, generate, stop } = useAI();
 
-  const [selectedModel, setSelectedModel] = useState('deepseek-v3-2-251201');
   const [streamingContent, setStreamingContent] = useState('');
   const [displayedContent, setDisplayedContent] = useState(''); // For typewriter effect
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -91,8 +91,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
 
   // Update selected model when chat changes
   useEffect(() => {
-    if (chat?.model_id) {
-      setSelectedModel(chat.model_id);
+    if (chat?.model_id && chat.model_id !== selectedModel) {
+      onModelChange(chat.model_id);
     }
   }, [chat?.model_id]);
 
@@ -248,19 +248,22 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
   }, [localMessages, selectedModel, sendMessage, generate]);
 
   // Handle /image command
-  const handleImageGeneration = useCallback(async (prompt: string, targetChatId: string) => {
+  const handleImageGeneration = useCallback(async (prompt: string, targetChatId: string, imageModelId?: string) => {
+    const modelToUse = imageModelId || 'seedream-5-0-260128';
+    const isCommand = !imageModelId; // if no explicit model, it came from /image command
+
     // Add user message
     const userMessage: Message = {
       id: `temp-user-${crypto.randomUUID()}`,
       chat_id: targetChatId,
       role: 'user',
-      content: `/image ${prompt}`,
+      content: isCommand ? `/image ${prompt}` : prompt,
       model_id: null,
       tokens_used: null,
       created_at: new Date().toISOString(),
     };
     setLocalMessages(prev => [...prev, userMessage]);
-    await sendMessage(`/image ${prompt}`, 'user');
+    await sendMessage(isCommand ? `/image ${prompt}` : prompt, 'user');
 
     setMediaGenerating('image');
     setAiError(null);
@@ -269,7 +272,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
       const token = await getAuthToken();
       const response = await authFetch('/api/ai/image/generate', {
         method: 'POST',
-        body: JSON.stringify({ prompt, model: 'seedream-5-0-260128', size: '1024x1024' }),
+        body: JSON.stringify({ prompt, model: modelToUse, size: '1024x1024' }),
       });
 
       if (!response.ok) {
@@ -292,7 +295,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
         chat_id: targetChatId,
         role: 'assistant',
         content: `[GENERATED_IMAGE]\n${imageUrls.join('\n')}\n[/GENERATED_IMAGE]\n\nสร้างภาพจาก: "${prompt}"`,
-        model_id: 'seedream-5-0-260128',
+        model_id: modelToUse,
         tokens_used: null,
         created_at: new Date().toISOString(),
       };
@@ -306,18 +309,21 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
   }, [sendMessage]);
 
   // Handle /video command
-  const handleVideoGeneration = useCallback(async (prompt: string, targetChatId: string) => {
+  const handleVideoGeneration = useCallback(async (prompt: string, targetChatId: string, videoModelId?: string) => {
+    const modelToUse = videoModelId || 'seedance-2-0-260128';
+    const isCommand = !videoModelId;
+
     const userMessage: Message = {
       id: `temp-user-${crypto.randomUUID()}`,
       chat_id: targetChatId,
       role: 'user',
-      content: `/video ${prompt}`,
+      content: isCommand ? `/video ${prompt}` : prompt,
       model_id: null,
       tokens_used: null,
       created_at: new Date().toISOString(),
     };
     setLocalMessages(prev => [...prev, userMessage]);
-    await sendMessage(`/video ${prompt}`, 'user');
+    await sendMessage(isCommand ? `/video ${prompt}` : prompt, 'user');
 
     setMediaGenerating('video');
     setVideoProgress('กำลังเริ่มสร้างวิดีโอ...');
@@ -326,7 +332,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
     try {
       const response = await authFetch('/api/ai/video/generate', {
         method: 'POST',
-        body: JSON.stringify({ prompt, model: 'seedance-2-0-260128' }),
+        body: JSON.stringify({ prompt, model: modelToUse }),
       });
 
       if (!response.ok) {
@@ -368,7 +374,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
         chat_id: targetChatId,
         role: 'assistant',
         content: `[GENERATED_VIDEO]\n${videoUrl}\n[/GENERATED_VIDEO]\n\nสร้างวิดีโอจาก: "${prompt}"`,
-        model_id: 'seedance-2-0-260128',
+        model_id: modelToUse,
         tokens_used: null,
         created_at: new Date().toISOString(),
       };
@@ -418,24 +424,19 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
       }
     }
 
+    // Auto-route based on selected model type
+    const modelType = getModelType(selectedModel);
+    if (modelType === 'image') {
+      await handleImageGeneration(content, chatId, selectedModel);
+      return;
+    }
+    if (modelType === 'video') {
+      await handleVideoGeneration(content, chatId, selectedModel);
+      return;
+    }
+
     await handleSendMessageInternal(content, chatId);
   }, [chatId, onCreateChat, handleSendMessageInternal, handleImageGeneration, handleVideoGeneration]);
-
-  const handleModelChange = async (modelId: string) => {
-    setSelectedModel(modelId);
-
-    // Update chat model in database if chat exists
-    if (chatId) {
-      try {
-        await authFetch(`/api/chat/${chatId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ model_id: modelId }),
-        });
-      } catch (error) {
-        console.error('Failed to update model:', error);
-      }
-    }
-  };
 
   const handleStop = useCallback(async () => {
     stop();
@@ -507,8 +508,6 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
           </div>
         ) : localMessages.length === 0 && !isGenerating ? (
           <WelcomeScreen
-            selectedModel={selectedModel}
-            onModelChange={handleModelChange}
             onSendMessage={handleSendMessage}
           />
         ) : (
@@ -555,7 +554,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-sm font-semibold text-white">
-                        {mediaGenerating === 'image' ? 'Seedream 5.0' : 'Seedance 2.0'}
+                        {currentModel?.name || (mediaGenerating === 'image' ? 'Seedream 5.0' : 'Seedance 2.0')}
                       </span>
                       <div className={cn(
                         'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full',
@@ -601,7 +600,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
                   exit={{ opacity: 0, y: -10 }}
                   className="flex gap-4 py-6"
                 >
-                  <div className="relative h-8 w-8 rounded-lg overflow-hidden shadow-lg shrink-0 border border-neutral-200 dark:border-neutral-700">
+                  <div className="relative h-6 w-6 sm:h-7 sm:w-7 rounded-full overflow-hidden shadow-lg shrink-0 border border-neutral-200 dark:border-neutral-700">
                     {currentModel?.icon ? (
                       <Image
                         src={currentModel.icon}
@@ -722,7 +721,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+      <div className="bg-white dark:bg-neutral-950">
         <div className="max-w-3xl mx-auto">
           <ChatInput
             onSend={handleSendMessage}
@@ -736,12 +735,10 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat }: Chat
 }
 
 interface WelcomeScreenProps {
-  selectedModel: string;
-  onModelChange: (modelId: string) => void;
   onSendMessage: (content: string) => void;
 }
 
-function WelcomeScreen({ selectedModel, onModelChange, onSendMessage }: WelcomeScreenProps) {
+function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
   const greeting = getGreeting();
 
   const suggestions = [
@@ -785,7 +782,7 @@ function WelcomeScreen({ selectedModel, onModelChange, onSendMessage }: WelcomeS
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold text-neutral-900 dark:text-white mb-2 sm:mb-3"
+          className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold text-neutral-900 dark:text-white mb-2 sm:mb-3"
         >
           {greeting}
         </motion.h1>
@@ -799,24 +796,11 @@ function WelcomeScreen({ selectedModel, onModelChange, onSendMessage }: WelcomeS
           วันนี้ให้ผมช่วยอะไรดีครับ?
         </motion.p>
 
-        {/* Model Selector */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="flex justify-center mb-8 sm:mb-10"
-        >
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-          />
-        </motion.div>
-
         {/* Suggestions Grid */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
           className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
         >
           {suggestions.map((suggestion, index) => (
@@ -825,7 +809,7 @@ function WelcomeScreen({ selectedModel, onModelChange, onSendMessage }: WelcomeS
               icon={suggestion.icon}
               text={suggestion.text}
               color={suggestion.color}
-              delay={0.6 + index * 0.1}
+              delay={0.5 + index * 0.1}
               onClick={() => onSendMessage(suggestion.text)}
             />
           ))}

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { ImagePlus, Download, Loader2, ChevronDown, Sparkles, X } from 'lucide-react';
-import { getImageModels } from '@/lib/openrouter';
+import { ImagePlus, Download, Loader2, ChevronDown, Sparkles, X, Upload, Trash2 } from 'lucide-react';
+import { getImageModels, getModelById } from '@/lib/byteplus';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/lib/api-client';
 
@@ -28,7 +28,10 @@ export function ImageGenerator() {
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const imageModels = getImageModels();
 
@@ -37,6 +40,45 @@ export function ImageGenerator() {
     setSelectedModel(imageModels[imageModels.length - 1].id);
   }
 
+  // Check if selected model supports i2i
+  const currentModelDef = imageModels.find(m => m.id === selectedModel);
+  const supportsI2I = currentModelDef?.capabilities?.includes('i2i') ?? false;
+
+  const handleFileSelect = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('กรุณาเลือกไฟล์รูปภาพ');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('ไฟล์ต้องมีขนาดไม่เกิน 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setReferenceImage(e.target?.result as string);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  }, [handleFileSelect]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
 
@@ -44,13 +86,20 @@ export function ImageGenerator() {
     setError(null);
 
     try {
+      const body: Record<string, unknown> = {
+        prompt: prompt.trim(),
+        model: selectedModel,
+        size: selectedSize,
+      };
+
+      // Include reference image if available and model supports i2i
+      if (referenceImage && supportsI2I) {
+        body.image = referenceImage;
+      }
+
       const response = await authFetch('/api/ai/image/generate', {
         method: 'POST',
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          model: selectedModel,
-          size: selectedSize,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -121,7 +170,7 @@ export function ImageGenerator() {
               ref={textareaRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="อธิบายภาพที่ต้องการสร้าง..."
+              placeholder={referenceImage ? 'อธิบายสิ่งที่ต้องการแก้ไขจากภาพต้นฉบับ...' : 'อธิบายภาพที่ต้องการสร้าง...'}
               rows={3}
               className={cn(
                 'w-full px-4 py-3 rounded-xl resize-none',
@@ -138,6 +187,101 @@ export function ImageGenerator() {
             />
           </div>
 
+          {/* Reference Image Upload - only for i2i models */}
+          {supportsI2I && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-300 flex items-center gap-2">
+                ภาพต้นฉบับ (Reference)
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 font-medium">
+                  ไม่บังคับ
+                </span>
+              </label>
+
+              {referenceImage ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="relative group"
+                >
+                  <div className="relative w-full max-w-[240px] aspect-square rounded-xl overflow-hidden border-2 border-violet-500/50 bg-neutral-800">
+                    <Image
+                      src={referenceImage}
+                      alt="Reference"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                    {/* Overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setReferenceImage(null)}
+                        className="p-2.5 rounded-full bg-red-500/80 text-white hover:bg-red-500 transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setReferenceImage(null)}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-neutral-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    ลบภาพต้นฉบับ
+                  </button>
+                </motion.div>
+              ) : (
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    'relative w-full border-2 border-dashed rounded-xl py-8 px-4 cursor-pointer transition-all duration-200',
+                    'flex flex-col items-center justify-center gap-3 text-center',
+                    isDragging
+                      ? 'border-violet-500 bg-violet-500/10'
+                      : 'border-neutral-700 bg-neutral-800/50 hover:border-neutral-600 hover:bg-neutral-800'
+                  )}
+                >
+                  <div className={cn(
+                    'p-3 rounded-xl transition-colors',
+                    isDragging ? 'bg-violet-500/20' : 'bg-neutral-700/50'
+                  )}>
+                    <Upload className={cn(
+                      'h-6 w-6 transition-colors',
+                      isDragging ? 'text-violet-400' : 'text-neutral-500'
+                    )} />
+                  </div>
+                  <div>
+                    <p className={cn(
+                      'text-sm font-medium transition-colors',
+                      isDragging ? 'text-violet-300' : 'text-neutral-400'
+                    )}>
+                      {isDragging ? 'วางภาพที่นี่' : 'ลากภาพมาวาง หรือ คลิกเพื่อเลือก'}
+                    </p>
+                    <p className="text-xs text-neutral-600 mt-1">
+                      รองรับ JPG, PNG, WebP (ไม่เกิน 10MB)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          )}
+
           {/* Options Row */}
           <div className="flex flex-wrap gap-3">
             {/* Model Selector */}
@@ -148,7 +292,14 @@ export function ImageGenerator() {
               <div className="relative">
                 <select
                   value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    // Clear reference image if new model doesn't support i2i
+                    const newModel = imageModels.find(m => m.id === e.target.value);
+                    if (!newModel?.capabilities?.includes('i2i')) {
+                      setReferenceImage(null);
+                    }
+                  }}
                   className={cn(
                     'w-full appearance-none px-3 py-2.5 pr-8 rounded-lg',
                     'bg-neutral-800 border border-neutral-700',
@@ -159,7 +310,7 @@ export function ImageGenerator() {
                 >
                   {imageModels.map((model) => (
                     <option key={model.id} value={model.id}>
-                      {model.name}
+                      {model.name} {model.capabilities?.includes('i2i') ? '(T2I + I2I)' : '(T2I)'}
                     </option>
                   ))}
                 </select>
@@ -217,7 +368,7 @@ export function ImageGenerator() {
             ) : (
               <>
                 <Sparkles className="h-5 w-5" />
-                สร้างภาพ
+                {referenceImage ? 'สร้างภาพจากต้นฉบับ' : 'สร้างภาพ'}
               </>
             )}
           </motion.button>
@@ -298,8 +449,13 @@ export function ImageGenerator() {
                 <ImagePlus className="h-10 w-10 text-neutral-600" />
               </div>
               <p className="text-neutral-500 text-sm">
-                พิมพ์คำอธิบายภาพแล้วกด "สร้างภาพ" เพื่อเริ่มต้น
+                พิมพ์คำอธิบายภาพแล้วกด &quot;สร้างภาพ&quot; เพื่อเริ่มต้น
               </p>
+              {supportsI2I && (
+                <p className="text-neutral-600 text-xs mt-2">
+                  หรืออัปโหลดภาพต้นฉบับเพื่อใช้โหมด Image-to-Image
+                </p>
+              )}
             </div>
           )}
         </div>

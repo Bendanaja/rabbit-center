@@ -1,5 +1,5 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
-import { generateImage } from '@/lib/openrouter'
+import { generateImage } from '@/lib/byteplus'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -14,11 +14,12 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { prompt, model, size, n } = body as {
+    const { prompt, model, size, n, image } = body as {
       prompt: string
       model?: string
       size?: string
       n?: number
+      image?: string // Reference image URL or base64 for i2i
     }
 
     if (!prompt) {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await generateImage({ prompt, model, size, n })
+    const result = await generateImage({ prompt, model, size, n, image })
 
     return NextResponse.json(result)
   } catch (error) {

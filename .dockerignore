@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env*
+*.md
+.claude
+.mcp.json
+coverage
+.playwright

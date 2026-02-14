@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
-import { streamChat, generateChatTitle, type ChatMessage } from '@/lib/openrouter'
+import { streamChat, generateChatTitle, type ChatMessage } from '@/lib/byteplus'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'

@@ -133,7 +133,7 @@ export default function AdminSettingsPage() {
     { key: 'allow_registration', value: 'true', description: 'อนุญาตให้สมัครสมาชิกใหม่', is_public: false, category: 'security' },
     { key: 'require_email_verification', value: 'true', description: 'ต้องยืนยันอีเมล', is_public: false, category: 'security' },
     { key: 'max_login_attempts', value: '5', description: 'จำนวนครั้งสูงสุดที่ login ผิดได้', is_public: false, category: 'security' },
-    { key: 'openrouter_api_key', value: 'sk-or-***', description: 'OpenRouter API Key', is_public: false, category: 'ai' },
+    { key: 'byteplus_api_key', value: 'bp-***', description: 'BytePlus API Key', is_public: false, category: 'ai' },
     { key: 'default_model', value: 'gpt-4', description: 'Model เริ่มต้น', is_public: true, category: 'ai' },
     { key: 'max_tokens_per_request', value: '4096', description: 'จำนวน tokens สูงสุดต่อ request', is_public: false, category: 'ai' },
     { key: 'rate_limit_per_minute', value: '20', description: 'จำนวน requests สูงสุดต่อนาที', is_public: false, category: 'ai' },

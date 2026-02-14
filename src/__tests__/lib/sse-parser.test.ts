@@ -409,7 +409,7 @@ describe('SSE Parser', () => {
       const events: Array<{ type: string; content?: string; title?: string }> = [];
       const parser = new SSEParser((event) => events.push(event));
 
-      // Simulate how OpenRouter/OpenAI streams tokens
+      // Simulate how BytePlus/OpenAI streams tokens
       const chunks = [
         'data: {"type":"chunk","content":"Hello"}\n',
         'data: {"type":"chunk","content":" there"}\n',

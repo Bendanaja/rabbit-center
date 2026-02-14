@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 interface SystemHealth {
   api: { status: 'online' | 'degraded' | 'offline'; latency: number; uptime: number };
   database: { status: 'online' | 'degraded' | 'offline'; connections: number; latency: number };
-  openrouter: { status: 'online' | 'degraded' | 'offline'; latency: number };
+  byteplus: { status: 'online' | 'degraded' | 'offline'; latency: number };
   supabase: { status: 'online' | 'degraded' | 'offline'; latency: number };
   storage: { used: number; total: number; percentage: number };
   memory: { used: number; total: number; percentage: number };
@@ -54,7 +54,7 @@ export default function AdminSystemPage() {
       const mockHealth: SystemHealth = {
         api: { status: 'online', latency: 45 + Math.random() * 20, uptime: 99.98 },
         database: { status: 'online', connections: 12 + Math.floor(Math.random() * 5), latency: 8 + Math.random() * 5 },
-        openrouter: { status: 'online', latency: 120 + Math.random() * 50 },
+        byteplus: { status: 'online', latency: 120 + Math.random() * 50 },
         supabase: { status: 'online', latency: 35 + Math.random() * 15 },
         storage: { used: 2.4, total: 10, percentage: 24 },
         memory: { used: 1.8, total: 4, percentage: 45 },
@@ -75,7 +75,7 @@ export default function AdminSystemPage() {
         { id: '2', level: 'info', message: 'Database backup completed successfully', timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(), source: 'database' },
         { id: '3', level: 'warning', message: 'High memory usage detected (85%)', timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(), source: 'system' },
         { id: '4', level: 'info', message: 'SSL certificate renewed', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), source: 'security' },
-        { id: '5', level: 'error', message: 'OpenRouter rate limit exceeded - retrying', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), source: 'openrouter' },
+        { id: '5', level: 'error', message: 'BytePlus rate limit exceeded - retrying', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), source: 'byteplus' },
       ];
       setLogs(mockLogs);
     } catch (error) {
@@ -168,7 +168,7 @@ export default function AdminSystemPage() {
           {health && [
             { name: 'API Server', key: 'api' as const, icon: Server, data: health.api },
             { name: 'Database', key: 'database' as const, icon: Database, data: health.database },
-            { name: 'OpenRouter', key: 'openrouter' as const, icon: Zap, data: health.openrouter },
+            { name: 'BytePlus', key: 'byteplus' as const, icon: Zap, data: health.byteplus },
             { name: 'Supabase', key: 'supabase' as const, icon: Globe, data: health.supabase },
           ].map((service, index) => {
             const StatusIcon = statusIcons[service.data.status];

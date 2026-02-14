@@ -156,7 +156,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
             : '0 2px 12px -4px rgba(0, 0, 0, 0.08)',
         }}
         className={cn(
-          'relative rounded-2xl transition-all duration-300',
+          'relative rounded-3xl transition-all duration-300',
           'bg-neutral-50 dark:bg-neutral-900',
           'border border-neutral-200 dark:border-neutral-800',
           isFocused && !commandMode && 'border-primary-300 dark:border-primary-700 bg-white dark:bg-neutral-800',
@@ -216,7 +216,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
         </div>
 
         {/* Bottom Actions Bar */}
-        <div className="flex items-center justify-between px-2 sm:px-3 py-2 border-t border-neutral-100 dark:border-neutral-800/50">
+        <div className="flex items-center justify-between px-2 sm:px-3 py-2">
           {/* Left Actions */}
           <div className="flex items-center gap-0.5 sm:gap-1">
             <ActionButton
