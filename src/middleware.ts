@@ -93,6 +93,36 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // ─── Maintenance Mode ──
+  // Set MAINTENANCE_MODE=true in env to block all public access
+  if (process.env.MAINTENANCE_MODE === 'true') {
+    // Allow the maintenance page itself
+    if (pathname === '/maintenance') {
+      const response = NextResponse.next()
+      return addSecurityHeaders(response)
+    }
+    // Allow bypass with secret key: ?bypass=<MAINTENANCE_BYPASS_KEY>
+    const bypassKey = request.nextUrl.searchParams.get('bypass')
+    if (bypassKey && bypassKey === process.env.MAINTENANCE_BYPASS_KEY) {
+      // Set a cookie so they don't need the key on every request
+      const response = NextResponse.next()
+      response.cookies.set('maintenance_bypass', bypassKey, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24, // 24 hours
+      })
+      return addSecurityHeaders(response)
+    }
+    // Check bypass cookie
+    const bypassCookie = request.cookies.get('maintenance_bypass')?.value
+    if (bypassCookie && bypassCookie === process.env.MAINTENANCE_BYPASS_KEY) {
+      return addSecurityHeaders(NextResponse.next())
+    }
+    // Redirect everyone else to maintenance page
+    return NextResponse.redirect(new URL('/maintenance', request.url))
+  }
+
   // Redirect removed pages to home
   if (REMOVED_PAGES.some(page => pathname === page || pathname.startsWith(page + '/'))) {
     return NextResponse.redirect(new URL('/', request.url))
