@@ -2,7 +2,7 @@ import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateVideo } from '@/lib/byteplus'
 import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
-import { calculateUsageCost } from '@/lib/token-costs'
+import { calculateUsageCost, getVideoCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
@@ -30,15 +30,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Plan limit check: video quota
-    const planCheck = await checkPlanLimit(user.id, 'video')
-    if (!planCheck.allowed) {
-      return NextResponse.json(
-        { error: planCheck.reason, planId: planCheck.planId, limit: planCheck.limit, used: planCheck.used },
-        { status: 403 }
-      )
-    }
-
     // Content-Type validation
     const ctError = validateContentType(request)
     if (ctError) {
@@ -51,6 +42,17 @@ export async function POST(request: Request) {
       model?: string
       duration?: number
       image_url?: string
+    }
+
+    // Plan limit check: video quota
+    const videoModelKey = model || 'seedance-1-5-pro'
+    const costThb = getVideoCost(videoModelKey).thb
+    const planCheck = await checkPlanLimit(user.id, 'video', undefined, costThb)
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.reason, planId: planCheck.planId },
+        { status: 403 }
+      )
     }
 
     if (!prompt) {
@@ -79,10 +81,9 @@ export async function POST(request: Request) {
     const result = await generateVideo({ prompt, model, duration, image_url })
 
     // Increment usage AFTER successful generation
-    await incrementUsage(user.id, 'video')
+    await incrementUsage(user.id, 'video', costThb)
 
     // Internal cost tracking (non-blocking)
-    const videoModelKey = model || 'seedance-1-5-pro'
     const costUsd = calculateUsageCost({
       userId: user.id,
       modelKey: videoModelKey,

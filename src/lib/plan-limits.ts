@@ -8,82 +8,84 @@ export type PlanId = 'free' | 'starter' | 'pro' | 'premium'
 export type PlanAction = 'chat' | 'image' | 'video' | 'search'
 
 export interface PlanLimits {
-  messagesPerDay: number       // 0 = unlimited
-  imagesPerDay: number         // 0 = unlimited
-  videosPerDay: number         // 0 = unlimited
-  searchesPerDay: number       // 0 = disabled for plan
+  monthlyBudgetThb: number     // Monthly budget in THB (0 = unlimited)
   allowedModels: string[]      // empty = all models
   allowedImageModels: string[] // empty = all image models
   allowedVideoModels: string[] // empty = all video models
+  canGenerateImages: boolean   // false = blocked entirely (Free plan)
+  canGenerateVideos: boolean   // false = blocked entirely (Free plan)
   chatHistoryDays: number      // 0 = unlimited
   hasApiAccess: boolean
   hasPrioritySpeed: boolean
 }
 
 // Economy-tier models (cheapest to operate)
-const FREE_MODELS = ['seed-1-6-flash']
-const STARTER_MODELS = ['seed-1-6-flash', 'deepseek-v3-2', 'glm-4']
+const FREE_MODELS = ['seed-1-6-flash', 'gpt-oss-120b']
+const STARTER_MODELS = ['seed-1-6-flash', 'gpt-oss-120b', 'deepseek-v3-2', 'glm-4', 'nano-banana']
+// Pro gets all BytePlus + nano-banana-pro + gpt-5-2 (NOT grok-4 or claude-4-6)
+const PRO_MODELS = [
+  'seed-1-6-flash', 'gpt-oss-120b', 'deepseek-v3-2', 'glm-4', 'nano-banana',
+  'deepseek-r1', 'deepseek-v3-1', 'seed-1-8', 'seed-1-6', 'kimi-k2-thinking', 'kimi-k2',
+  'nano-banana-pro', 'gpt-5-2'
+]
+// Premium: [] (all models including grok-4, claude-4-6)
 const STARTER_IMAGE_MODELS = ['seedream-3', 'seedream-4'] // exclude 4.5 (most expensive)
 const STARTER_VIDEO_MODELS = ['seedance-lite-t2v', 'seedance-lite-i2v', 'seedance-pro-fast'] // cheap video models only
 
 /**
- * Plan limits calibrated against actual BytePlus API costs (with 40% discount)
- * to ensure profitability at all usage levels.
+ * Plan limits with monthly budget system.
+ * Budget = 50% of plan price, guaranteeing 50%+ margin.
  *
- * Cost analysis (max usage per month, 30 days):
+ * Budget per plan:
+ *   Free:    ฿5/month (acquisition cost)
+ *   Starter: ฿100/month (฿199 revenue → 50% margin)
+ *   Pro:     ฿250/month (฿499 revenue → 50% margin)
+ *   Premium: ฿400/month (฿799 revenue → 50% margin)
  *
- * Free:    30×30×฿0.009 = ฿8.1 cost, ฿0 revenue (acquisition cost)
- * Starter: 100×30×฿0.012 + 3×30×฿0.61 + 1×30×฿0.75 = ฿36+฿54.9+฿22.5 = ฿113.4 cost, ฿199 revenue (43% margin at max)
- * Pro:     200×30×฿0.03 + 8×30×฿0.82 + 2×30×฿1.35 = ฿180+฿196.8+฿81 = ฿458 cost, ฿499 revenue (8% margin at max)
- * Premium: 400×30×฿0.035 + 10×30×฿0.82 + 3×30×฿1.35 = ฿420+฿246+฿121.5 = ฿788 cost, ฿799 revenue (1.4% margin at max)
- *
- * At typical 30% utilization: ~70% margins across all paid plans.
+ * Model tier restrictions still apply — Free users can't use Claude 4.6 etc.
+ * Free users can't generate images/videos regardless of budget.
  */
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   free: {
-    messagesPerDay: 30,
-    imagesPerDay: 0,
-    videosPerDay: 0,
-    searchesPerDay: 0, // 0 = unlimited (self-hosted SearXNG, no cost)
+    monthlyBudgetThb: 5,
     allowedModels: FREE_MODELS,
     allowedImageModels: [],
     allowedVideoModels: [],
+    canGenerateImages: false,
+    canGenerateVideos: false,
     chatHistoryDays: 7,
     hasApiAccess: false,
     hasPrioritySpeed: false,
   },
   starter: {
-    messagesPerDay: 100,
-    imagesPerDay: 3,
-    videosPerDay: 1,
-    searchesPerDay: 0, // unlimited
+    monthlyBudgetThb: 100,
     allowedModels: STARTER_MODELS,
     allowedImageModels: STARTER_IMAGE_MODELS,
     allowedVideoModels: STARTER_VIDEO_MODELS,
+    canGenerateImages: true,
+    canGenerateVideos: true,
     chatHistoryDays: 30,
     hasApiAccess: false,
     hasPrioritySpeed: false,
   },
   pro: {
-    messagesPerDay: 200,
-    imagesPerDay: 8,
-    videosPerDay: 2,
-    searchesPerDay: 0, // unlimited
-    allowedModels: [], // all models
+    monthlyBudgetThb: 250,
+    allowedModels: PRO_MODELS,
     allowedImageModels: [], // all image models
     allowedVideoModels: [], // all video models
+    canGenerateImages: true,
+    canGenerateVideos: true,
     chatHistoryDays: 0, // unlimited
     hasApiAccess: false,
     hasPrioritySpeed: true,
   },
   premium: {
-    messagesPerDay: 400,
-    imagesPerDay: 10,
-    videosPerDay: 3,
-    searchesPerDay: 0, // unlimited
-    allowedModels: [], // all models
-    allowedImageModels: [], // all image models
-    allowedVideoModels: [], // all video models
+    monthlyBudgetThb: 400,
+    allowedModels: [], // all models (including grok-4, claude-4-6)
+    allowedImageModels: [],
+    allowedVideoModels: [],
+    canGenerateImages: true,
+    canGenerateVideos: true,
     chatHistoryDays: 0, // unlimited
     hasApiAccess: true,
     hasPrioritySpeed: true,
@@ -159,34 +161,27 @@ export async function invalidateUserPlanCache(userId: string): Promise<void> {
 export interface PlanCheckResult {
   allowed: boolean
   reason?: string
-  limit?: number
-  used?: number
   planId: PlanId
+  budgetUsed?: number   // THB used this month
+  budgetLimit?: number  // THB monthly budget
 }
 
 /**
- * Count how many times a user has performed an action today.
- * Uses the daily_usage table.
+ * Get total cost_thb for a user in the current month.
  */
-async function getDailyUsage(userId: string, action: PlanAction): Promise<number> {
+async function getMonthlyUsage(userId: string): Promise<number> {
   const supabase = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const firstOfMonth = new Date()
+  firstOfMonth.setDate(1)
+  const monthStart = firstOfMonth.toISOString().split('T')[0]
 
   const { data } = await supabase
     .from('daily_usage')
-    .select('messages_count, images_count, videos_count, searches_count')
+    .select('cost_thb')
     .eq('user_id', userId)
-    .eq('date', today)
-    .single()
+    .gte('date', monthStart)
 
-  if (!data) return 0
-
-  switch (action) {
-    case 'chat': return data.messages_count || 0
-    case 'image': return data.images_count || 0
-    case 'video': return data.videos_count || 0
-    case 'search': return data.searches_count || 0
-  }
+  return data?.reduce((sum, row) => sum + (Number(row.cost_thb) || 0), 0) || 0
 }
 
 /**
@@ -219,10 +214,14 @@ export async function logUsageCost(
 }
 
 /**
- * Increment daily usage count for a user action.
+ * Increment daily usage count and cost for a user action.
  * Uses the upsert_daily_usage RPC function for atomic upserts.
  */
-export async function incrementUsage(userId: string, action: PlanAction): Promise<void> {
+export async function incrementUsage(
+  userId: string,
+  action: PlanAction,
+  costThb: number = 0
+): Promise<void> {
   const supabase = createAdminClient()
 
   const { error } = await supabase.rpc('upsert_daily_usage', {
@@ -231,6 +230,7 @@ export async function incrementUsage(userId: string, action: PlanAction): Promis
     p_images: action === 'image' ? 1 : 0,
     p_videos: action === 'video' ? 1 : 0,
     p_searches: action === 'search' ? 1 : 0,
+    p_cost_thb: costThb,
   })
 
   if (error) {
@@ -291,7 +291,8 @@ async function isModelActive(modelKey: string): Promise<boolean> {
 export async function checkPlanLimit(
   userId: string,
   action: PlanAction,
-  modelKey?: string
+  modelKey?: string,
+  estimatedCostThb?: number
 ): Promise<PlanCheckResult> {
   // Admin bypass: admins get unlimited access to everything
   if (await isAdminUser(userId)) {
@@ -328,13 +329,11 @@ export async function checkPlanLimit(
     }
   }
 
-  // Check image access - denied if daily limit is 0
-  if (action === 'image' && limits.imagesPerDay === 0) {
+  // Check image access - blocked entirely for plans without image capability
+  if (action === 'image' && !limits.canGenerateImages) {
     return {
       allowed: false,
       reason: 'แพลนของคุณไม่รองรับการสร้างรูปภาพ กรุณาอัปเกรดเพื่อใช้งาน',
-      limit: 0,
-      used: 0,
       planId: userPlan.planId,
     }
   }
@@ -350,13 +349,11 @@ export async function checkPlanLimit(
     }
   }
 
-  // Check video access - denied if daily limit is 0
-  if (action === 'video' && limits.videosPerDay === 0) {
+  // Check video access - blocked entirely for plans without video capability
+  if (action === 'video' && !limits.canGenerateVideos) {
     return {
       allowed: false,
       reason: 'แพลนของคุณไม่รองรับการสร้างวิดีโอ กรุณาอัปเกรดเพื่อใช้งาน',
-      limit: 0,
-      used: 0,
       planId: userPlan.planId,
     }
   }
@@ -372,45 +369,26 @@ export async function checkPlanLimit(
     }
   }
 
-  // Determine the daily limit for this action
-  let dailyLimit: number
-  switch (action) {
-    case 'chat':
-      dailyLimit = limits.messagesPerDay
-      break
-    case 'image':
-      dailyLimit = limits.imagesPerDay
-      break
-    case 'video':
-      dailyLimit = limits.videosPerDay
-      break
-    case 'search':
-      dailyLimit = limits.searchesPerDay
-      break
-  }
-
-  // 0 means unlimited
-  if (dailyLimit === 0) {
+  // Search is unlimited (self-hosted SearXNG, no cost)
+  if (action === 'search') {
     return { allowed: true, planId: userPlan.planId }
   }
 
-  // Check daily usage
-  const used = await getDailyUsage(userId, action)
+  // Budget check
+  if (limits.monthlyBudgetThb > 0) {
+    const usedThb = await getMonthlyUsage(userId)
+    const costEstimate = estimatedCostThb || 0.01 // fallback tiny amount
 
-  if (used >= dailyLimit) {
-    return {
-      allowed: false,
-      reason: `คุณใช้งาน${action === 'chat' ? 'ข้อความ' : action === 'image' ? 'สร้างรูป' : action === 'video' ? 'สร้างวิดีโอ' : 'ค้นหาเว็บ'}ครบ ${dailyLimit} ครั้งต่อวันแล้ว กรุณาอัปเกรดแพลนหรือรอพรุ่งนี้`,
-      limit: dailyLimit,
-      used,
-      planId: userPlan.planId,
+    if (usedThb + costEstimate > limits.monthlyBudgetThb) {
+      return {
+        allowed: false,
+        reason: `วงเงินประจำเดือนหมดแล้ว (${usedThb.toFixed(2)}/${limits.monthlyBudgetThb} บาท) กรุณาอัปเกรดแพลนหรือรอเดือนหน้า`,
+        planId: userPlan.planId,
+        budgetUsed: usedThb,
+        budgetLimit: limits.monthlyBudgetThb,
+      }
     }
   }
 
-  return {
-    allowed: true,
-    limit: dailyLimit,
-    used,
-    planId: userPlan.planId,
-  }
+  return { allowed: true, planId: userPlan.planId }
 }

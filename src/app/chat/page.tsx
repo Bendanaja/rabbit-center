@@ -808,21 +808,27 @@ function ChatListItem({ chat, isActive, onSelect, onDelete, onArchive, onToggleP
 interface UsageData {
   plan: string;
   planName: string;
-  usage: {
-    messages: { used: number; limit: number; remaining: number; unlimited?: boolean };
-    images: { used: number; limit: number; remaining: number; unlimited?: boolean };
-    videos: { used: number; limit: number; remaining: number; unlimited?: boolean };
-    searches?: { used: number; limit: number; remaining: number; unlimited?: boolean };
+  budget: {
+    limit: number;
+    used: number;
+    remaining: number;
+    percent: number;
+    unlimited: boolean;
+  };
+  counts: {
+    messages: number;
+    images: number;
+    videos: number;
+    searches: number;
   };
 }
 
 function UsageIndicator({ usage }: { usage: UsageData }) {
   const [expanded, setExpanded] = useState(false);
-  const { messages, images, videos } = usage.usage;
+  const { budget, counts } = usage;
 
-  const isUnlimitedMsg = messages.unlimited || messages.limit === 0;
-  const msgPercent = isUnlimitedMsg ? 0 : (messages.used / messages.limit) * 100;
-  const barColor = msgPercent < 50 ? 'bg-green-500' : msgPercent < 80 ? 'bg-amber-500' : 'bg-red-500';
+  const percent = budget.percent;
+  const barColor = percent < 50 ? 'bg-green-500' : percent < 80 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
     <div className="px-2 pb-1">
@@ -834,7 +840,7 @@ function UsageIndicator({ usage }: { usage: UsageData }) {
           <div className="flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5 text-neutral-500" />
             <span className="text-xs text-neutral-400">
-              {isUnlimitedMsg ? `${messages.used} ข้อความวันนี้` : `${messages.used}/${messages.limit} ข้อความวันนี้`}
+              {budget.unlimited ? `แพลน ${usage.planName}` : `ใช้ไป ${percent}%`}
             </span>
           </div>
           {expanded ? (
@@ -843,11 +849,11 @@ function UsageIndicator({ usage }: { usage: UsageData }) {
             <ChevronDown className="h-3 w-3 text-neutral-500" />
           )}
         </div>
-        {!isUnlimitedMsg && (
+        {!budget.unlimited && (
           <div className="w-full h-1.5 bg-neutral-700 rounded-full overflow-hidden">
             <div
               className={cn('h-full rounded-full transition-all duration-300', barColor)}
-              style={{ width: `${Math.min(msgPercent, 100)}%` }}
+              style={{ width: `${Math.min(percent, 100)}%` }}
             />
           </div>
         )}
@@ -864,48 +870,48 @@ function UsageIndicator({ usage }: { usage: UsageData }) {
             <div className="px-3 py-2 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-neutral-500">แพลน: {usage.planName}</span>
+                {!budget.unlimited && (
+                  <span className={cn(
+                    'text-xs font-medium',
+                    percent >= 80 ? 'text-red-400' : percent >= 50 ? 'text-amber-400' : 'text-green-400'
+                  )}>
+                    เหลือ {100 - percent}%
+                  </span>
+                )}
               </div>
-              {images.limit > 0 && (
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-3 w-3 text-blue-400" />
+                <span className="text-xs text-neutral-400">
+                  {counts.messages} ข้อความเดือนนี้
+                </span>
+              </div>
+              {counts.images > 0 && (
                 <div className="flex items-center gap-2">
                   <ImagePlus className="h-3 w-3 text-violet-400" />
                   <span className="text-xs text-neutral-400">
-                    {images.used}/{images.limit} รูปภาพ
+                    {counts.images} รูปภาพ
                   </span>
-                  <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-violet-500 rounded-full"
-                      style={{ width: `${Math.min((images.used / images.limit) * 100, 100)}%` }}
-                    />
-                  </div>
                 </div>
               )}
-              {videos.limit > 0 && (
+              {counts.videos > 0 && (
                 <div className="flex items-center gap-2">
                   <Video className="h-3 w-3 text-pink-400" />
                   <span className="text-xs text-neutral-400">
-                    {videos.used}/{videos.limit} วิดีโอ
+                    {counts.videos} วิดีโอ
                   </span>
-                  <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-pink-500 rounded-full"
-                      style={{ width: `${Math.min((videos.used / videos.limit) * 100, 100)}%` }}
-                    />
-                  </div>
                 </div>
               )}
-              {usage.usage.searches && (
+              {counts.searches > 0 && (
                 <div className="flex items-center gap-2">
                   <Globe className="h-3 w-3 text-sky-400" />
                   <span className="text-xs text-neutral-400">
-                    {usage.usage.searches.unlimited || usage.usage.searches.limit === 0
-                      ? `${usage.usage.searches.used} ค้นหาเว็บ (ไม่จำกัด)`
-                      : `${usage.usage.searches.used}/${usage.usage.searches.limit} ค้นหาเว็บ`}
+                    {counts.searches} ค้นหาเว็บ
                   </span>
                 </div>
               )}
-              {images.limit === 0 && videos.limit === 0 && (
+              {usage.plan === 'free' && (
                 <Link href="/pricing" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">
-                  อัปเกรดเพื่อสร้างรูปภาพและวิดีโอ
+                  อัปเกรดเพื่อเพิ่มวงเงิน
                 </Link>
               )}
             </div>

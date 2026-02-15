@@ -2,7 +2,7 @@ import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateImage } from '@/lib/byteplus'
 import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
-import { calculateUsageCost } from '@/lib/token-costs'
+import { calculateUsageCost, getImageCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
@@ -30,15 +30,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Plan limit check: image quota
-    const planCheck = await checkPlanLimit(user.id, 'image')
-    if (!planCheck.allowed) {
-      return NextResponse.json(
-        { error: planCheck.reason, planId: planCheck.planId, limit: planCheck.limit, used: planCheck.used },
-        { status: 403 }
-      )
-    }
-
     // Content-Type validation
     const ctError = validateContentType(request)
     if (ctError) {
@@ -52,6 +43,17 @@ export async function POST(request: Request) {
       size?: string
       n?: number
       image?: string // Reference image URL or base64 for i2i
+    }
+
+    // Plan limit check: image quota
+    const imageModelKey = model || 'seedream-4-5'
+    const costThb = getImageCost(imageModelKey).thb
+    const planCheck = await checkPlanLimit(user.id, 'image', undefined, costThb)
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.reason, planId: planCheck.planId },
+        { status: 403 }
+      )
     }
 
     if (!prompt) {
@@ -84,10 +86,9 @@ export async function POST(request: Request) {
     const result = await generateImage({ prompt, model, size, n, image })
 
     // Increment usage AFTER successful generation
-    await incrementUsage(user.id, 'image')
+    await incrementUsage(user.id, 'image', costThb)
 
     // Internal cost tracking (non-blocking)
-    const imageModelKey = model || 'seedream-4-5'
     const costUsd = calculateUsageCost({
       userId: user.id,
       modelKey: imageModelKey,

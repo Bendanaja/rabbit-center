@@ -17,57 +17,43 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
 
   // Get user's plan
   const userPlan = await getUserPlan(user.id)
   const limits = PLAN_LIMITS[userPlan.planId]
 
-  // Get today's usage from daily_usage table
-  const { data: usageData } = await supabase
+  // Get monthly cost total
+  const firstOfMonth = new Date()
+  firstOfMonth.setDate(1)
+  const monthStart = firstOfMonth.toISOString().split('T')[0]
+
+  const { data: monthlyData } = await supabase
     .from('daily_usage')
-    .select('messages_count, images_count, videos_count, searches_count')
+    .select('cost_thb, messages_count, images_count, videos_count, searches_count')
     .eq('user_id', user.id)
-    .eq('date', today)
-    .single()
+    .gte('date', monthStart)
 
-  const messagesUsed = usageData?.messages_count || 0
-  const imagesUsed = usageData?.images_count || 0
-  const videosUsed = usageData?.videos_count || 0
-  const searchesUsed = usageData?.searches_count || 0
-
-  // Helper: 0 means unlimited in PLAN_LIMITS
-  const calcRemaining = (used: number, limit: number) =>
-    limit === 0 ? -1 : Math.max(0, limit - used)
+  const usedThb = monthlyData?.reduce((sum, r) => sum + (Number(r.cost_thb) || 0), 0) || 0
+  const messagesUsed = monthlyData?.reduce((sum, r) => sum + (r.messages_count || 0), 0) || 0
+  const imagesUsed = monthlyData?.reduce((sum, r) => sum + (r.images_count || 0), 0) || 0
+  const videosUsed = monthlyData?.reduce((sum, r) => sum + (r.videos_count || 0), 0) || 0
+  const searchesUsed = monthlyData?.reduce((sum, r) => sum + (r.searches_count || 0), 0) || 0
 
   return NextResponse.json({
     plan: userPlan.planId,
-    usage: {
-      messages: {
-        used: messagesUsed,
-        limit: limits.messagesPerDay,
-        remaining: calcRemaining(messagesUsed, limits.messagesPerDay),
-        unlimited: limits.messagesPerDay === 0,
-      },
-      images: {
-        used: imagesUsed,
-        limit: limits.imagesPerDay,
-        remaining: calcRemaining(imagesUsed, limits.imagesPerDay),
-        unlimited: limits.imagesPerDay === 0,
-      },
-      videos: {
-        used: videosUsed,
-        limit: limits.videosPerDay,
-        remaining: calcRemaining(videosUsed, limits.videosPerDay),
-        unlimited: limits.videosPerDay === 0,
-      },
-      searches: {
-        used: searchesUsed,
-        limit: limits.searchesPerDay,
-        remaining: calcRemaining(searchesUsed, limits.searchesPerDay),
-        unlimited: limits.searchesPerDay === 0,
-      },
-    },
     planName: PLAN_NAMES[userPlan.planId] || 'ฟรี',
+    budget: {
+      limit: limits.monthlyBudgetThb,
+      used: usedThb,
+      remaining: Math.max(0, limits.monthlyBudgetThb - usedThb),
+      percent: limits.monthlyBudgetThb > 0 ? Math.min(100, Math.round((usedThb / limits.monthlyBudgetThb) * 100)) : 0,
+      unlimited: limits.monthlyBudgetThb === 0,
+    },
+    counts: {
+      messages: messagesUsed,
+      images: imagesUsed,
+      videos: videosUsed,
+      searches: searchesUsed,
+    },
   })
 }

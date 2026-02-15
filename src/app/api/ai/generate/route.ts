@@ -4,7 +4,7 @@ import { streamChat, generateChatTitle, type ChatMessage } from '@/lib/byteplus'
 import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
 import { searchWeb, formatSearchContext, formatSourcesMarker, type SearchResult } from '@/lib/web-search'
-import { calculateUsageCost } from '@/lib/token-costs'
+import { calculateUsageCost, estimateChatCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
@@ -83,10 +83,11 @@ export async function POST(request: Request) {
   }
 
   // Plan limit check: message quota + model access
-  const planCheck = await checkPlanLimit(user.id, 'chat', model)
+  const estimatedCost = estimateChatCost(model).thb
+  const planCheck = await checkPlanLimit(user.id, 'chat', model, estimatedCost)
   if (!planCheck.allowed) {
     return NextResponse.json(
-      { error: planCheck.reason, planId: planCheck.planId, limit: planCheck.limit, used: planCheck.used },
+      { error: planCheck.reason, planId: planCheck.planId },
       { status: 403 }
     )
   }
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     const searchPlanCheck = await checkPlanLimit(user.id, 'search')
     if (!searchPlanCheck.allowed) {
       return NextResponse.json(
-        { error: searchPlanCheck.reason, planId: searchPlanCheck.planId, limit: searchPlanCheck.limit, used: searchPlanCheck.used },
+        { error: searchPlanCheck.reason, planId: searchPlanCheck.planId },
         { status: 403 }
       )
     }
@@ -189,12 +190,17 @@ export async function POST(request: Request) {
                 .select()
                 .single()
 
+              // Calculate tokens and cost for usage tracking
+              const inputTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+              const outputTokens = Math.ceil(response.length / 4)
+              const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
+
               if (saveError) {
                 console.error('Save message error:', saveError)
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Failed to save message' })}\n\n`))
               } else {
                 // Increment usage AFTER successful stream completion and message save
-                await incrementUsage(user.id, 'chat')
+                await incrementUsage(user.id, 'chat', costThb)
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', messageId: savedMessage?.id })}\n\n`))
               }
 
@@ -220,8 +226,6 @@ export async function POST(request: Request) {
                 .eq('id', chatId)
 
               // Internal cost tracking (non-blocking, never shown to users)
-              const inputTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
-              const outputTokens = Math.ceil(response.length / 4)
               const costUsd = calculateUsageCost({
                 userId: user.id,
                 modelKey: model,

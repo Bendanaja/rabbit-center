@@ -74,10 +74,50 @@ export const AI_MODELS = [
   {
     id: 'gpt-oss-120b',
     name: 'GPT-OSS 120B',
-    provider: 'BytePlus',
-    icon: '/images/models/gpt-oss.svg',
+    provider: 'OpenAI',
+    icon: '/images/models/openai.svg',
     description: 'โมเดล 120B พารามิเตอร์ ประสิทธิภาพเยี่ยม',
     tier: 'free'
+  },
+  {
+    id: 'nano-banana',
+    name: 'Nano Banana',
+    provider: 'Google',
+    icon: '/images/models/google.svg',
+    description: 'โมเดล Flash อัจฉริยะจาก Google คิดวิเคราะห์ได้',
+    tier: 'starter'
+  },
+  {
+    id: 'nano-banana-pro',
+    name: 'Nano Banana Pro',
+    provider: 'Google',
+    icon: '/images/models/google.svg',
+    description: 'โมเดล Pro จาก Google สร้างรูปในแชทได้',
+    tier: 'pro'
+  },
+  {
+    id: 'gpt-5-2',
+    name: 'GPT 5.2',
+    provider: 'OpenAI',
+    icon: '/images/models/openai.svg',
+    description: 'โมเดลล่าสุดจาก OpenAI ทรงพลังที่สุด',
+    tier: 'pro'
+  },
+  {
+    id: 'grok-4',
+    name: 'Grok 4',
+    provider: 'xAI',
+    icon: '/images/models/xai.svg',
+    description: 'โมเดลจาก xAI ฉลาดและตอบตรงประเด็น',
+    tier: 'premium'
+  },
+  {
+    id: 'claude-4-6',
+    name: 'Claude 4.6 Opus',
+    provider: 'Anthropic',
+    icon: '/images/models/anthropic.svg',
+    description: 'โมเดลระดับสูงสุดจาก Anthropic',
+    tier: 'premium'
   },
 ] as const;
 
@@ -93,8 +133,8 @@ export const PRICING_PLANS = [
     period: 'เดือน',
     description: 'เหมาะสำหรับทดลองใช้งาน',
     features: [
-      '30 ข้อความต่อวัน',
-      'ใช้ได้เฉพาะ Seed 1.6 Flash',
+      'วงเงิน ฿5/เดือน',
+      'ใช้ได้ Seed 1.6 Flash + GPT-OSS 120B',
       'ค้นหาเว็บไม่จำกัด',
       'ประวัติแชท 7 วัน',
       'ความเร็วปกติ',
@@ -116,17 +156,16 @@ export const PRICING_PLANS = [
     period: 'เดือน',
     description: 'เหมาะสำหรับผู้เริ่มใช้งาน',
     features: [
-      '100 ข้อความต่อวัน',
-      'ใช้ได้ 3 โมเดล (Seed 1.6 Flash, DeepSeek V3.2, GLM-4.7)',
-      'สร้างรูปได้ 3 รูป/วัน',
-      'สร้างวิดีโอได้ 1 ชิ้น/วัน',
+      'วงเงิน ฿100/เดือน',
+      'ใช้ได้ 5 โมเดล (+ Nano Banana)',
+      'สร้างรูปภาพและวิดีโอได้',
       'ค้นหาเว็บไม่จำกัด',
       'ประวัติแชท 30 วัน',
       'ความเร็วปกติ',
     ],
     limitations: [
       'จำกัดจำนวนโมเดล',
-      'วิดีโอเฉพาะ Seedance Lite/Fast',
+      'วิดีโอเฉพาะโมเดลราคาประหยัด',
     ],
     cta: 'เริ่มต้นใช้งาน',
     popular: false,
@@ -139,10 +178,9 @@ export const PRICING_PLANS = [
     period: 'เดือน',
     description: 'สำหรับผู้ใช้งานจริงจัง',
     features: [
-      '200 ข้อความต่อวัน',
-      'ใช้ได้ทุกโมเดล AI',
-      'สร้างรูปได้ 8 รูป/วัน',
-      'สร้างวิดีโอได้ 2 ชิ้น/วัน',
+      'วงเงิน ฿250/เดือน',
+      'ใช้ได้ 13 โมเดล (+ GPT 5.2, Nano Banana Pro)',
+      'สร้างรูปภาพและวิดีโอได้',
       'ค้นหาเว็บไม่จำกัด',
       'ประวัติแชทไม่จำกัด',
       'ความเร็วสูง',
@@ -159,10 +197,9 @@ export const PRICING_PLANS = [
     period: 'เดือน',
     description: 'สำหรับผู้ใช้ระดับมืออาชีพ',
     features: [
-      '400 ข้อความต่อวัน',
-      'ใช้ได้ทุกโมเดล AI',
-      'สร้างรูปได้ 10 รูป/วัน',
-      'สร้างวิดีโอได้ 3 ชิ้น/วัน',
+      'วงเงิน ฿400/เดือน',
+      'ใช้ได้ทุกโมเดล (+ Claude 4.6, Grok 4)',
+      'สร้างรูปภาพและวิดีโอได้',
       'ค้นหาเว็บไม่จำกัด',
       'ความเร็วสูงสุด',
       'การสนับสนุนพิเศษ',

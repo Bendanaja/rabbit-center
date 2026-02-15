@@ -41,7 +41,14 @@ export const CHAT_MODEL_COSTS: Record<string, ModelCost> = {
 
   // Other models
   'glm-4':            { inputPerMillion: 0.12,  outputPerMillion: 0.60,  tier: 'economy' },   // Zhipu GLM
-  'gpt-oss-120b':     { inputPerMillion: 0.18,  outputPerMillion: 0.90,  tier: 'standard' },   // 120B open-source
+  'gpt-oss-120b':     { inputPerMillion: 0,     outputPerMillion: 0,     tier: 'economy' },   // OpenRouter free tier
+
+  // OpenRouter models (no discount - these are direct costs from OpenRouter)
+  'nano-banana':      { inputPerMillion: 0.15,  outputPerMillion: 0.60,  tier: 'economy' },
+  'nano-banana-pro':  { inputPerMillion: 2.00,  outputPerMillion: 12.00, tier: 'premium' },
+  'gpt-5-2':          { inputPerMillion: 1.75,  outputPerMillion: 14.00, tier: 'premium' },
+  'grok-4':           { inputPerMillion: 3.00,  outputPerMillion: 15.00, tier: 'premium' },
+  'claude-4-6':       { inputPerMillion: 5.00,  outputPerMillion: 25.00, tier: 'premium' },
 }
 
 // ═══════════════════════════════════════════
@@ -143,76 +150,39 @@ export interface PlanCostAnalysis {
  * This is for internal analysis - never expose to users.
  */
 export function analyzePlanProfitability(): PlanCostAnalysis[] {
-  const DAYS_PER_MONTH = 30
-
   return [
-    // Free: 30 msgs/day, Flash only, no images/videos
-    (() => {
-      const chatCost = 30 * DAYS_PER_MONTH * estimateChatCost('seed-1-6-flash').thb
-      return {
-        planId: 'free',
-        monthlyRevenueTHB: 0,
-        maxMonthlyCostTHB: chatCost,
-        avgMonthlyCostTHB: chatCost * 0.3, // Free users use less
-        maxMarginPercent: -100,
-        worstMarginPercent: -100,
-      }
-    })(),
-
-    // Starter: 100 msgs/day, 3 models, 5 images/day
-    (() => {
-      const avgChatCost = estimateChatCost('seed-1-6-flash').thb * 0.5 +
-                          estimateChatCost('deepseek-v3-1').thb * 0.3 +
-                          estimateChatCost('glm-4').thb * 0.2
-      const chatMax = 100 * DAYS_PER_MONTH * avgChatCost
-      const imageMax = 5 * DAYS_PER_MONTH * getImageCost('seedream-4-5').thb
-      const total = chatMax + imageMax
-      const revenue = 199
-      return {
-        planId: 'starter',
-        monthlyRevenueTHB: revenue,
-        maxMonthlyCostTHB: total,
-        avgMonthlyCostTHB: total * 0.35,
-        maxMarginPercent: Math.round((1 - total * 0.35 / revenue) * 100),
-        worstMarginPercent: Math.round((1 - total / revenue) * 100),
-      }
-    })(),
-
-    // Pro: 500 msgs/day, all models, 30 images/day, 3 videos/day
-    (() => {
-      const avgChatCost = estimateChatCost('seed-1-8').thb  // weighted average
-      const chatMax = 500 * DAYS_PER_MONTH * avgChatCost
-      const imageMax = 30 * DAYS_PER_MONTH * getImageCost('seedream-4-5').thb
-      const videoMax = 3 * DAYS_PER_MONTH * getVideoCost('seedance-1-5-pro').thb
-      const total = chatMax + imageMax + videoMax
-      const revenue = 499
-      return {
-        planId: 'pro',
-        monthlyRevenueTHB: revenue,
-        maxMonthlyCostTHB: total,
-        avgMonthlyCostTHB: total * 0.30,
-        maxMarginPercent: Math.round((1 - total * 0.30 / revenue) * 100),
-        worstMarginPercent: Math.round((1 - total / revenue) * 100),
-      }
-    })(),
-
-    // Premium: 1500 msgs/day, all models, 100 images/day, 10 videos/day
-    (() => {
-      const avgChatCost = estimateChatCost('deepseek-r1').thb // heaviest users
-      const chatMax = 1500 * DAYS_PER_MONTH * avgChatCost
-      const imageMax = 100 * DAYS_PER_MONTH * getImageCost('seedream-4-5').thb
-      const videoMax = 10 * DAYS_PER_MONTH * getVideoCost('seedance-1-5-pro').thb
-      const total = chatMax + imageMax + videoMax
-      const revenue = 799
-      return {
-        planId: 'premium',
-        monthlyRevenueTHB: revenue,
-        maxMonthlyCostTHB: total,
-        avgMonthlyCostTHB: total * 0.25,
-        maxMarginPercent: Math.round((1 - total * 0.25 / revenue) * 100),
-        worstMarginPercent: Math.round((1 - total / revenue) * 100),
-      }
-    })(),
+    {
+      planId: 'free',
+      monthlyRevenueTHB: 0,
+      maxMonthlyCostTHB: 5,       // budget cap
+      avgMonthlyCostTHB: 2,       // ~40% utilization
+      maxMarginPercent: -100,
+      worstMarginPercent: -100,
+    },
+    {
+      planId: 'starter',
+      monthlyRevenueTHB: 199,
+      maxMonthlyCostTHB: 100,     // budget cap
+      avgMonthlyCostTHB: 40,      // ~40% utilization
+      maxMarginPercent: Math.round((1 - 40 / 199) * 100),
+      worstMarginPercent: Math.round((1 - 100 / 199) * 100),
+    },
+    {
+      planId: 'pro',
+      monthlyRevenueTHB: 499,
+      maxMonthlyCostTHB: 250,     // budget cap
+      avgMonthlyCostTHB: 100,     // ~40% utilization
+      maxMarginPercent: Math.round((1 - 100 / 499) * 100),
+      worstMarginPercent: Math.round((1 - 250 / 499) * 100),
+    },
+    {
+      planId: 'premium',
+      monthlyRevenueTHB: 799,
+      maxMonthlyCostTHB: 400,     // budget cap
+      avgMonthlyCostTHB: 160,     // ~40% utilization
+      maxMarginPercent: Math.round((1 - 160 / 799) * 100),
+      worstMarginPercent: Math.round((1 - 400 / 799) * 100),
+    },
   ]
 }
 
