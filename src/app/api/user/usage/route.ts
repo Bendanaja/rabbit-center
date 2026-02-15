@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   // Get today's usage from daily_usage table
   const { data: usageData } = await supabase
     .from('daily_usage')
-    .select('messages_count, images_count, videos_count')
+    .select('messages_count, images_count, videos_count, searches_count')
     .eq('user_id', user.id)
     .eq('date', today)
     .single()
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   const messagesUsed = usageData?.messages_count || 0
   const imagesUsed = usageData?.images_count || 0
   const videosUsed = usageData?.videos_count || 0
+  const searchesUsed = usageData?.searches_count || 0
 
   // Helper: 0 means unlimited in PLAN_LIMITS
   const calcRemaining = (used: number, limit: number) =>
@@ -59,6 +60,12 @@ export async function GET(request: Request) {
         limit: limits.videosPerDay,
         remaining: calcRemaining(videosUsed, limits.videosPerDay),
         unlimited: limits.videosPerDay === 0,
+      },
+      searches: {
+        used: searchesUsed,
+        limit: limits.searchesPerDay,
+        remaining: calcRemaining(searchesUsed, limits.searchesPerDay),
+        unlimited: limits.searchesPerDay === 0,
       },
     },
     planName: PLAN_NAMES[userPlan.planId] || 'ฟรี',

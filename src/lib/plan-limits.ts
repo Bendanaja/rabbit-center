@@ -44,7 +44,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 30,
     imagesPerDay: 0,
     videosPerDay: 0,
-    searchesPerDay: 0,
+    searchesPerDay: 0, // 0 = unlimited (self-hosted SearXNG, no cost)
     allowedModels: FREE_MODELS,
     allowedImageModels: [],
     allowedVideoModels: [],
@@ -56,7 +56,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 100,
     imagesPerDay: 3,
     videosPerDay: 1,
-    searchesPerDay: 10,
+    searchesPerDay: 0, // unlimited
     allowedModels: STARTER_MODELS,
     allowedImageModels: STARTER_IMAGE_MODELS,
     allowedVideoModels: STARTER_VIDEO_MODELS,
@@ -68,7 +68,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 200,
     imagesPerDay: 8,
     videosPerDay: 2,
-    searchesPerDay: 30,
+    searchesPerDay: 0, // unlimited
     allowedModels: [], // all models
     allowedImageModels: [], // all image models
     allowedVideoModels: [], // all video models
@@ -80,7 +80,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 400,
     imagesPerDay: 10,
     videosPerDay: 3,
-    searchesPerDay: 50,
+    searchesPerDay: 0, // unlimited
     allowedModels: [], // all models
     allowedImageModels: [], // all image models
     allowedVideoModels: [], // all video models
@@ -347,17 +347,6 @@ export async function checkPlanLimit(
         reason: 'โมเดลสร้างรูปนี้ต้องใช้แพลนที่สูงกว่า กรุณาอัปเกรดเพื่อใช้งาน',
         planId: userPlan.planId,
       }
-    }
-  }
-
-  // Check search access - denied if daily limit is 0
-  if (action === 'search' && limits.searchesPerDay === 0) {
-    return {
-      allowed: false,
-      reason: 'แพลนของคุณไม่รองรับการค้นหาเว็บ กรุณาอัปเกรดเพื่อใช้งาน',
-      limit: 0,
-      used: 0,
-      planId: userPlan.planId,
     }
   }
 

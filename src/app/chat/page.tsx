@@ -35,6 +35,7 @@ import {
   Video,
   ChevronDown,
   ChevronUp,
+  Globe,
 } from 'lucide-react';
 import { ModelSelector } from '@/components/chat/ModelSelector';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -811,6 +812,7 @@ interface UsageData {
     messages: { used: number; limit: number; remaining: number; unlimited?: boolean };
     images: { used: number; limit: number; remaining: number; unlimited?: boolean };
     videos: { used: number; limit: number; remaining: number; unlimited?: boolean };
+    searches?: { used: number; limit: number; remaining: number; unlimited?: boolean };
   };
 }
 
@@ -889,6 +891,16 @@ function UsageIndicator({ usage }: { usage: UsageData }) {
                       style={{ width: `${Math.min((videos.used / videos.limit) * 100, 100)}%` }}
                     />
                   </div>
+                </div>
+              )}
+              {usage.usage.searches && (
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3 w-3 text-sky-400" />
+                  <span className="text-xs text-neutral-400">
+                    {usage.usage.searches.unlimited || usage.usage.searches.limit === 0
+                      ? `${usage.usage.searches.used} ค้นหาเว็บ (ไม่จำกัด)`
+                      : `${usage.usage.searches.used}/${usage.usage.searches.limit} ค้นหาเว็บ`}
+                  </span>
                 </div>
               )}
               {images.limit === 0 && videos.limit === 0 && (
