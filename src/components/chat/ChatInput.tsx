@@ -2,13 +2,15 @@
 
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Mic, Video, ImagePlus, StopCircle, Sparkles, Command } from 'lucide-react';
+import { Send, Paperclip, Mic, Video, ImagePlus, StopCircle, Sparkles, Command, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
   isGenerating?: boolean;
   onStop?: () => void;
+  webSearchEnabled?: boolean;
+  onToggleWebSearch?: () => void;
 }
 
 const SLASH_COMMANDS = [
@@ -16,7 +18,7 @@ const SLASH_COMMANDS = [
   { command: '/video', description: 'สร้างวิดีโอจากข้อความ', icon: Video, color: 'text-pink-400' },
 ];
 
-export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputProps) {
+export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabled = false, onToggleWebSearch }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
@@ -164,23 +166,31 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
           commandMode === 'video' && 'border-pink-500/50 dark:border-pink-500/50 bg-white dark:bg-neutral-800',
         )}
       >
-        {/* Command Mode Badge */}
+        {/* Command Mode / Web Search Badge */}
         <AnimatePresence>
-          {commandMode && (
+          {(commandMode || webSearchEnabled) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="px-4 pt-2"
+              className="px-4 pt-2 flex gap-2"
             >
-              <div className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
-                commandMode === 'image' && 'bg-violet-500/20 text-violet-400',
-                commandMode === 'video' && 'bg-pink-500/20 text-pink-400',
-              )}>
-                {commandMode === 'image' ? <ImagePlus className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
-                {commandMode === 'image' ? 'โหมดสร้างภาพ' : 'โหมดสร้างวิดีโอ'}
-              </div>
+              {commandMode && (
+                <div className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
+                  commandMode === 'image' && 'bg-violet-500/20 text-violet-400',
+                  commandMode === 'video' && 'bg-pink-500/20 text-pink-400',
+                )}>
+                  {commandMode === 'image' ? <ImagePlus className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
+                  {commandMode === 'image' ? 'โหมดสร้างภาพ' : 'โหมดสร้างวิดีโอ'}
+                </div>
+              )}
+              {webSearchEnabled && !commandMode && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-500/20 text-sky-400">
+                  <Globe className="h-3.5 w-3.5" />
+                  ค้นหาเว็บเปิดอยู่
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -238,6 +248,13 @@ export function ChatInput({ onSend, isGenerating = false, onStop }: ChatInputPro
               }}
               active={commandMode === 'video'}
               activeColor="text-pink-400 bg-pink-500/10"
+            />
+            <ActionButton
+              icon={Globe}
+              label="ค้นหาเว็บ"
+              onClick={() => onToggleWebSearch?.()}
+              active={webSearchEnabled}
+              activeColor="text-sky-400 bg-sky-500/10"
             />
             <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1" />
             <ActionButton

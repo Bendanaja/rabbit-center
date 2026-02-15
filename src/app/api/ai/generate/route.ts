@@ -3,6 +3,7 @@ import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { streamChat, generateChatTitle, type ChatMessage } from '@/lib/byteplus'
 import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
+import { searchWeb, formatSearchContext, formatSourcesMarker, type SearchResult } from '@/lib/web-search'
 import { calculateUsageCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
@@ -39,10 +40,11 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { chatId, messages, model } = body as {
+  const { chatId, messages, model, webSearch } = body as {
     chatId: string
     messages: ChatMessage[]
     model: string
+    webSearch?: boolean
   }
 
   if (!chatId || !messages || !model) {
@@ -92,6 +94,41 @@ export async function POST(request: Request) {
   // Track activity in customer_profiles (non-blocking)
   trackActivity(user.id, 'chat')
 
+  // Web search: check plan limit, perform search, prepare context
+  let searchResults: SearchResult[] = []
+  if (webSearch) {
+    // Check search plan limit
+    const searchPlanCheck = await checkPlanLimit(user.id, 'search')
+    if (!searchPlanCheck.allowed) {
+      return NextResponse.json(
+        { error: searchPlanCheck.reason, planId: searchPlanCheck.planId, limit: searchPlanCheck.limit, used: searchPlanCheck.used },
+        { status: 403 }
+      )
+    }
+
+    // Rate limit for search
+    const searchRateLimitKey = getRateLimitKey(request, user.id, 'search')
+    const searchRateLimit = await checkRateLimitRedis(searchRateLimitKey, RATE_LIMITS.search)
+    if (!searchRateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'ค้นหาเร็วเกินไป กรุณารอสักครู่' },
+        { status: 429 }
+      )
+    }
+
+    // Extract query from last user message
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    if (lastUserMsg) {
+      const searchResponse = await searchWeb(lastUserMsg.content)
+      searchResults = searchResponse.results
+
+      // Increment search usage only if we got results (SearXNG was available)
+      if (searchResults.length > 0) {
+        await incrementUsage(user.id, 'search')
+      }
+    }
+  }
+
   // Verify user owns this chat using admin client to avoid type issues
   const { data: chat, error: chatError } = await adminSupabase
     .from('chats')
@@ -112,21 +149,41 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // Emit search results SSE event before AI starts streaming
+        if (searchResults.length > 0) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'search_results', searchResults })}\n\n`))
+        }
+
+        // Inject search context as system message if we have results
+        const messagesWithSearch = [...messages]
+        if (searchResults.length > 0) {
+          const searchContext = formatSearchContext(searchResults)
+          messagesWithSearch.unshift({
+            role: 'system',
+            content: searchContext,
+          })
+        }
+
         await streamChat(
-          messages,
+          messagesWithSearch,
           model,
           {
             onChunk: (chunk) => {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`))
             },
             onDone: async (response) => {
+              // Append web sources marker if search was used
+              const contentToSave = searchResults.length > 0
+                ? response + formatSourcesMarker(searchResults)
+                : response
+
               // Save assistant message to database using admin client to bypass RLS
               const { data: savedMessage, error: saveError } = await adminSupabase
                 .from('messages')
                 .insert({
                   chat_id: chatId,
                   role: 'assistant' as const,
-                  content: response,
+                  content: contentToSave,
                   model_id: model,
                 })
                 .select()

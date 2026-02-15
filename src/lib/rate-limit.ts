@@ -35,6 +35,7 @@ export const RATE_LIMITS = {
   chat: { maxRequests: 30, windowMs: 60 * 1000 },       // 30 req/min
   image: { maxRequests: 10, windowMs: 60 * 1000 },      // 10 req/min
   video: { maxRequests: 5, windowMs: 60 * 1000 },       // 5 req/min
+  search: { maxRequests: 10, windowMs: 60 * 1000 },     // 10 req/min
   payment: { maxRequests: 20, windowMs: 60 * 1000 },    // 20 req/min
   auth: { maxRequests: 10, windowMs: 5 * 60 * 1000 },   // 10 req/5min
   general: { maxRequests: 60, windowMs: 60 * 1000 },    // 60 req/min

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X } from 'lucide-react';
+import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X, Globe, ExternalLink } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const VideoPlayer = dynamic(() => import('@/components/ui/VideoPlayer').then(mod => ({ default: mod.VideoPlayer })), { ssr: false });
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -20,21 +20,43 @@ interface MessageBubbleProps {
 }
 
 // Parse content for generated media markers
+interface WebSource {
+  title: string;
+  url: string;
+  description: string;
+}
+
 interface ParsedContent {
-  type: 'text' | 'image' | 'video';
-  content: string; // text content or URL(s)
+  type: 'text' | 'image' | 'video' | 'web_sources';
+  content: string;
   urls?: string[];
+  sources?: WebSource[];
+}
+
+function parseWebSources(raw: string): WebSource[] {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const sources: WebSource[] = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed.title && parsed.url) {
+        sources.push({ title: parsed.title, url: parsed.url, description: parsed.description || '' });
+      }
+    } catch {
+      // Skip invalid JSON lines
+    }
+  }
+  return sources;
 }
 
 function parseMessageContent(content: string): ParsedContent[] {
   const parts: ParsedContent[] = [];
 
-  // Match [GENERATED_IMAGE]...[/GENERATED_IMAGE]
   const imageRegex = /\[GENERATED_IMAGE\]\n?([\s\S]*?)\n?\[\/GENERATED_IMAGE\]/g;
   const videoRegex = /\[GENERATED_VIDEO\]\n?([\s\S]*?)\n?\[\/GENERATED_VIDEO\]/g;
+  const webSourcesRegex = /\[WEB_SOURCES\]\n?([\s\S]*?)\n?\[\/WEB_SOURCES\]/g;
 
-  // Find all matches with positions
-  const matches: { index: number; length: number; type: 'image' | 'video'; urls: string[] }[] = [];
+  const matches: { index: number; length: number; type: 'image' | 'video' | 'web_sources'; urls: string[]; sources?: WebSource[] }[] = [];
 
   let match;
   while ((match = imageRegex.exec(content)) !== null) {
@@ -45,8 +67,13 @@ function parseMessageContent(content: string): ParsedContent[] {
     const urls = match[1].split('\n').map(u => u.trim()).filter(Boolean);
     matches.push({ index: match.index, length: match[0].length, type: 'video', urls });
   }
+  while ((match = webSourcesRegex.exec(content)) !== null) {
+    const sources = parseWebSources(match[1]);
+    if (sources.length > 0) {
+      matches.push({ index: match.index, length: match[0].length, type: 'web_sources', urls: [], sources });
+    }
+  }
 
-  // Sort by position
   matches.sort((a, b) => a.index - b.index);
 
   if (matches.length === 0) {
@@ -55,16 +82,18 @@ function parseMessageContent(content: string): ParsedContent[] {
 
   let lastIndex = 0;
   for (const m of matches) {
-    // Text before this match
     if (m.index > lastIndex) {
       const text = content.slice(lastIndex, m.index).trim();
       if (text) parts.push({ type: 'text', content: text });
     }
-    parts.push({ type: m.type, content: m.urls.join('\n'), urls: m.urls });
+    if (m.type === 'web_sources') {
+      parts.push({ type: 'web_sources', content: '', sources: m.sources });
+    } else {
+      parts.push({ type: m.type, content: m.urls.join('\n'), urls: m.urls });
+    }
     lastIndex = m.index + m.length;
   }
 
-  // Remaining text after last match
   if (lastIndex < content.length) {
     const text = content.slice(lastIndex).trim();
     if (text) parts.push({ type: 'text', content: text });
@@ -130,7 +159,7 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
 
   // Parse content for media markers
   const parsedContent = useMemo(() => parseMessageContent(displayContent), [displayContent]);
-  const hasMedia = parsedContent.some(p => p.type === 'image' || p.type === 'video');
+  const hasMedia = parsedContent.some(p => p.type === 'image' || p.type === 'video' || p.type === 'web_sources');
 
   // Calculate current word count during streaming
   const currentWordCount = useMemo(() => {
@@ -287,6 +316,11 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
                   if (part.type === 'video' && part.urls) {
                     return (
                       <GeneratedVideoBlock key={`vid-${idx}`} url={part.urls[0]} />
+                    );
+                  }
+                  if (part.type === 'web_sources' && part.sources) {
+                    return (
+                      <WebSourcesBlock key={`src-${idx}`} sources={part.sources} />
                     );
                   }
                   // Text part - render as markdown
@@ -484,6 +518,64 @@ function GeneratedVideoBlock({ url }: { url: string }) {
 
       {/* Custom Video Player */}
       <VideoPlayer src={url} compact />
+    </motion.div>
+  );
+}
+
+// Web Sources Block Component
+function WebSourcesBlock({ sources }: { sources: WebSource[] }) {
+  const getDomain = (url: string) => {
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch {
+      return url;
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 overflow-hidden"
+    >
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-sky-500/10 bg-sky-500/5">
+        <Globe className="h-4 w-4 text-sky-400" />
+        <span className="text-xs font-semibold text-sky-400">
+          แหล่งข้อมูลจากเว็บ
+        </span>
+      </div>
+      <div className="divide-y divide-sky-500/10">
+        {sources.map((source, i) => (
+          <a
+            key={i}
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 px-4 py-3 hover:bg-sky-500/5 transition-colors group/source"
+          >
+            <span className="text-xs font-bold text-sky-400/60 mt-0.5 shrink-0">
+              [{i + 1}]
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-neutral-200 group-hover/source:text-sky-300 transition-colors truncate">
+                  {source.title}
+                </p>
+                <ExternalLink className="h-3 w-3 text-neutral-500 group-hover/source:text-sky-400 shrink-0 transition-colors" />
+              </div>
+              <p className="text-xs text-sky-400/60 mt-0.5">
+                {getDomain(source.url)}
+              </p>
+              {source.description && (
+                <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
+                  {source.description}
+                </p>
+              )}
+            </div>
+          </a>
+        ))}
+      </div>
     </motion.div>
   );
 }

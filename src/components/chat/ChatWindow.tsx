@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw, ImagePlus, Video, Download } from 'lucide-react';
+import { Sparkles, Zap, Brain, Code, Languages, Lightbulb, Loader2, Clock, Hash, AlertCircle, RotateCcw, ImagePlus, Video, Download, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -44,6 +44,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const [mediaGenerating, setMediaGenerating] = useState<'image' | 'video' | null>(null);
   const [videoProgress, setVideoProgress] = useState<string>('');
   const [contextUsage, setContextUsage] = useState<number>(0);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const lastMessageRef = useRef<string | null>(null);
   const typewriterRef = useRef<NodeJS.Timeout | null>(null);
   const fullContentRef = useRef<string>('');
@@ -237,15 +239,28 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       typewriterRef.current = null;
     }
 
+    // Show searching indicator if web search enabled
+    if (webSearchEnabled) {
+      setIsSearching(true);
+    }
+
     // Generate AI response
     await generate(
       targetChatId,
       contextMessages,
       selectedModel,
       {
+        webSearch: webSearchEnabled,
+        onSearchResults: () => {
+          // Search complete, AI will start generating
+          setIsSearching(false);
+        },
         onChunk: (chunk) => {
           // Guard: ignore chunks if user switched to a different chat
           if (activeChatIdRef.current !== targetChatId) return;
+
+          // Clear searching state when chunks arrive
+          setIsSearching(false);
 
           // Accumulate full content
           fullContentRef.current += chunk;
@@ -330,6 +345,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
           if (activeChatIdRef.current !== targetChatId) return;
 
           console.error('AI generation error:', error);
+          setIsSearching(false);
           if (typewriterRef.current) {
             clearInterval(typewriterRef.current);
             typewriterRef.current = null;
@@ -348,7 +364,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         },
       }
     );
-  }, [localMessages, selectedModel, sendMessage, generate]);
+  }, [localMessages, selectedModel, sendMessage, generate, webSearchEnabled]);
 
   // Handle /image command
   const handleImageGeneration = useCallback(async (prompt: string, targetChatId: string, imageModelId?: string) => {
@@ -953,6 +969,28 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
               )}
             </AnimatePresence>
 
+            {/* Web Search Indicator */}
+            <AnimatePresence>
+              {isSearching && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex items-center gap-3 py-4"
+                >
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-sky-500 to-cyan-600 shadow-lg">
+                    <Globe className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
+                    <span className="text-sm text-sky-400 font-medium">
+                      กำลังค้นหาเว็บ...
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Streaming Response */}
             <AnimatePresence>
               {isGenerating && !streamingDone && (
@@ -1128,6 +1166,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             onSend={handleSendMessage}
             isGenerating={isGenerating}
             onStop={handleStop}
+            webSearchEnabled={webSearchEnabled}
+            onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
           />
         </div>
       </div>

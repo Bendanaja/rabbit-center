@@ -5,12 +5,13 @@ import { getModelKey } from '@/lib/byteplus'
 // Plan IDs matching PRICING_PLANS in constants.ts
 export type PlanId = 'free' | 'starter' | 'pro' | 'premium'
 
-export type PlanAction = 'chat' | 'image' | 'video'
+export type PlanAction = 'chat' | 'image' | 'video' | 'search'
 
 export interface PlanLimits {
   messagesPerDay: number       // 0 = unlimited
   imagesPerDay: number         // 0 = unlimited
   videosPerDay: number         // 0 = unlimited
+  searchesPerDay: number       // 0 = disabled for plan
   allowedModels: string[]      // empty = all models
   allowedImageModels: string[] // empty = all image models
   allowedVideoModels: string[] // empty = all video models
@@ -43,6 +44,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 30,
     imagesPerDay: 0,
     videosPerDay: 0,
+    searchesPerDay: 0,
     allowedModels: FREE_MODELS,
     allowedImageModels: [],
     allowedVideoModels: [],
@@ -54,6 +56,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 100,
     imagesPerDay: 3,
     videosPerDay: 1,
+    searchesPerDay: 10,
     allowedModels: STARTER_MODELS,
     allowedImageModels: STARTER_IMAGE_MODELS,
     allowedVideoModels: STARTER_VIDEO_MODELS,
@@ -65,6 +68,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 200,
     imagesPerDay: 8,
     videosPerDay: 2,
+    searchesPerDay: 30,
     allowedModels: [], // all models
     allowedImageModels: [], // all image models
     allowedVideoModels: [], // all video models
@@ -76,6 +80,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     messagesPerDay: 400,
     imagesPerDay: 10,
     videosPerDay: 3,
+    searchesPerDay: 50,
     allowedModels: [], // all models
     allowedImageModels: [], // all image models
     allowedVideoModels: [], // all video models
@@ -169,7 +174,7 @@ async function getDailyUsage(userId: string, action: PlanAction): Promise<number
 
   const { data } = await supabase
     .from('daily_usage')
-    .select('messages_count, images_count, videos_count')
+    .select('messages_count, images_count, videos_count, searches_count')
     .eq('user_id', userId)
     .eq('date', today)
     .single()
@@ -180,6 +185,7 @@ async function getDailyUsage(userId: string, action: PlanAction): Promise<number
     case 'chat': return data.messages_count || 0
     case 'image': return data.images_count || 0
     case 'video': return data.videos_count || 0
+    case 'search': return data.searches_count || 0
   }
 }
 
@@ -224,6 +230,7 @@ export async function incrementUsage(userId: string, action: PlanAction): Promis
     p_messages: action === 'chat' ? 1 : 0,
     p_images: action === 'image' ? 1 : 0,
     p_videos: action === 'video' ? 1 : 0,
+    p_searches: action === 'search' ? 1 : 0,
   })
 
   if (error) {
@@ -343,6 +350,17 @@ export async function checkPlanLimit(
     }
   }
 
+  // Check search access - denied if daily limit is 0
+  if (action === 'search' && limits.searchesPerDay === 0) {
+    return {
+      allowed: false,
+      reason: 'แพลนของคุณไม่รองรับการค้นหาเว็บ กรุณาอัปเกรดเพื่อใช้งาน',
+      limit: 0,
+      used: 0,
+      planId: userPlan.planId,
+    }
+  }
+
   // Check video access - denied if daily limit is 0
   if (action === 'video' && limits.videosPerDay === 0) {
     return {
@@ -377,6 +395,9 @@ export async function checkPlanLimit(
     case 'video':
       dailyLimit = limits.videosPerDay
       break
+    case 'search':
+      dailyLimit = limits.searchesPerDay
+      break
   }
 
   // 0 means unlimited
@@ -390,7 +411,7 @@ export async function checkPlanLimit(
   if (used >= dailyLimit) {
     return {
       allowed: false,
-      reason: `คุณใช้งาน${action === 'chat' ? 'ข้อความ' : action === 'image' ? 'สร้างรูป' : 'สร้างวิดีโอ'}ครบ ${dailyLimit} ครั้งต่อวันแล้ว กรุณาอัปเกรดแพลนหรือรอพรุ่งนี้`,
+      reason: `คุณใช้งาน${action === 'chat' ? 'ข้อความ' : action === 'image' ? 'สร้างรูป' : action === 'video' ? 'สร้างวิดีโอ' : 'ค้นหาเว็บ'}ครบ ${dailyLimit} ครั้งต่อวันแล้ว กรุณาอัปเกรดแพลนหรือรอพรุ่งนี้`,
       limit: dailyLimit,
       used,
       planId: userPlan.planId,

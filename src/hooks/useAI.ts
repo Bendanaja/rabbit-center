@@ -10,12 +10,20 @@ interface UseAIState {
   abortController: AbortController | null
 }
 
+interface SearchResult {
+  title: string
+  url: string
+  description: string
+  engine?: string
+}
+
 interface StreamEvent {
-  type: 'chunk' | 'done' | 'error' | 'title'
+  type: 'chunk' | 'done' | 'error' | 'title' | 'search_results'
   content?: string
   messageId?: string
   message?: string
   title?: string
+  searchResults?: SearchResult[]
 }
 
 interface GenerateOptions {
@@ -23,6 +31,8 @@ interface GenerateOptions {
   onDone?: (fullResponse: string, messageId?: string) => void
   onError?: (error: Error) => void
   onTitleUpdate?: (title: string) => void
+  onSearchResults?: (results: SearchResult[]) => void
+  webSearch?: boolean
 }
 
 export function useAI() {
@@ -66,6 +76,7 @@ export function useAI() {
           chatId,
           messages,
           model,
+          webSearch: options.webSearch || false,
         }),
         signal: abortController.signal,
       })
@@ -115,6 +126,11 @@ export function useAI() {
                   break
                 case 'error':
                   throw new Error(event.message || 'Generation failed')
+                case 'search_results':
+                  if (event.searchResults) {
+                    options.onSearchResults?.(event.searchResults)
+                  }
+                  break
                 case 'title':
                   if (event.title) {
                     options.onTitleUpdate?.(event.title)
