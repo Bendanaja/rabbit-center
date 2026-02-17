@@ -12,7 +12,7 @@ const PUBLIC_API_ROUTES = ['/api/auth', '/api/shared']
 
 // ─── Global IP Rate Limit (in-memory, per-edge-instance) ──
 const globalRateLimitStore = new Map<string, { count: number; resetAt: number }>()
-const GLOBAL_RATE_LIMIT = { maxRequests: 100, windowMs: 60 * 1000 } // 100 req/min per IP
+const GLOBAL_RATE_LIMIT = { maxRequests: 300, windowMs: 60 * 1000 } // 300 req/min per IP
 
 let globalCleanupStarted = false
 function startGlobalCleanup() {
