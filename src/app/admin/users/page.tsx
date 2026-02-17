@@ -138,12 +138,13 @@ export default function AdminUsersPage() {
     if (!selectedUser || !banReason) return;
 
     try {
-      const response = await authFetch(`/api/admin/users/${selectedUser.user_id}/ban`, {
-        method: 'POST',
+      const response = await authFetch(`/api/admin/users/${selectedUser.user_id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reason: banReason,
-          is_permanent: true,
+          action: 'ban',
+          ban_reason: banReason,
+          ban_permanent: true,
         }),
       });
 
@@ -160,9 +161,10 @@ export default function AdminUsersPage() {
 
   const handleUnbanUser = async (userId: string) => {
     try {
-      const response = await authFetch(`/api/admin/users/${userId}/ban`, {
-        method: 'DELETE',
+      const response = await authFetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unban' }),
       });
 
       if (response.ok) {
@@ -176,10 +178,10 @@ export default function AdminUsersPage() {
   const handleChangePlan = async (userId: string, newPlan: PlanType) => {
     setChangingPlan(true);
     try {
-      const response = await authFetch(`/api/admin/users/${userId}/plan`, {
-        method: 'PUT',
+      const response = await authFetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: newPlan }),
+        body: JSON.stringify({ action: 'update_plan', plan_id: newPlan }),
       });
 
       if (response.ok) {
