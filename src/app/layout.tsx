@@ -4,6 +4,7 @@ import { SITE_CONFIG } from "@/lib/constants";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorSuppressor } from "@/components/ErrorSuppressor";
 import { BottomNav } from "@/components/layout";
+import { SimulatePlanBar } from "@/components/admin/SimulatePlanBar";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -163,6 +164,7 @@ export default function RootLayout({
           <ErrorSuppressor />
           {children}
           <BottomNav />
+          <SimulatePlanBar />
           <Toaster
             position="top-center"
             toastOptions={{

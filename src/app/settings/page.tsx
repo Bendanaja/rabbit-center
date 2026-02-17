@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -10,13 +10,14 @@ import {
   Shield,
   CreditCard,
   LogOut,
-  ChevronRight,
   Check,
   Moon,
   Sun,
   Gift,
   Loader2,
   Phone,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -56,7 +57,12 @@ export default function SettingsPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState('');
-  const [userPlan, setUserPlan] = useState<{ plan: string; planName: string }>({ plan: 'free', planName: 'ฟรี' });
+  const [userPlan, setUserPlan] = useState<{ plan: string; planName: string; unlimited: boolean }>({ plan: 'free', planName: 'ฟรี', unlimited: false });
+
+  // Avatar state
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Notification toggles state
   const [notifications, setNotifications] = useState({
@@ -65,16 +71,21 @@ export default function SettingsPage() {
     usage_alerts: true,
     promotional_emails: false,
   });
+  const [notifSaving, setNotifSaving] = useState(false);
 
   // Initialize profile form when user loads
   useEffect(() => {
     if (user) {
       setProfileName(user.user_metadata?.full_name || user.email?.split('@')[0] || '');
       setProfileEmail(user.email || '');
+      if (user.user_metadata?.avatar_url) {
+        setAvatarUrl(user.user_metadata.avatar_url);
+      }
     }
   }, [user]);
 
-  // Fetch customer profile (phone number) and plan
+
+  // Fetch customer profile (phone number, avatar) and plan
   useEffect(() => {
     if (!session?.access_token) return;
     fetch('/api/user/profile', {
@@ -84,17 +95,28 @@ export default function SettingsPage() {
       .then(data => {
         if (data?.phone_number) setProfilePhone(data.phone_number);
         if (data?.display_name) setProfileName(data.display_name);
+        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+        // Load notification preferences from DB
+        if (data?.preferences?.notifications) {
+          setNotifications(prev => ({ ...prev, ...data.preferences.notifications }));
+        }
       })
       .catch(() => { /* non-blocking */ });
 
-    // Fetch actual plan
-    fetch('/api/user/usage', {
+    // Fetch actual plan (with simulate param if set)
+    const sim = typeof window !== 'undefined' ? sessionStorage.getItem('simulate_plan') : null;
+    const usageUrl = sim ? `/api/user/usage?simulate=${sim}` : '/api/user/usage';
+    fetch(usageUrl, {
       headers: { 'Authorization': `Bearer ${session.access_token}` },
     })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.plan) {
-          setUserPlan({ plan: data.plan, planName: data.planName || data.plan });
+          setUserPlan({
+            plan: data.plan,
+            planName: data.planName || data.plan,
+            unlimited: !!data.budget?.unlimited,
+          });
         }
       })
       .catch(() => { /* non-blocking */ });
@@ -159,9 +181,107 @@ export default function SettingsPage() {
     }
   }, [session, profileName, profilePhone]);
 
-  const handleNotificationToggle = (key: keyof typeof notifications) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  const handleNotificationToggle = useCallback(async (key: keyof typeof notifications) => {
+    const updated = { ...notifications, [key]: !notifications[key] };
+    setNotifications(updated);
+
+    // Persist to DB
+    if (!session?.access_token) return;
+    setNotifSaving(true);
+    try {
+      await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          preferences: { notifications: updated },
+        }),
+      });
+    } catch {
+      // Revert on error
+      setNotifications(notifications);
+      toast.error('บันทึกการตั้งค่าล้มเหลว');
+    } finally {
+      setNotifSaving(false);
+    }
+  }, [session, notifications]);
+
+  const handleAvatarSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session?.access_token) return;
+
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      toast.error('รองรับเฉพาะไฟล์ JPG, PNG, GIF หรือ WebP');
+      return;
+    }
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('ไฟล์มีขนาดใหญ่เกิน 2MB');
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      // Read file as base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          imageBase64: base64,
+          contentType: file.type,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.avatar_url) {
+        setAvatarUrl(data.avatar_url);
+        toast.success('อัปโหลดรูปโปรไฟล์เรียบร้อย');
+      } else {
+        toast.error(data.error || 'อัปโหลดรูปภาพล้มเหลว');
+      }
+    } catch {
+      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setAvatarUploading(false);
+      // Reset input so same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [session]);
+
+  const handleAvatarRemove = useCallback(async () => {
+    if (!session?.access_token) return;
+    setAvatarUploading(true);
+    try {
+      const response = await fetch('/api/user/avatar', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      if (response.ok) {
+        setAvatarUrl(null);
+        toast.success('ลบรูปโปรไฟล์เรียบร้อย');
+      } else {
+        toast.error('ลบรูปภาพล้มเหลว');
+      }
+    } catch {
+      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, [session]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -185,12 +305,12 @@ export default function SettingsPage() {
   }
 
   // User data from auth
-  const planDisplayName = userPlan.plan === 'free' ? 'Free' : userPlan.planName;
   const userData = {
     name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'ผู้ใช้',
     email: user.email || '',
-    plan: planDisplayName,
+    plan: userPlan.planName,
     planId: userPlan.plan,
+    isAdmin: userPlan.unlimited,
     avatar: user.user_metadata?.avatar_url || null,
   };
 
@@ -296,13 +416,58 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-6 space-y-6">
                     <div className="flex items-center gap-4">
-                      <Avatar name={profileName || userData.name} size="xl" />
-                      <div>
-                        <Button variant="outline" size="sm">
-                          เปลี่ยนรูปภาพ
-                        </Button>
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                          JPG, PNG หรือ GIF ขนาดไม่เกิน 2MB
+                      <div className="relative group">
+                        <Avatar src={avatarUrl} name={profileName || userData.name} size="xl" />
+                        {avatarUploading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={avatarUploading}
+                          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 rounded-full transition-colors cursor-pointer"
+                        >
+                          <Camera className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarSelect}
+                      />
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={avatarUploading}
+                          >
+                            {avatarUploading ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                กำลังอัปโหลด...
+                              </>
+                            ) : (
+                              'เปลี่ยนรูปภาพ'
+                            )}
+                          </Button>
+                          {avatarUrl && (
+                            <button
+                              onClick={handleAvatarRemove}
+                              disabled={avatarUploading}
+                              className="p-1.5 rounded-md text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="ลบรูปโปรไฟล์"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          JPG, PNG, GIF หรือ WebP ขนาดไม่เกิน 2MB
                         </p>
                       </div>
                     </div>
@@ -345,13 +510,16 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
-                      <Badge variant="primary">แผน {userData.plan}</Badge>
+                      <Badge variant="primary">{userData.isAdmin ? 'แอดมิน' : `แผน ${userData.plan}`}</Badge>
                       <span className="text-sm text-primary-700 dark:text-primary-400">
-                        {userData.planId === 'free'
-                          ? 'คุณใช้แผนฟรี อัปเกรดเพื่อใช้งานได้มากขึ้น'
-                          : 'คุณใช้แผนที่เข้าถึงทุกฟีเจอร์ได้'}
+                        {userData.isAdmin
+                          ? 'คุณเป็นผู้ดูแลระบบ ใช้งานได้ไม่จำกัด'
+                          : userData.planId === 'free'
+                            ? 'คุณใช้แผนฟรี อัปเกรดเพื่อใช้งานได้มากขึ้น'
+                            : 'คุณใช้แผนที่เข้าถึงทุกฟีเจอร์ได้'}
                       </span>
                     </div>
+
 
                     <div className="flex justify-end">
                       <Button onClick={handleProfileSave} disabled={profileSaving}>
@@ -567,20 +735,23 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-6 space-y-6">
                     <div className={`p-4 rounded-lg ${
-                      userData.planId === 'free'
-                        ? 'bg-gradient-to-r from-neutral-500 to-neutral-600 text-white'
-                        : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white'
+                      userData.isAdmin
+                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
+                        : userData.planId === 'free'
+                          ? 'bg-gradient-to-r from-neutral-500 to-neutral-600 text-white'
+                          : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white'
                     }`}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm opacity-90">แผนปัจจุบัน</p>
-                          <p className="text-2xl font-display font-bold">{userData.plan}</p>
+                          <p className="text-2xl font-display font-bold">{userData.isAdmin ? 'แอดมิน' : userData.plan}</p>
                         </div>
-                        <Badge className="bg-white/20 text-white">ใช้งานอยู่</Badge>
+                        <Badge className="bg-white/20 text-white">{userData.isAdmin ? 'ไม่จำกัด' : 'ใช้งานอยู่'}</Badge>
                       </div>
                       <div className="mt-4 pt-4 border-t border-white/20 flex justify-between text-sm">
                         <span>
-                          {userData.planId === 'free' ? 'ฟรี' :
+                          {userData.isAdmin ? 'ผู้ดูแลระบบ' :
+                           userData.planId === 'free' ? 'ฟรี' :
                            userData.planId === 'starter' ? '฿199/เดือน' :
                            userData.planId === 'pro' ? '฿499/เดือน' :
                            userData.planId === 'premium' ? '฿990/เดือน' : 'ฟรี'}
@@ -589,7 +760,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {userData.planId === 'free' ? (
+                    {!userData.isAdmin && userData.planId === 'free' ? (
                       <div className="flex items-center justify-between p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
                         <div>
                           <p className="font-medium text-neutral-900 dark:text-white">อัปเกรดเป็น Pro</p>

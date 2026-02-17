@@ -31,13 +31,9 @@ import {
   Check,
   X,
   BarChart3,
-  ImagePlus,
-  Video,
-  ChevronDown,
-  ChevronUp,
-  Globe,
 } from 'lucide-react';
 import { ModelSelector } from '@/components/chat/ModelSelector';
+import { NotificationBell } from '@/components/chat/NotificationBell';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Dynamic import for ChatWindow to reduce initial bundle
@@ -54,6 +50,7 @@ const ChatWindow = dynamic(
 );
 import { cn, truncate } from '@/lib/utils';
 import { authFetch } from '@/lib/api-client';
+import { useRealtime } from '@/hooks/useRealtime';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { RabbitLoader } from '@/components/ui/RabbitLoader';
@@ -253,28 +250,42 @@ export default function ChatPage() {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('deepseek-v3-2-251201');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelDisplay, setModelDisplay] = useState<{ name: string; icon: string; provider: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [usage, setUsage] = useState<UsageData | null>(null);
 
   const fetchUsage = useCallback(async () => {
     try {
-      const res = await authFetch('/api/user/usage');
+      const sim = typeof window !== 'undefined' ? sessionStorage.getItem('simulate_plan') : null;
+      const url = sim ? `/api/user/usage?simulate=${sim}` : '/api/user/usage';
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         setUsage(data);
+        try { sessionStorage.setItem('usage_cache', JSON.stringify(data)); } catch { /* ignore */ }
       }
     } catch {
       // Non-critical
     }
   }, []);
 
-  // Fetch usage on mount
+  // Load cached usage immediately, then fetch fresh data
   useEffect(() => {
     if (user) {
+      try {
+        const cached = sessionStorage.getItem('usage_cache');
+        if (cached) setUsage(JSON.parse(cached));
+      } catch { /* ignore */ }
       fetchUsage();
     }
   }, [user, fetchUsage]);
+
+  // Real-time: auto-refetch usage when daily_usage changes
+  const usageSubs = useMemo(() => user ? [
+    { table: 'daily_usage', filter: `user_id=eq.${user.id}` },
+  ] : [], [user]);
+  useRealtime(usageSubs, fetchUsage, !!user);
 
   // Set first chat as active on load
   useEffect(() => {
@@ -584,12 +595,14 @@ export default function ChatPage() {
             <ModelSelector
               selectedModel={selectedModel}
               onModelChange={handleModelChange}
+              onModelDisplayChange={setModelDisplay}
               variant="compact"
             />
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-1">
+            <NotificationBell userId={user.id} />
             <ExportShareMenu chatId={activeChat} />
             <Link
               href="/settings"
@@ -611,6 +624,7 @@ export default function ChatPage() {
               selectedModel={selectedModel}
               onModelChange={handleModelChange}
               onMessageSent={fetchUsage}
+              modelDisplay={modelDisplay}
             />
           </ErrorBoundary>
         </main>
@@ -824,30 +838,24 @@ interface UsageData {
 }
 
 function UsageIndicator({ usage }: { usage: UsageData }) {
-  const [expanded, setExpanded] = useState(false);
-  const { budget, counts } = usage;
-
+  const budget = usage?.budget ?? { limit: 0, used: 0, remaining: 0, percent: 0, unlimited: true };
   const percent = budget.percent;
   const barColor = percent < 50 ? 'bg-green-500' : percent < 80 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
     <div className="px-2 pb-1">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-3 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-left"
-      >
+      <div className="px-3 py-2">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5 text-neutral-500" />
-            <span className="text-xs text-neutral-400">
-              {budget.unlimited ? `แพลน ${usage.planName}` : `ใช้ไป ${percent}%`}
-            </span>
+            <span className="text-xs text-neutral-400">{usage.planName}</span>
           </div>
-          {expanded ? (
-            <ChevronUp className="h-3 w-3 text-neutral-500" />
-          ) : (
-            <ChevronDown className="h-3 w-3 text-neutral-500" />
-          )}
+          <span className={cn(
+            'text-xs font-medium',
+            budget.unlimited ? 'text-green-400' : percent >= 80 ? 'text-red-400' : percent >= 50 ? 'text-amber-400' : 'text-green-400'
+          )}>
+            {budget.unlimited ? '∞' : `${percent}%`}
+          </span>
         </div>
         {!budget.unlimited && (
           <div className="w-full h-1.5 bg-neutral-700 rounded-full overflow-hidden">
@@ -857,67 +865,7 @@ function UsageIndicator({ usage }: { usage: UsageData }) {
             />
           </div>
         )}
-      </button>
-
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="px-3 py-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">แพลน: {usage.planName}</span>
-                {!budget.unlimited && (
-                  <span className={cn(
-                    'text-xs font-medium',
-                    percent >= 80 ? 'text-red-400' : percent >= 50 ? 'text-amber-400' : 'text-green-400'
-                  )}>
-                    เหลือ {100 - percent}%
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-3 w-3 text-blue-400" />
-                <span className="text-xs text-neutral-400">
-                  {counts.messages} ข้อความเดือนนี้
-                </span>
-              </div>
-              {counts.images > 0 && (
-                <div className="flex items-center gap-2">
-                  <ImagePlus className="h-3 w-3 text-violet-400" />
-                  <span className="text-xs text-neutral-400">
-                    {counts.images} รูปภาพ
-                  </span>
-                </div>
-              )}
-              {counts.videos > 0 && (
-                <div className="flex items-center gap-2">
-                  <Video className="h-3 w-3 text-pink-400" />
-                  <span className="text-xs text-neutral-400">
-                    {counts.videos} วิดีโอ
-                  </span>
-                </div>
-              )}
-              {counts.searches > 0 && (
-                <div className="flex items-center gap-2">
-                  <Globe className="h-3 w-3 text-sky-400" />
-                  <span className="text-xs text-neutral-400">
-                    {counts.searches} ค้นหาเว็บ
-                  </span>
-                </div>
-              )}
-              {usage.plan === 'free' && (
-                <Link href="/pricing" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">
-                  อัปเกรดเพื่อเพิ่มวงเงิน
-                </Link>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }
