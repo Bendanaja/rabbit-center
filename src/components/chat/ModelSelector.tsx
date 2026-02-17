@@ -260,7 +260,7 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
                   onSelect={handleSelect}
                   startIndex={0}
                   modelTiers={modelTiers}
-                  isFreeUser={isFreeUser}
+                  isFreeUser={false}
                 />
               )}
 
@@ -275,7 +275,7 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
                   startIndex={freeChatModels.length}
                   showBorder
                   modelTiers={modelTiers}
-                  isFreeUser={isFreeUser}
+                  isFreeUser={false}
                 />
               )}
 
@@ -290,7 +290,7 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
                   startIndex={freeChatModels.length + freeImageModels.length}
                   showBorder
                   modelTiers={modelTiers}
-                  isFreeUser={isFreeUser}
+                  isFreeUser={false}
                 />
               )}
 
