@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { authFetch } from '@/lib/api-client';
+import { useRealtime } from '@/hooks/useRealtime';
 import { cn } from '@/lib/utils';
 
 interface AnalyticsData {
@@ -35,13 +36,18 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>('30d');
+  const isFirstLoad = useRef(true);
 
-  const fetchAnalytics = useCallback(async () => {
+  const fetchAnalytics = useCallback(async (isBackground = false) => {
     try {
+      if (!isBackground && isFirstLoad.current) {
+        setLoading(true);
+      }
       const response = await authFetch(`/api/admin/analytics?range=${dateRange}`);
       if (response.ok) {
         const result = await response.json();
         setData(result);
+        isFirstLoad.current = false;
       }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
@@ -52,9 +58,17 @@ export default function AdminAnalyticsPage() {
   }, [dateRange]);
 
   useEffect(() => {
-    setLoading(true);
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  // Real-time: auto-refetch on DB changes
+  const analyticsSubs = useMemo(() => [
+    { table: 'daily_usage' },
+    { table: 'messages' },
+    { table: 'subscriptions' },
+    { table: 'customer_profiles' },
+  ], []);
+  useRealtime(analyticsSubs, () => fetchAnalytics(true));
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -141,16 +155,16 @@ export default function AdminAnalyticsPage() {
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[
-            { label: 'Conversion Rate', value: `${displayData.conversionRate}%`, icon: TrendingUp, color: 'green', trend: '+2.1%' },
-            { label: 'Churn Rate', value: `${displayData.churnRate}%`, icon: TrendingDown, color: 'red', trend: '-0.5%' },
-            { label: 'Avg Session', value: `${displayData.avgSessionDuration} นาที`, icon: Calendar, color: 'blue', trend: '+3.2%' },
-            { label: 'DAU (7d avg)', value: Math.round(displayData.dailyActiveUsers.reduce((a, b) => a + b, 0) / 7).toLocaleString(), icon: Users, color: 'purple', trend: '+8.4%' },
+            { label: 'Conversion Rate', value: `${displayData.conversionRate}%`, icon: TrendingUp, color: 'green' },
+            { label: 'Churn Rate', value: `${displayData.churnRate}%`, icon: TrendingDown, color: 'red' },
+            { label: 'Avg Session', value: `${displayData.avgSessionDuration} นาที`, icon: Calendar, color: 'blue' },
+            { label: 'DAU (7d avg)', value: Math.round(displayData.dailyActiveUsers.reduce((a, b) => a + b, 0) / 7).toLocaleString(), icon: Users, color: 'purple' },
           ].map((metric, index) => (
             <motion.div
               key={metric.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.05 }}
               className="p-5 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
             >
               <div className="flex items-center justify-between mb-3">
@@ -169,14 +183,15 @@ export default function AdminAnalyticsPage() {
                     metric.color === 'purple' && 'text-purple-400'
                   )} />
                 </div>
-                <span className={cn(
-                  'text-xs font-medium',
-                  metric.trend.startsWith('+') ? 'text-green-400' : 'text-red-400'
-                )}>
-                  {metric.trend}
+                <span className="text-xs font-medium text-neutral-500">
+                  --
                 </span>
               </div>
-              <p className="text-2xl font-bold text-white">{metric.value}</p>
+              {loading && !data ? (
+                <div className="h-8 w-20 bg-neutral-800 rounded-lg animate-pulse" />
+              ) : (
+                <p className="text-2xl font-bold text-white">{metric.value}</p>
+              )}
               <p className="text-sm text-neutral-400 mt-1">{metric.label}</p>
             </motion.div>
           ))}
@@ -188,72 +203,100 @@ export default function AdminAnalyticsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.1 }}
             className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-white">การเติบโตของผู้ใช้</h3>
               <Users className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="h-64 flex items-end gap-1">
-              {displayData.userGrowth.slice(-14).map((day, index) => {
-                const maxCount = getMaxValue(displayData.userGrowth.map(d => d.count));
-                const height = (day.count / maxCount) * 100;
-                return (
-                  <motion.div
-                    key={day.date}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ delay: 0.3 + index * 0.05, duration: 0.5 }}
-                    className="flex-1 bg-gradient-to-t from-primary-500/50 to-primary-400 rounded-t-sm relative group cursor-pointer"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-                      {day.count.toLocaleString()} users
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-neutral-500">
-              <span>{displayData.userGrowth.slice(-14)[0]?.date.slice(5)}</span>
-              <span>วันนี้</span>
-            </div>
+            {loading && !data ? (
+              <div className="h-64 flex items-end gap-1">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="flex-1 bg-neutral-800 rounded-t-sm animate-pulse" style={{ height: `${20 + Math.random() * 60}%` }} />
+                ))}
+              </div>
+            ) : displayData.userGrowth.length > 0 ? (
+              <>
+                <div className="h-64 flex items-end gap-1">
+                  {displayData.userGrowth.slice(-14).map((day, index) => {
+                    const maxCount = getMaxValue(displayData.userGrowth.map(d => d.count));
+                    const height = (day.count / maxCount) * 100;
+                    return (
+                      <motion.div
+                        key={day.date}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${height}%` }}
+                        transition={{ delay: index * 0.03, duration: 0.4 }}
+                        className="flex-1 bg-gradient-to-t from-primary-500/50 to-primary-400 rounded-t-sm relative group cursor-pointer"
+                      >
+                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                          {day.count.toLocaleString()} users
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-2 text-xs text-neutral-500">
+                  <span>{displayData.userGrowth.slice(-14)[0]?.date.slice(5)}</span>
+                  <span>วันนี้</span>
+                </div>
+              </>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-neutral-500">ไม่มีข้อมูล</p>
+              </div>
+            )}
           </motion.div>
 
           {/* Message Stats Chart */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.15 }}
             className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-white">ข้อความต่อวัน</h3>
               <MessageSquare className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="h-64 flex items-end gap-1">
-              {displayData.messageStats.slice(-14).map((day, index) => {
-                const maxCount = getMaxValue(displayData.messageStats.map(d => d.count));
-                const height = (day.count / maxCount) * 100;
-                return (
-                  <motion.div
-                    key={day.date}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ delay: 0.4 + index * 0.05, duration: 0.5 }}
-                    className="flex-1 bg-gradient-to-t from-blue-500/50 to-blue-400 rounded-t-sm relative group cursor-pointer"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-                      {day.count.toLocaleString()} msgs
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-neutral-500">
-              <span>{displayData.messageStats.slice(-14)[0]?.date.slice(5)}</span>
-              <span>วันนี้</span>
-            </div>
+            {loading && !data ? (
+              <div className="h-64 flex items-end gap-1">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="flex-1 bg-neutral-800 rounded-t-sm animate-pulse" style={{ height: `${15 + Math.random() * 55}%` }} />
+                ))}
+              </div>
+            ) : displayData.messageStats.length > 0 ? (
+              <>
+                <div className="h-64 flex items-end gap-1">
+                  {displayData.messageStats.slice(-14).map((day, index) => {
+                    const maxCount = getMaxValue(displayData.messageStats.map(d => d.count));
+                    const height = (day.count / maxCount) * 100;
+                    return (
+                      <motion.div
+                        key={day.date}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${height}%` }}
+                        transition={{ delay: index * 0.03, duration: 0.4 }}
+                        className="flex-1 bg-gradient-to-t from-blue-500/50 to-blue-400 rounded-t-sm relative group cursor-pointer"
+                      >
+                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                          {day.count.toLocaleString()} msgs
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-2 text-xs text-neutral-500">
+                  <span>{displayData.messageStats.slice(-14)[0]?.date.slice(5)}</span>
+                  <span>วันนี้</span>
+                </div>
+              </>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-neutral-500">ไม่มีข้อมูล</p>
+              </div>
+            )}
           </motion.div>
         </div>
 
@@ -263,84 +306,120 @@ export default function AdminAnalyticsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.2 }}
             className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-semibold text-white">รายได้</h3>
-                <p className="text-2xl font-bold text-green-400 mt-1">
-                  ฿{displayData.revenueStats.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
-                </p>
+                {loading && !data ? (
+                  <div className="h-8 w-32 bg-neutral-800 rounded-lg animate-pulse mt-1" />
+                ) : (
+                  <p className="text-2xl font-bold text-green-400 mt-1">
+                    ฿{displayData.revenueStats.reduce((sum, d) => sum + d.amount, 0).toLocaleString()}
+                  </p>
+                )}
               </div>
               <CreditCard className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="h-48 flex items-end gap-1">
-              {displayData.revenueStats.slice(-14).map((day, index) => {
-                const maxAmount = getMaxValue(displayData.revenueStats.map(d => d.amount));
-                const height = (day.amount / maxAmount) * 100;
-                return (
-                  <motion.div
-                    key={day.date}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ delay: 0.5 + index * 0.05, duration: 0.5 }}
-                    className="flex-1 bg-gradient-to-t from-green-500/50 to-green-400 rounded-t-sm relative group cursor-pointer"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
-                      ฿{day.amount.toLocaleString()}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+            {loading && !data ? (
+              <div className="h-48 flex items-end gap-1">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="flex-1 bg-neutral-800 rounded-t-sm animate-pulse" style={{ height: `${10 + Math.random() * 50}%` }} />
+                ))}
+              </div>
+            ) : displayData.revenueStats.length > 0 ? (
+              <div className="h-48 flex items-end gap-1">
+                {displayData.revenueStats.slice(-14).map((day, index) => {
+                  const maxAmount = getMaxValue(displayData.revenueStats.map(d => d.amount));
+                  const height = (day.amount / maxAmount) * 100;
+                  return (
+                    <motion.div
+                      key={day.date}
+                      initial={{ height: 0 }}
+                      animate={{ height: `${height}%` }}
+                      transition={{ delay: index * 0.03, duration: 0.4 }}
+                      className="flex-1 bg-gradient-to-t from-green-500/50 to-green-400 rounded-t-sm relative group cursor-pointer"
+                    >
+                      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                        ฿{day.amount.toLocaleString()}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-neutral-500">ไม่มีข้อมูล</p>
+              </div>
+            )}
           </motion.div>
 
           {/* Model Usage */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.25 }}
             className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-white">การใช้งาน AI Models</h3>
               <Bot className="h-5 w-5 text-neutral-400" />
             </div>
-            <div className="space-y-4">
-              {displayData.modelUsage.map((model, index) => (
-                <motion.div
-                  key={model.model}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 + index * 0.1 }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-neutral-300">{model.model}</span>
-                    <span className="text-sm text-neutral-400">{model.percentage}%</span>
+            {loading && !data ? (
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="h-4 w-32 bg-neutral-800 rounded" />
+                      <div className="h-4 w-10 bg-neutral-800 rounded" />
+                    </div>
+                    <div className="h-2 bg-neutral-800 rounded-full" />
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="h-3 w-20 bg-neutral-800 rounded" />
+                      <div className="h-3 w-16 bg-neutral-800 rounded" />
+                    </div>
                   </div>
-                  <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${model.percentage}%` }}
-                      transition={{ duration: 0.8, delay: 0.7 + index * 0.1 }}
-                      className={cn(
-                        'h-full rounded-full',
-                        index === 0 && 'bg-gradient-to-r from-green-500 to-green-400',
-                        index === 1 && 'bg-gradient-to-r from-purple-500 to-purple-400',
-                        index === 2 && 'bg-gradient-to-r from-blue-500 to-blue-400',
-                        index === 3 && 'bg-gradient-to-r from-orange-500 to-orange-400',
-                        index === 4 && 'bg-gradient-to-r from-primary-500 to-primary-400'
-                      )}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between mt-1 text-xs text-neutral-500">
-                    <span>{model.requests.toLocaleString()} requests</span>
-                    <span>{(model.tokens / 1000000).toFixed(1)}M tokens</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : displayData.modelUsage.length > 0 ? (
+              <div className="space-y-4">
+                {displayData.modelUsage.map((model, index) => (
+                  <motion.div
+                    key={model.model}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-neutral-300">{model.model}</span>
+                      <span className="text-sm text-neutral-400">{model.percentage}%</span>
+                    </div>
+                    <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${model.percentage}%` }}
+                        transition={{ duration: 0.6, delay: index * 0.05 }}
+                        className={cn(
+                          'h-full rounded-full',
+                          index === 0 && 'bg-gradient-to-r from-green-500 to-green-400',
+                          index === 1 && 'bg-gradient-to-r from-purple-500 to-purple-400',
+                          index === 2 && 'bg-gradient-to-r from-blue-500 to-blue-400',
+                          index === 3 && 'bg-gradient-to-r from-orange-500 to-orange-400',
+                          index === 4 && 'bg-gradient-to-r from-primary-500 to-primary-400'
+                        )}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-xs text-neutral-500">
+                      <span>{model.requests.toLocaleString()} requests</span>
+                      <span>{(model.tokens / 1000000).toFixed(1)}M tokens</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-neutral-500 text-center py-8">ไม่มีข้อมูลการใช้งาน</p>
+            )}
           </motion.div>
         </div>
 
@@ -348,10 +427,28 @@ export default function AdminAnalyticsPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.3 }}
           className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
         >
           <h3 className="text-lg font-semibold text-white mb-6">Top Users</h3>
+          {loading && !data ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 animate-pulse py-3">
+                  <div className="w-8 h-8 bg-neutral-800 rounded-full" />
+                  <div className="flex-1 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-neutral-800 rounded-full" />
+                    <div className="flex-1">
+                      <div className="h-4 w-24 bg-neutral-800 rounded mb-1" />
+                      <div className="h-3 w-16 bg-neutral-800 rounded" />
+                    </div>
+                  </div>
+                  <div className="h-4 w-12 bg-neutral-800 rounded" />
+                  <div className="h-4 w-16 bg-neutral-800 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : displayData.topUsers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -366,9 +463,9 @@ export default function AdminAnalyticsPage() {
                 {displayData.topUsers.map((user, index) => (
                   <motion.tr
                     key={user.user_id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7 + index * 0.1 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
                     className="border-b border-neutral-800/50 last:border-0"
                   >
                     <td className="py-4">
@@ -409,6 +506,9 @@ export default function AdminAnalyticsPage() {
               </tbody>
             </table>
           </div>
+          ) : (
+            <p className="text-neutral-500 text-center py-8">ไม่มีข้อมูล</p>
+          )}
         </motion.div>
       </div>
     </div>

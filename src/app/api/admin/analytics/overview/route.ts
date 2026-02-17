@@ -25,66 +25,81 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient();
-
-    // Get total users
-    const { count: totalUsers } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true });
-
-    // Get active users today (users who have messages today)
     const today = new Date().toISOString().split('T')[0];
-    const { data: activeToday } = await supabase
-      .from('messages')
-      .select('chat:chats(user_id)')
-      .gte('created_at', `${today}T00:00:00`)
-      .lt('created_at', `${today}T23:59:59`);
-
-    const uniqueActiveUsers = new Set(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      activeToday?.map((m: any) => m.chat?.user_id || m.chat?.[0]?.user_id).filter(Boolean)
-    );
-
-    // Get total messages
-    const { count: totalMessages } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true });
-
-    // Get new users this week
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const { count: newUsersThisWeek } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', weekAgo.toISOString());
 
-    // Get active subscriptions
-    const { count: activeSubscriptions } = await supabase
-      .from('subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
+    // Run ALL queries in parallel for maximum speed
+    const [
+      usersResult,
+      activeTodayResult,
+      messagesResult,
+      newUsersResult,
+      activeSubsResult,
+      pendingFlagsResult,
+      revenueResult,
+      modelUsageResult,
+    ] = await Promise.all([
+      // 1. Total users
+      supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true }),
 
-    // Get pending flags
-    const { count: pendingFlags } = await supabase
-      .from('flagged_chats')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending');
+      // 2. Active users today
+      supabase
+        .from('messages')
+        .select('chat:chats(user_id)')
+        .gte('created_at', `${today}T00:00:00`)
+        .lt('created_at', `${today}T23:59:59`),
 
-    // Get total revenue
-    const { data: revenueData } = await supabase
-      .from('payment_history')
-      .select('amount')
-      .eq('status', 'completed');
+      // 3. Total messages
+      supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true }),
 
-    const totalRevenue = revenueData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+      // 4. New users this week
+      supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', weekAgo.toISOString()),
 
-    // Get model usage (last 7 days)
-    const { data: modelUsageData } = await supabase
-      .from('usage_records')
-      .select('model_id')
-      .gte('date', weekAgo.toISOString().split('T')[0]);
+      // 5. Active subscriptions
+      supabase
+        .from('subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
 
+      // 6. Pending flags
+      supabase
+        .from('flagged_chats')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending'),
+
+      // 7. Revenue
+      supabase
+        .from('payment_history')
+        .select('amount')
+        .eq('status', 'completed'),
+
+      // 8. Model usage (last 7 days)
+      supabase
+        .from('usage_records')
+        .select('model_id')
+        .gte('date', weekAgo.toISOString().split('T')[0]),
+    ]);
+
+    // Process active users
+    const uniqueActiveUsers = new Set(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      activeTodayResult.data?.map((m: any) => m.chat?.user_id || m.chat?.[0]?.user_id).filter(Boolean)
+    );
+
+    // Process revenue
+    const totalRevenue = revenueResult.data?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+    // Process model usage
     const modelUsage: Record<string, number> = {};
-    modelUsageData?.forEach((r: { model_id: string }) => {
+    modelUsageResult.data?.forEach((r: { model_id: string }) => {
       modelUsage[r.model_id] = (modelUsage[r.model_id] || 0) + 1;
     });
 
@@ -94,13 +109,13 @@ export async function GET(request: Request) {
       .slice(0, 5);
 
     return NextResponse.json({
-      totalUsers: totalUsers || 0,
+      totalUsers: usersResult.count || 0,
       activeUsersToday: uniqueActiveUsers.size,
-      totalMessages: totalMessages || 0,
+      totalMessages: messagesResult.count || 0,
       totalRevenue,
-      newUsersThisWeek: newUsersThisWeek || 0,
-      activeSubscriptions: activeSubscriptions || 0,
-      pendingFlags: pendingFlags || 0,
+      newUsersThisWeek: newUsersResult.count || 0,
+      activeSubscriptions: activeSubsResult.count || 0,
+      pendingFlags: pendingFlagsResult.count || 0,
       modelUsage: modelUsageArray,
     });
   } catch (error) {

@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
 
   // Check owner access
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single();
 
   if (!adminData || adminData.role !== 'owner') {
@@ -23,23 +27,30 @@ export async function GET(request: NextRequest) {
   try {
     const { data: admins, error } = await supabase
       .from('admin_users')
-      .select(`
-        id,
-        user_id,
-        role,
-        is_active,
-        last_login_at,
-        created_at,
-        user_profile:user_profiles!admin_users_user_id_fkey (
-          full_name,
-          avatar_url
-        )
-      `)
+      .select('id, user_id, role, is_active, last_login_at, created_at')
       .order('created_at', { ascending: true });
 
     if (error) throw error;
 
-    return NextResponse.json(admins || []);
+    // Fetch user profiles in parallel
+    const userIds = admins?.map(a => a.user_id) || [];
+    let profilesMap: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, display_name, avatar_url')
+        .in('user_id', userIds);
+
+      profilesMap = Object.fromEntries(
+        (profiles || []).map(p => [p.user_id, { display_name: p.display_name, avatar_url: p.avatar_url }])
+      );
+    }
+
+    return NextResponse.json(admins?.map(admin => ({
+      ...admin,
+      user_profile: profilesMap[admin.user_id] || { display_name: null, avatar_url: null },
+    })) || []);
   } catch (error) {
     console.error('Admin list error:', error);
     return NextResponse.json({ error: 'Failed to fetch admins' }, { status: 500 });
@@ -47,18 +58,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
 
   // Check owner access
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single();
 
   if (!adminData || adminData.role !== 'owner') {
@@ -72,28 +84,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email and role are required' }, { status: 400 });
   }
 
-  // Cannot create owner
   if (role === 'owner') {
     return NextResponse.json({ error: 'Cannot create owner role' }, { status: 400 });
   }
 
   try {
-    // Find user by email from profiles
-    const { data: userProfile } = await supabase
-      .from('user_profiles')
-      .select('user_id')
-      .eq('email', email)
-      .single();
+    // Find user by email from auth.users via admin API
+    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
 
-    if (!userProfile) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (listError) throw listError;
+
+    const targetUser = users?.find(u => u.email === email);
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found with this email' }, { status: 404 });
     }
 
     // Check if already admin
     const { data: existingAdmin } = await supabase
       .from('admin_users')
       .select('id')
-      .eq('user_id', userProfile.user_id)
+      .eq('user_id', targetUser.id)
       .single();
 
     if (existingAdmin) {
@@ -104,7 +114,7 @@ export async function POST(request: NextRequest) {
     const { data: newAdmin, error } = await supabase
       .from('admin_users')
       .insert({
-        user_id: userProfile.user_id,
+        user_id: targetUser.id,
         role,
         assigned_by: user.id,
       })
@@ -112,15 +122,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
-
-    // Log activity
-    await supabase.rpc('log_admin_activity', {
-      p_admin_user_id: user.id,
-      p_action: 'create',
-      p_resource_type: 'admin',
-      p_resource_id: newAdmin.id,
-      p_details: { email, role },
-    });
 
     return NextResponse.json(newAdmin);
   } catch (error) {

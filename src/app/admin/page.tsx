@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -20,6 +20,8 @@ import Link from 'next/link';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { StatsCard } from '@/components/admin/StatsCard';
 import { useAdmin } from '@/hooks/useAdmin';
+import { authFetch } from '@/lib/api-client';
+import { useRealtime } from '@/hooks/useRealtime';
 
 interface DashboardStats {
   totalUsers: number;
@@ -59,37 +61,40 @@ export default function AdminDashboardPage() {
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
 
   const fetchStats = useCallback(async () => {
-    // Fetch customer stats in parallel
-    try {
-      const custResponse = await fetch('/api/admin/stats/customers');
-      if (custResponse.ok) {
-        const custData = await custResponse.json();
-        setCustomerStats(custData);
-      }
-    } catch {
-      // Non-blocking
-    }
+    // Fetch both APIs in parallel for instant loading
+    const [custPromise, statsPromise] = [
+      authFetch('/api/admin/stats/customers').then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setCustomerStats(data);
+        }
+      }).catch(() => {}),
+      authFetch('/api/admin/analytics/overview').then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      }).catch(() => {}),
+    ];
 
-    try {
-      const response = await fetch('/api/admin/analytics/overview');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch {
-      // API failed - stats remain null, UI will show 0
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-
+    await Promise.all([custPromise, statsPromise]);
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
   }, [fetchStats]);
+
+  // Real-time: auto-refetch when DB changes
+  const dashboardSubs = useMemo(() => [
+    { table: 'customer_profiles' },
+    { table: 'daily_usage' },
+    { table: 'chats' },
+    { table: 'messages' },
+    { table: 'subscriptions' },
+  ], []);
+  useRealtime(dashboardSubs, fetchStats, !loading);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -158,6 +163,7 @@ export default function AdminDashboardPage() {
             icon={<Users className="h-6 w-6" />}
             color="blue"
             delay={0}
+            loading={loading}
           />
           <StatsCard
             title="รายได้เดือนนี้"
@@ -166,6 +172,7 @@ export default function AdminDashboardPage() {
             icon={<CreditCard className="h-6 w-6" />}
             color="primary"
             delay={0.1}
+            loading={loading}
           />
           <StatsCard
             title="สมาชิกที่ Active"
@@ -173,6 +180,7 @@ export default function AdminDashboardPage() {
             icon={<Activity className="h-6 w-6" />}
             color="green"
             delay={0.2}
+            loading={loading}
           />
           <StatsCard
             title="ข้อความวันนี้"
@@ -180,6 +188,7 @@ export default function AdminDashboardPage() {
             icon={<MessageSquare className="h-6 w-6" />}
             color="purple"
             delay={0.3}
+            loading={loading}
           />
         </div>
 
@@ -191,6 +200,7 @@ export default function AdminDashboardPage() {
             icon={<TrendingUp className="h-6 w-6" />}
             color="orange"
             delay={0.4}
+            loading={loading}
           />
           <StatsCard
             title="ผู้ใช้งานวันนี้"
@@ -198,6 +208,7 @@ export default function AdminDashboardPage() {
             icon={<Eye className="h-6 w-6" />}
             color="yellow"
             delay={0.5}
+            loading={loading}
           />
           <StatsCard
             title="รอตรวจสอบ"
@@ -205,6 +216,7 @@ export default function AdminDashboardPage() {
             icon={<Shield className="h-6 w-6" />}
             color={stats?.pendingFlags && stats.pendingFlags > 0 ? 'primary' : 'green'}
             delay={0.6}
+            loading={loading}
           />
         </div>
 
@@ -229,45 +241,32 @@ export default function AdminDashboardPage() {
             </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-neutral-800/50 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="h-4 w-4 text-blue-400" />
-                <span className="text-xs text-neutral-400">Customer Profiles</span>
+            {[
+              { icon: <Users className="h-4 w-4 text-blue-400" />, label: 'Customer Profiles', value: customerStats?.totalUsers, extra: null },
+              { icon: <Phone className="h-4 w-4 text-green-400" />, label: 'มีเบอร์โทร', value: customerStats?.usersWithPhone, extra: customerStats && customerStats.totalUsers > 0 ? `${Math.round((customerStats.usersWithPhone / customerStats.totalUsers) * 100)}%` : null },
+              { icon: <Activity className="h-4 w-4 text-yellow-400" />, label: 'Active (24h / 7d)', value: customerStats?.active24h, suffix: customerStats?.active7d },
+              { icon: <TrendingUp className="h-4 w-4 text-purple-400" />, label: 'ใหม่ (24h / 7d)', value: customerStats?.new24h, suffix: customerStats?.new7d },
+            ].map((item, i) => (
+              <div key={i} className="p-4 bg-neutral-800/50 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  {item.icon}
+                  <span className="text-xs text-neutral-400">{item.label}</span>
+                </div>
+                {loading ? (
+                  <div className="h-8 w-20 bg-neutral-700 rounded animate-pulse" />
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold text-white">
+                      {item.value?.toLocaleString() ?? 0}
+                      {'suffix' in item && item.suffix !== undefined && (
+                        <span className="text-sm text-neutral-400 font-normal"> / {item.suffix?.toLocaleString() ?? 0}</span>
+                      )}
+                    </p>
+                    {item.extra && <p className="text-xs text-neutral-500 mt-1">{item.extra}</p>}
+                  </>
+                )}
               </div>
-              <p className="text-2xl font-bold text-white">{customerStats?.totalUsers?.toLocaleString() || 0}</p>
-            </div>
-            <div className="p-4 bg-neutral-800/50 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Phone className="h-4 w-4 text-green-400" />
-                <span className="text-xs text-neutral-400">มีเบอร์โทร</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{customerStats?.usersWithPhone?.toLocaleString() || 0}</p>
-              {customerStats && customerStats.totalUsers > 0 && (
-                <p className="text-xs text-neutral-500 mt-1">
-                  {Math.round((customerStats.usersWithPhone / customerStats.totalUsers) * 100)}%
-                </p>
-              )}
-            </div>
-            <div className="p-4 bg-neutral-800/50 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="h-4 w-4 text-yellow-400" />
-                <span className="text-xs text-neutral-400">Active (24h / 7d)</span>
-              </div>
-              <p className="text-2xl font-bold text-white">
-                {customerStats?.active24h?.toLocaleString() || 0}
-                <span className="text-sm text-neutral-400 font-normal"> / {customerStats?.active7d?.toLocaleString() || 0}</span>
-              </p>
-            </div>
-            <div className="p-4 bg-neutral-800/50 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-purple-400" />
-                <span className="text-xs text-neutral-400">ใหม่ (24h / 7d)</span>
-              </div>
-              <p className="text-2xl font-bold text-white">
-                {customerStats?.new24h?.toLocaleString() || 0}
-                <span className="text-sm text-neutral-400 font-normal"> / {customerStats?.new7d?.toLocaleString() || 0}</span>
-              </p>
-            </div>
+            ))}
           </div>
           {customerStats?.bySource && Object.keys(customerStats.bySource).length > 0 && (
             <div className="mt-4 pt-4 border-t border-neutral-800">

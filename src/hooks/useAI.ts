@@ -18,12 +18,14 @@ interface SearchResult {
 }
 
 interface StreamEvent {
-  type: 'chunk' | 'done' | 'error' | 'title' | 'search_results'
+  type: 'chunk' | 'done' | 'error' | 'title' | 'search_results' | 'searching'
   content?: string
   messageId?: string
   message?: string
   title?: string
   searchResults?: SearchResult[]
+  autoSearched?: boolean
+  auto?: boolean
 }
 
 interface GenerateOptions {
@@ -31,6 +33,7 @@ interface GenerateOptions {
   onDone?: (fullResponse: string, messageId?: string) => void
   onError?: (error: Error) => void
   onTitleUpdate?: (title: string) => void
+  onSearching?: (auto: boolean) => void
   onSearchResults?: (results: SearchResult[]) => void
   webSearch?: boolean
 }
@@ -126,6 +129,9 @@ export function useAI() {
                   break
                 case 'error':
                   throw new Error(event.message || 'Generation failed')
+                case 'searching':
+                  options.onSearching?.(event.auto || false)
+                  break
                 case 'search_results':
                   if (event.searchResults) {
                     options.onSearchResults?.(event.searchResults)

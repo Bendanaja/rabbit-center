@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20') || 20));
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status'); // 'active', 'banned', 'all'
-    const allowedSortFields = ['created_at', 'updated_at', 'full_name'];
+    const allowedSortFields = ['created_at', 'updated_at', 'display_name'];
     const sortBy = allowedSortFields.includes(searchParams.get('sortBy') || '') ? searchParams.get('sortBy')! : 'created_at';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
 
@@ -42,23 +42,17 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('user_profiles')
       .select(`
-        id,
         user_id,
-        full_name,
+        display_name,
         avatar_url,
         created_at,
-        updated_at,
-        subscriptions(
-          plan_id,
-          status,
-          current_period_end
-        )
+        updated_at
       `, { count: 'exact' });
 
     // Search filter (sanitize to prevent injection via PostgREST operators)
     if (search) {
       const safeSearch = sanitizeSearchQuery(search);
-      query = query.or(`full_name.ilike.%${safeSearch}%,user_id.eq.${safeSearch}`);
+      query = query.or(`display_name.ilike.%${safeSearch}%,user_id.eq.${safeSearch}`);
     }
 
     // Sort
@@ -71,24 +65,46 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Get ban status for each user
+    // Get user IDs for parallel lookups
     const userIds = users?.map(u => u.user_id) || [];
-    const { data: bans } = await supabase
-      .from('user_bans')
-      .select('user_id, reason, is_permanent, expires_at')
-      .in('user_id', userIds)
-      .eq('is_active', true);
 
-    const banMap = new Map(bans?.map(b => [b.user_id, b]));
+    if (userIds.length === 0) {
+      return NextResponse.json({
+        users: [],
+        total: count || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((count || 0) / limit),
+      });
+    }
 
-    // Get message counts
-    const { data: messageCounts } = await supabase
-      .from('chats')
-      .select('user_id, messages(count)')
-      .in('user_id', userIds);
+    // Run all lookups in parallel
+    const [subsResult, bansResult, messageCountsResult] = await Promise.all([
+      // Subscriptions
+      supabase
+        .from('subscriptions')
+        .select('user_id, plan_id, status, current_period_end')
+        .in('user_id', userIds),
+
+      // Ban status
+      supabase
+        .from('user_bans')
+        .select('user_id, reason, is_permanent, expires_at')
+        .in('user_id', userIds)
+        .eq('is_active', true),
+
+      // Message counts
+      supabase
+        .from('chats')
+        .select('user_id, messages(count)')
+        .in('user_id', userIds),
+    ]);
+
+    const subMap = new Map(subsResult.data?.map(s => [s.user_id, s]));
+    const banMap = new Map(bansResult.data?.map(b => [b.user_id, b]));
 
     const messageCountMap = new Map<string, number>();
-    messageCounts?.forEach((c: { user_id: string; messages: { count: number }[] }) => {
+    messageCountsResult.data?.forEach((c: { user_id: string; messages: { count: number }[] }) => {
       const currentCount = messageCountMap.get(c.user_id) || 0;
       messageCountMap.set(c.user_id, currentCount + (c.messages?.[0]?.count || 0));
     });
@@ -96,12 +112,12 @@ export async function GET(request: NextRequest) {
     // Format response
     const formattedUsers = users?.map(user => {
       const ban = banMap.get(user.user_id);
-      const subscription = user.subscriptions?.[0];
+      const subscription = subMap.get(user.user_id);
 
       return {
-        id: user.id,
+        id: user.user_id,
         user_id: user.user_id,
-        full_name: user.full_name,
+        full_name: user.display_name,
         avatar_url: user.avatar_url,
         created_at: user.created_at,
         subscription_tier: subscription?.plan_id || 'free',

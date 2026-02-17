@@ -147,9 +147,28 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
     }
   };
 
-  // Find model definition by ID
+  // Find model definition by ID (MODELS registry first, then derive from ID format)
   const model = message.modelId
-    ? getModelById(message.modelId)
+    ? (getModelById(message.modelId) || (() => {
+        const mid = message.modelId!;
+        const hasSlash = mid.includes('/');
+        return {
+          id: mid,
+          name: hasSlash
+            ? (mid.split('/').pop()?.replace(/:.*$/, '') || mid)
+            : mid,
+          provider: hasSlash
+            ? ((mid.split('/')[0] || 'AI').charAt(0).toUpperCase() + (mid.split('/')[0] || '').slice(1))
+            : 'AI',
+          icon: hasSlash
+            ? `/images/models/${mid.split('/')[0]?.toLowerCase() || 'byteplus'}.svg`
+            : '/images/models/byteplus.svg',
+          isFree: false,
+          isLocked: false,
+          modelType: 'chat' as const,
+          apiProvider: hasSlash ? 'openrouter' as const : 'byteplus' as const,
+        };
+      })())
     : null;
 
   // Use streamed content if available and streaming, otherwise use full content

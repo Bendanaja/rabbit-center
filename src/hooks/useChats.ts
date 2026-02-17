@@ -87,7 +87,7 @@ export function useChats(userId: string | undefined) {
         method: 'POST',
         body: JSON.stringify({
           title: title || 'แชทใหม่',
-          model_id: modelId || 'deepseek-v3-2-251201',
+          model_id: modelId || null,
         }),
       })
 

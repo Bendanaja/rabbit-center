@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
 
   // Check admin access
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single();
 
   if (!adminData) {
@@ -21,10 +25,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get active subscriptions
+    // Get all subscriptions
     const { data: subscriptions } = await supabase
-      .from('user_subscriptions')
-      .select('tier, status, created_at, cancelled_at');
+      .from('subscriptions')
+      .select('plan_id, status, created_at, canceled_at');
 
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
     ).length || 0;
 
     const churnedThisMonth = subscriptions?.filter(s =>
-      s.cancelled_at && new Date(s.cancelled_at) >= thisMonthStart
+      s.canceled_at && new Date(s.canceled_at) >= thisMonthStart
     ).length || 0;
 
     // Calculate MRR
@@ -50,23 +54,17 @@ export async function GET(request: NextRequest) {
 
     const mrr = subscriptions?.reduce((sum, sub) => {
       if (sub.status === 'active') {
-        return sum + (planPrices[sub.tier] || 0);
+        return sum + (planPrices[sub.plan_id] || 0);
       }
       return sum;
     }, 0) || 0;
 
-    // Plan breakdown
+    // Plan breakdown from subscriptions table
     const planCounts: Record<string, number> = {};
     subscriptions?.forEach(sub => {
-      if (!planCounts[sub.tier]) planCounts[sub.tier] = 0;
-      planCounts[sub.tier]++;
+      if (!planCounts[sub.plan_id]) planCounts[sub.plan_id] = 0;
+      planCounts[sub.plan_id]++;
     });
-
-    // Get free users count from profiles
-    const { count: freeUsers } = await supabase
-      .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('subscription_tier', 'free');
 
     const planBreakdown = [
       {
@@ -86,7 +84,7 @@ export async function GET(request: NextRequest) {
       },
       {
         plan: 'Free',
-        count: freeUsers || 0,
+        count: planCounts['free'] || 0,
         revenue: 0
       },
     ];

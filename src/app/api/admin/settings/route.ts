@@ -76,11 +76,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!['owner', 'admin'].includes(auth.role)) {
+    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const supabase = createAdminClient();
 
-    const { settings, admin_user_id } = body;
+    const { settings } = body;
+    const adminUserId = auth.user.id;
 
     // Update each setting
     const updates = Object.entries(settings).map(async ([key, value]) => {
@@ -89,7 +94,7 @@ export async function PUT(request: NextRequest) {
         .upsert({
           key,
           value: JSON.stringify(value),
-          updated_by: admin_user_id,
+          updated_by: adminUserId,
           updated_at: new Date().toISOString(),
         });
 
@@ -100,7 +105,7 @@ export async function PUT(request: NextRequest) {
 
     // Log activity
     await supabase.rpc('log_admin_activity', {
-      p_admin_user_id: admin_user_id,
+      p_admin_user_id: adminUserId,
       p_action: 'update_settings',
       p_resource_type: 'system_config',
       p_resource_id: null,

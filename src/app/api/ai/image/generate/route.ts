@@ -1,9 +1,9 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateImage } from '@/lib/byteplus'
-import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders, getUserRateLimitConfig } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
 import { calculateUsageCost, getImageCost } from '@/lib/token-costs'
-import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
+import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS, validateSafeUrl } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
 
@@ -17,9 +17,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Rate limiting (Redis-backed)
+  // Rate limiting (Redis-backed, per-user config)
   const rateLimitKey = getRateLimitKey(request, user.id, 'image')
-  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, RATE_LIMITS.image)
+  const rateLimitConfig = await getUserRateLimitConfig(user.id, 'image')
+  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, rateLimitConfig)
   if (!rateLimitResult.allowed) {
     const res = NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before generating more images.' },
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     // Plan limit check: image quota
     const imageModelKey = model || 'seedream-4-5'
     const costThb = getImageCost(imageModelKey).thb
-    const planCheck = await checkPlanLimit(user.id, 'image', undefined, costThb)
+    const planCheck = await checkPlanLimit(user.id, 'image', imageModelKey, costThb)
     if (!planCheck.allowed) {
       return NextResponse.json(
         { error: planCheck.reason, planId: planCheck.planId },
@@ -78,6 +79,14 @@ export async function POST(request: Request) {
     if (image) {
       const imgErr = validateInput(image, { type: 'string', maxLength: INPUT_LIMITS.imageBase64, fieldName: 'image' })
       if (imgErr) return NextResponse.json({ error: imgErr }, { status: 400 })
+    }
+
+    // Validate image URL to prevent SSRF (allow base64 data URLs)
+    if (image && !image.startsWith('data:image/')) {
+      const urlCheck = validateSafeUrl(image)
+      if (!urlCheck.valid) {
+        return NextResponse.json({ error: `Invalid image URL: ${urlCheck.reason}` }, { status: 400 })
+      }
     }
 
     // Track activity in customer_profiles (non-blocking)

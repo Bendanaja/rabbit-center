@@ -19,6 +19,9 @@ import {
   UserCog,
   Activity,
   FileEdit,
+  MessageSquare,
+  Gauge,
+  Bell,
 } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -39,6 +42,9 @@ const iconMap: Record<string, React.ElementType> = {
   UserCog,
   Activity,
   FileEdit,
+  MessageSquare,
+  Gauge,
+  Bell,
 };
 
 const roleColors = {

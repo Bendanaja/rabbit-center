@@ -2,155 +2,221 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Check, X, Sparkles, Crown } from 'lucide-react';
+import { Check, X, Crown, Zap, Star, Gem } from 'lucide-react';
 import { type PricingPlan } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { Button, Badge } from '@/components/ui';
 
 interface PricingCardProps {
   plan: PricingPlan;
   delay?: number;
 }
 
+const planThemes: Record<string, {
+  gradient: string;
+  headerGradient: string;
+  accentColor: string;
+  checkBg: string;
+  checkColor: string;
+  buttonClass: string;
+  icon: typeof Crown;
+  rgb: string;
+}> = {
+  free: {
+    gradient: 'from-neutral-500/10 via-neutral-600/5 to-transparent',
+    headerGradient: 'from-neutral-400 to-neutral-600',
+    accentColor: 'text-neutral-400',
+    checkBg: 'bg-neutral-500/15',
+    checkColor: 'text-neutral-400',
+    buttonClass: 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700/50',
+    icon: Star,
+    rgb: '163,163,163',
+  },
+  starter: {
+    gradient: 'from-blue-500/12 via-blue-600/5 to-transparent',
+    headerGradient: 'from-blue-400 to-cyan-400',
+    accentColor: 'text-blue-400',
+    checkBg: 'bg-blue-500/15',
+    checkColor: 'text-blue-400',
+    buttonClass: 'bg-blue-600/90 hover:bg-blue-600 text-white',
+    icon: Zap,
+    rgb: '96,165,250',
+  },
+  pro: {
+    gradient: 'from-red-500/15 via-rose-500/8 to-transparent',
+    headerGradient: 'from-red-400 via-rose-400 to-orange-400',
+    accentColor: 'text-red-400',
+    checkBg: 'bg-red-500/15',
+    checkColor: 'text-red-400',
+    buttonClass: 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white',
+    icon: Crown,
+    rgb: '248,113,113',
+  },
+  premium: {
+    gradient: 'from-amber-500/12 via-amber-600/5 to-transparent',
+    headerGradient: 'from-amber-400 via-yellow-400 to-orange-400',
+    accentColor: 'text-amber-400',
+    checkBg: 'bg-amber-500/15',
+    checkColor: 'text-amber-400',
+    buttonClass: 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white',
+    icon: Gem,
+    rgb: '251,191,36',
+  },
+};
+
 export function PricingCard({ plan, delay = 0 }: PricingCardProps) {
   const isPro = plan.id === 'pro';
+  const theme = planThemes[plan.id] || planThemes.free;
   const paymentHref = plan.price > 0 ? `/payment?plan=${plan.id}` : '/chat';
+  const IconComponent = theme.icon;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.5, delay }}
-      whileHover={{ y: -8 }}
+      transition={{ duration: 0.6, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
       className={cn(
-        'relative rounded-2xl p-6 lg:p-8 transition-all duration-300 flex flex-col h-full',
-        'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800',
-        isPro
-          ? 'shadow-xl shadow-primary-500/10 ring-2 ring-primary-500 dark:ring-primary-400'
-          : 'hover:shadow-xl hover:border-neutral-300 dark:hover:border-neutral-700'
+        'group relative flex flex-col h-full',
+        isPro && 'z-10 lg:-my-3'
       )}
     >
-      {/* Popular badge */}
-      {plan.popular && (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
-          <motion.div
-            initial={{ scale: 0, rotate: -10 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
-          >
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur-md opacity-60" />
-              <div className="relative px-5 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 shadow-lg shadow-amber-500/40">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-white/30 via-transparent to-transparent" />
-                <div className="relative flex items-center gap-1.5">
-                  <Crown className="h-3.5 w-3.5 text-amber-900" />
-                  <span className="text-xs font-bold text-amber-900 tracking-wide">
-                    ยอดนิยม
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-display font-bold mb-2 text-neutral-900 dark:text-white">
-          {plan.name}
-        </h3>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 min-h-[40px]">
-          {plan.description}
-        </p>
-      </div>
-
-      {/* Price */}
-      <div className="text-center mb-6">
-        <div className="flex items-baseline justify-center gap-1">
-          <span className="text-4xl lg:text-5xl font-display font-bold text-neutral-900 dark:text-white">
-            {plan.currency}{plan.price.toLocaleString()}
-          </span>
-          <span className="text-lg text-neutral-500 dark:text-neutral-400">
-            /{plan.period}
-          </span>
-        </div>
-        {plan.id === 'starter' && (
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 font-medium">
-            เริ่มต้นเพียง 6.6 บาท/วัน
-          </p>
-        )}
-        {plan.id === 'pro' && (
-          <p className="text-xs text-primary-600 dark:text-primary-400 mt-2 font-medium">
-            คุ้มค่าที่สุด - ครบทุกฟีเจอร์
-          </p>
-        )}
-        {plan.id === 'premium' && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
-            ระดับสูงสุด ไม่มีข้อจำกัด
-          </p>
-        )}
-      </div>
-
-      {/* CTA Button */}
-      <Button
-        variant={isPro ? 'primary' : 'outline'}
-        size="lg"
+      {/* Soft ambient glow - only Pro always visible, others on hover */}
+      <div
         className={cn(
-          'w-full justify-center mb-6',
-          isPro && 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white border-0'
+          'absolute -inset-4 rounded-3xl transition-opacity duration-700 blur-3xl pointer-events-none',
+          isPro ? 'opacity-40 group-hover:opacity-50' : 'opacity-0 group-hover:opacity-30'
         )}
-        asChild
+        style={{
+          background: `radial-gradient(ellipse at 50% 30%, rgba(${theme.rgb}, 0.15) 0%, transparent 70%)`,
+        }}
+      />
+
+      <motion.div
+        whileHover={{ y: -4, transition: { duration: 0.3, ease: 'easeOut' } }}
+        className="relative flex flex-col h-full rounded-2xl overflow-hidden transition-shadow duration-500"
+        style={{
+          boxShadow: isPro
+            ? `0 0 0 1px rgba(${theme.rgb}, 0.15), 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -4px rgba(0,0,0,0.35), 0 20px 50px -12px rgba(0,0,0,0.25)`
+            : `0 0 0 1px rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.2), 0 6px 20px -4px rgba(0,0,0,0.3), 0 16px 40px -12px rgba(0,0,0,0.2)`,
+        }}
       >
-        <Link href={paymentHref}>
-          {plan.cta}
-        </Link>
-      </Button>
+        {/* Top edge - subtle light from above */}
+        <div
+          className="absolute top-0 left-0 right-0 h-px z-10"
+          style={{
+            background: isPro
+              ? `linear-gradient(90deg, transparent, rgba(${theme.rgb}, 0.3) 30%, rgba(${theme.rgb}, 0.4) 50%, rgba(${theme.rgb}, 0.3) 70%, transparent)`
+              : `linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.08) 70%, transparent)`,
+          }}
+        />
 
-      {/* Features */}
-      <div className="space-y-3 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-          รวมฟีเจอร์
-        </p>
-        <ul className="space-y-2.5">
-          {plan.features.map((feature) => (
-            <li key={feature} className="flex items-start gap-2.5">
-              <div
-                className={cn(
-                  'shrink-0 h-5 w-5 rounded-full flex items-center justify-center mt-0.5',
-                  isPro
-                    ? 'bg-primary-100 dark:bg-primary-900/50'
-                    : 'bg-green-100 dark:bg-green-900/30'
-                )}
-              >
-                <Check
-                  className={cn(
-                    'h-3 w-3',
-                    isPro ? 'text-primary-600 dark:text-primary-400' : 'text-green-600 dark:text-green-400'
-                  )}
-                />
+        {/* Popular badge */}
+        {plan.popular && (
+          <div className="absolute top-4 right-4 z-20">
+            <motion.div
+              initial={{ scale: 0, rotate: -12 }}
+              whileInView={{ scale: 1, rotate: 0 }}
+              viewport={{ once: true }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12, delay: delay + 0.3 }}
+            >
+              <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 shadow-md shadow-amber-500/20">
+                <Crown className="h-3 w-3 text-amber-900" />
+                <span className="text-[11px] font-bold text-amber-900">ยอดนิยม</span>
               </div>
-              <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                {feature}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* Limitations */}
-        {plan.limitations.length > 0 && (
-          <ul className="space-y-2.5 pt-3 mt-3 border-t border-neutral-100 dark:border-neutral-800">
-            {plan.limitations.map((limitation) => (
-              <li key={limitation} className="flex items-start gap-2.5">
-                <div className="shrink-0 h-5 w-5 rounded-full flex items-center justify-center mt-0.5 bg-neutral-100 dark:bg-neutral-800">
-                  <X className="h-3 w-3 text-neutral-400" />
-                </div>
-                <span className="text-sm text-neutral-400">{limitation}</span>
-              </li>
-            ))}
-          </ul>
+            </motion.div>
+          </div>
         )}
-      </div>
+
+        {/* Gradient header */}
+        <div className={cn(
+          'relative px-6 pt-6 pb-7',
+          `bg-gradient-to-b ${theme.gradient}`
+        )}>
+          {/* Very subtle noise texture */}
+          <div className="absolute inset-0 opacity-[0.015]" style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, white 0.5px, transparent 0)`,
+            backgroundSize: '16px 16px',
+          }} />
+
+          <div className="relative flex items-center gap-3 mb-4">
+            <div
+              className={cn(
+                'h-10 w-10 rounded-xl flex items-center justify-center bg-gradient-to-br',
+                theme.headerGradient,
+              )}
+              style={{
+                boxShadow: `0 2px 6px rgba(${theme.rgb}, 0.25)`,
+              }}
+            >
+              <IconComponent className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-display font-bold text-white">{plan.name}</h3>
+              <p className="text-xs text-neutral-500">{plan.description}</p>
+            </div>
+          </div>
+
+          <div className="relative flex items-baseline gap-1.5">
+            <span className={cn(
+              'text-5xl lg:text-6xl font-display font-bold tracking-tight text-neutral-100',
+              isPro && 'text-white'
+            )}>
+              {plan.currency}{plan.price.toLocaleString()}
+            </span>
+            <span className="text-base text-neutral-500">/{plan.period}</span>
+          </div>
+
+        </div>
+
+        {/* Body */}
+        <div className="relative flex-1 flex flex-col bg-neutral-950/90 px-6 pb-6 pt-4">
+          {/* Separator */}
+          <div
+            className="absolute top-0 left-6 right-6 h-px"
+            style={{
+              background: `linear-gradient(90deg, transparent, rgba(${theme.rgb}, 0.15) 50%, transparent)`,
+            }}
+          />
+
+          <button className={cn(
+            'w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200',
+            'hover:scale-[1.01] active:scale-[0.99]',
+            theme.buttonClass,
+            'mb-5'
+          )}>
+            <Link href={paymentHref} className="flex items-center justify-center gap-2 w-full h-full">
+              {plan.cta}
+            </Link>
+          </button>
+
+          <div className="flex-1 space-y-2.5">
+            {plan.features.map((feature) => (
+              <div key={feature} className="flex items-start gap-2.5">
+                <div className={cn(
+                  'shrink-0 h-5 w-5 rounded-md flex items-center justify-center mt-0.5',
+                  theme.checkBg
+                )}>
+                  <Check className={cn('h-3 w-3', theme.checkColor)} />
+                </div>
+                <span className="text-sm text-neutral-300 leading-relaxed">{feature}</span>
+              </div>
+            ))}
+
+            {plan.limitations.length > 0 && (
+              <div className="pt-2 mt-2 border-t border-neutral-800/40 space-y-2.5">
+                {plan.limitations.map((limitation) => (
+                  <div key={limitation} className="flex items-start gap-2.5">
+                    <div className="shrink-0 h-5 w-5 rounded-md flex items-center justify-center mt-0.5 bg-neutral-800/40">
+                      <X className="h-3 w-3 text-neutral-600" />
+                    </div>
+                    <span className="text-sm text-neutral-600">{limitation}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }

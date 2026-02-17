@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
         .gte('date', startDateStr),
       supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
       supabase.from('subscriptions').select('plan_id')
-        .eq('status', 'active'),
+        .eq('status', 'active')
+        .neq('plan_id', 'free'),
       supabase.from('subscriptions').select('*', { count: 'exact', head: true })
         .eq('status', 'cancelled'),
     ])
@@ -159,14 +160,14 @@ export async function GET(request: NextRequest) {
     if (topUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from('user_profiles')
-        .select('user_id, full_name')
+        .select('user_id, display_name')
         .in('user_id', topUserIds.map(([id]) => id))
 
       for (const [userId, msgCount] of topUserIds) {
         const profile = profiles?.find(p => p.user_id === userId)
         topUsers.push({
           user_id: userId.substring(0, 8),
-          name: profile?.full_name || 'ผู้ใช้',
+          name: profile?.display_name || 'ผู้ใช้',
           messages: msgCount,
           spent: 0,
         })

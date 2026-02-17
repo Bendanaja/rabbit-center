@@ -42,7 +42,7 @@ function checkGlobalRateLimit(ip: string): boolean {
 
 function getClientIP(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
-  return forwarded?.split(',')[0]?.trim() || 'unknown'
+  return forwarded?.split(',').pop()?.trim() || 'unknown'
 }
 
 function addSecurityHeaders(response: NextResponse) {
@@ -66,7 +66,7 @@ function addSecurityHeaders(response: NextResponse) {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
-    "connect-src 'self' https://*.rabbithub.ai https://*.supabase.co https://*.supabase.in https://ark.ap-southeast.bytepluses.com wss://*.supabase.co wss://*.rabbithub.ai",
+    "connect-src 'self' https://*.rabbithub.ai https://*.supabase.co https://*.supabase.in https://ark.ap-southeast.bytepluses.com https://openrouter.ai wss://*.supabase.co wss://*.rabbithub.ai",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -78,11 +78,6 @@ function addSecurityHeaders(response: NextResponse) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip in development
-  if (process.env.NODE_ENV === 'development') {
-    return NextResponse.next()
-  }
-
   // Skip static files, _next, favicon
   if (
     pathname.startsWith('/_next') ||
@@ -93,9 +88,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // ─── Maintenance Mode ──
+  // ─── Maintenance Mode (skip redirect in development) ──
   // Set MAINTENANCE_MODE=true in env to block all public access
-  if (process.env.MAINTENANCE_MODE === 'true') {
+  if (process.env.MAINTENANCE_MODE === 'true' && process.env.NODE_ENV !== 'development') {
     // Allow the maintenance page itself
     if (pathname === '/maintenance') {
       const response = NextResponse.next()

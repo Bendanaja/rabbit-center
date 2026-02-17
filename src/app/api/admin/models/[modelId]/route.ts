@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+import { invalidateModelAccessCache } from '@/lib/plan-limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,27 +40,39 @@ export async function PUT(
     const {
       name,
       description,
-      icon,
+      icon_url,
       tier,
       is_active,
       daily_limit,
       hourly_limit,
       cooldown_seconds,
       priority,
-      context_length,
+      context_window,
+      max_tokens,
+      input_cost_per_1k,
+      output_cost_per_1k,
     } = body;
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
-    if (icon !== undefined) updateData.icon = icon;
-    if (tier !== undefined) updateData.tier = tier;
+    if (icon_url !== undefined) updateData.icon_url = icon_url;
+    if (tier !== undefined) {
+      // Map to DB-valid values ('free', 'starter', 'pro', 'premium')
+      const validTiers = ['free', 'starter', 'pro', 'premium'];
+      updateData.tier = validTiers.includes(tier) ? tier : 'pro';
+    }
     if (is_active !== undefined) updateData.is_active = is_active;
     if (daily_limit !== undefined) updateData.daily_limit = daily_limit;
     if (hourly_limit !== undefined) updateData.hourly_limit = hourly_limit;
     if (cooldown_seconds !== undefined) updateData.cooldown_seconds = cooldown_seconds;
     if (priority !== undefined) updateData.priority = priority;
-    if (context_length !== undefined) updateData.context_length = context_length;
+    if (context_window !== undefined) updateData.context_window = context_window;
+    if (max_tokens !== undefined) updateData.max_tokens = max_tokens;
+    if (input_cost_per_1k !== undefined) updateData.input_cost_per_1k = input_cost_per_1k;
+    if (output_cost_per_1k !== undefined) updateData.output_cost_per_1k = output_cost_per_1k;
 
     const { data, error } = await supabase
       .from('ai_models')
@@ -69,6 +82,9 @@ export async function PUT(
       .single();
 
     if (error) throw error;
+
+    // Fire-and-forget: don't block the response for cache invalidation
+    invalidateModelAccessCache().catch(() => {});
 
     return NextResponse.json(data);
   } catch (error) {
@@ -85,8 +101,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ modelId: string }> }
 ) {
-  const auth2 = await verifyAdminAccess(request);
-  if (!auth2.authorized) {
+  const auth = await verifyAdminAccess(request);
+  if (!auth.authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -100,6 +116,9 @@ export async function DELETE(
       .eq('id', modelId);
 
     if (error) throw error;
+
+    // Fire-and-forget: don't block the response for cache invalidation
+    invalidateModelAccessCache().catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

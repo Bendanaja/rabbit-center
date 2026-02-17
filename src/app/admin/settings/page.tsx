@@ -26,6 +26,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { PERMISSIONS } from '@/types/admin';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 
 interface SettingItem {
   key: string;
@@ -47,7 +48,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/settings');
+      const response = await authFetch('/api/admin/settings');
       if (response.ok) {
         const data = await response.json();
         setSettings(data || []);
@@ -76,7 +77,7 @@ export default function AdminSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/admin/settings', {
+      const response = await authFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: changes }),

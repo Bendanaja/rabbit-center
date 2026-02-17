@@ -1,23 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { getUserFromRequest } from '@/lib/supabase/auth-helper';
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ adminId: string }> }
 ) {
   const { adminId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
 
   // Check owner access
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single();
 
   if (!adminData || adminData.role !== 'owner') {
@@ -81,18 +85,19 @@ export async function DELETE(
   { params }: { params: Promise<{ adminId: string }> }
 ) {
   const { adminId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
 
   // Check owner access
   const { data: adminData } = await supabase
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single();
 
   if (!adminData || adminData.role !== 'owner') {

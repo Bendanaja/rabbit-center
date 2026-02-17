@@ -1,9 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
-import { streamChat, generateChatTitle, type ChatMessage } from '@/lib/byteplus'
-import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { streamChat, chatCompletion, generateChatTitle, COMPACT_MODEL, type ChatMessage } from '@/lib/byteplus'
+import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders, getUserRateLimitConfig } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
-import { searchWeb, formatSearchContext, formatSourcesMarker, type SearchResult } from '@/lib/web-search'
+import { searchWeb, shouldAutoSearch, formatSearchContext, formatSourcesMarker, type SearchResult } from '@/lib/web-search'
 import { calculateUsageCost, estimateChatCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
@@ -21,9 +21,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Rate limiting (Redis-backed)
+  // Rate limiting (Redis-backed, per-user config)
   const rateLimitKey = getRateLimitKey(request, user.id, 'chat')
-  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, RATE_LIMITS.chat)
+  const rateLimitConfig = await getUserRateLimitConfig(user.id, 'chat')
+  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, rateLimitConfig)
   if (!rateLimitResult.allowed) {
     const res = NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before sending more messages.' },
@@ -95,38 +96,27 @@ export async function POST(request: Request) {
   // Track activity in customer_profiles (non-blocking)
   trackActivity(user.id, 'chat')
 
-  // Web search: check plan limit, perform search, prepare context
-  let searchResults: SearchResult[] = []
-  if (webSearch) {
-    // Check search plan limit
+  // Detect if web search is needed: manual toggle or AI-based auto-detect
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+  let needsSearch = webSearch
+  if (!webSearch && lastUserMsg) {
+    console.log(`[Generate] Auto-search check for: "${lastUserMsg.content}", COMPACT_MODEL: ${COMPACT_MODEL}`)
+    needsSearch = await shouldAutoSearch(lastUserMsg.content, chatCompletion, COMPACT_MODEL)
+    console.log(`[Generate] Auto-search result: ${needsSearch}`)
+  }
+  const wasAutoSearched = !webSearch && needsSearch
+
+  // Pre-validate search limits (before stream starts)
+  if (needsSearch) {
     const searchPlanCheck = await checkPlanLimit(user.id, 'search')
     if (!searchPlanCheck.allowed) {
-      return NextResponse.json(
-        { error: searchPlanCheck.reason, planId: searchPlanCheck.planId },
-        { status: 403 }
-      )
-    }
-
-    // Rate limit for search
-    const searchRateLimitKey = getRateLimitKey(request, user.id, 'search')
-    const searchRateLimit = await checkRateLimitRedis(searchRateLimitKey, RATE_LIMITS.search)
-    if (!searchRateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'ค้นหาเร็วเกินไป กรุณารอสักครู่' },
-        { status: 429 }
-      )
-    }
-
-    // Extract query from last user message
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
-    if (lastUserMsg) {
-      const searchResponse = await searchWeb(lastUserMsg.content)
-      searchResults = searchResponse.results
-
-      // Increment search usage only if we got results (SearXNG was available)
-      if (searchResults.length > 0) {
-        await incrementUsage(user.id, 'search')
+      if (webSearch) {
+        return NextResponse.json(
+          { error: searchPlanCheck.reason, planId: searchPlanCheck.planId },
+          { status: 403 }
+        )
       }
+      needsSearch = false // silently skip auto-search if plan doesn't allow
     }
   }
 
@@ -149,10 +139,32 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      let searchResults: SearchResult[] = []
+
       try {
-        // Emit search results SSE event before AI starts streaming
-        if (searchResults.length > 0) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'search_results', searchResults })}\n\n`))
+        // Perform web search inside the stream so we can emit SSE events
+        if (needsSearch && lastUserMsg) {
+          // Emit searching indicator
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'searching', auto: wasAutoSearched })}\n\n`))
+
+          // Rate limit for search
+          const searchRateLimitKey = getRateLimitKey(request, user.id, 'search')
+          const searchRateLimitConfig = await getUserRateLimitConfig(user.id, 'search')
+          const searchRateLimit = await checkRateLimitRedis(searchRateLimitKey, searchRateLimitConfig)
+
+          if (searchRateLimit.allowed) {
+            const searchResponse = await searchWeb(lastUserMsg.content)
+            searchResults = searchResponse.results
+
+            if (searchResults.length > 0) {
+              await incrementUsage(user.id, 'search')
+            }
+          }
+
+          // Emit search results
+          if (searchResults.length > 0) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'search_results', searchResults, autoSearched: wasAutoSearched })}\n\n`))
+          }
         }
 
         // Inject search context as system message if we have results
@@ -195,12 +207,13 @@ export async function POST(request: Request) {
               const outputTokens = Math.ceil(response.length / 4)
               const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
 
+              // Always increment usage — AI cost was already incurred regardless of DB save
+              await incrementUsage(user.id, 'chat', costThb)
+
               if (saveError) {
                 console.error('Save message error:', saveError)
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Failed to save message' })}\n\n`))
               } else {
-                // Increment usage AFTER successful stream completion and message save
-                await incrementUsage(user.id, 'chat', costThb)
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', messageId: savedMessage?.id })}\n\n`))
               }
 
@@ -238,12 +251,18 @@ export async function POST(request: Request) {
               controller.close()
             },
             onError: (error) => {
+              // Track usage even on error — AI API cost was likely incurred
+              const errorCostThb = estimateChatCost(model).thb
+              incrementUsage(user.id, 'chat', errorCostThb).catch(() => {})
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`))
               controller.close()
             },
           }
         )
       } catch (error) {
+        // Track usage if AI was called before error
+        const errorCostThb = estimateChatCost(model).thb
+        incrementUsage(user.id, 'chat', errorCostThb).catch(() => {})
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: errorMessage })}\n\n`))
         controller.close()

@@ -22,7 +22,7 @@ export function sanitizeInput(input: string): string {
   if (typeof input !== 'string') return ''
   return input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<\/?(script|iframe|object|embed|form|input|textarea|button|select|option|link|style|meta|base|applet)[^>]*>/gi, '')
+    .replace(/<\/?(script|iframe|object|embed|form|input|textarea|button|select|option|link|style|meta|base|applet|svg|img|details|math|video|audio|source|picture|marquee|blink|frameset|frame|layer|ilayer|bgsound|title|isindex|listing|xmp|plaintext|comment)[^>]*>/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
     .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
     .replace(/javascript\s*:/gi, '')
@@ -119,6 +119,7 @@ export function validateContentType(request: Request): string | null {
 }
 
 // ─── Brute Force Protection ──────────────────────────────
+// TODO: Move brute force store to Redis for multi-instance deployments
 interface LoginAttempt {
   count: number
   firstAttempt: number
@@ -153,7 +154,7 @@ function startBruteForceCleanup() {
 
 export function getClientIP(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for')
-  return forwarded?.split(',')[0]?.trim() || 'unknown'
+  return forwarded?.split(',').pop()?.trim() || 'unknown'
 }
 
 export function checkBruteForce(ip: string): { allowed: boolean; retryAfterMs?: number } {
@@ -204,6 +205,126 @@ export function recordFailedLogin(ip: string): void {
 
 export function clearFailedLogins(ip: string): void {
   loginAttemptStore.delete(ip)
+}
+
+// ─── SSRF Protection: URL Validation ─────────────────────
+// Validates that a URL is safe to fetch server-side (prevents SSRF attacks)
+
+const BLOCKED_HOSTNAMES = new Set([
+  'localhost',
+  'internal',
+  'metadata',
+  'metadata.google.internal',
+  'metadata.internal',
+])
+
+// Check if four IPv4 octets fall in a private/reserved range
+function isPrivateIPv4(a: number, b: number, c: number, d: number): boolean {
+  // 0.0.0.0
+  if (a === 0 && b === 0 && c === 0 && d === 0) return true
+  // 127.0.0.0/8 (loopback)
+  if (a === 127) return true
+  // 10.0.0.0/8 (private)
+  if (a === 10) return true
+  // 172.16.0.0/12 (private)
+  if (a === 172 && b >= 16 && b <= 31) return true
+  // 192.168.0.0/16 (private)
+  if (a === 192 && b === 168) return true
+  // 169.254.0.0/16 (link-local / cloud metadata)
+  if (a === 169 && b === 254) return true
+  // 100.64.0.0/10 (Carrier-grade NAT)
+  if (a === 100 && b >= 64 && b <= 127) return true
+  return false
+}
+
+function isPrivateIP(hostname: string): boolean {
+  // IPv6 loopback
+  if (hostname === '::1' || hostname === '[::1]') return true
+
+  // Check for IPv6-mapped IPv4 addresses (e.g., ::ffff:127.0.0.1)
+  if (hostname.toLowerCase().startsWith('::ffff:')) {
+    const ipv4Part = hostname.slice(7)
+    return isPrivateIP(ipv4Part)
+  }
+  // Bracket notation [::ffff:127.0.0.1]
+  if (hostname.startsWith('[') && hostname.toLowerCase().includes('::ffff:')) {
+    const inner = hostname.slice(1, -1)
+    const ipv4Part = inner.replace(/^::ffff:/i, '')
+    return isPrivateIP(ipv4Part)
+  }
+
+  // Remove brackets for IPv6
+  const clean = hostname.replace(/^\[|\]$/g, '')
+
+  // Block IPv6 ULA (fc00::/7 = fc00:: to fdff::)
+  if (/^f[cd]/i.test(clean)) return true
+
+  // Block IPv6 link-local (fe80::/10)
+  if (/^fe[89ab]/i.test(clean)) return true
+
+  // IPv4 dotted-quad patterns
+  const parts = clean.split('.')
+  if (parts.length === 4) {
+    const numParts = parts.map(Number)
+    if (numParts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+      // Reject octal notation (leading zeros, e.g., 0177.0.0.1)
+      if (parts.some(p => p.length > 1 && p.startsWith('0'))) {
+        return true // treat as private/suspicious
+      }
+      return isPrivateIPv4(numParts[0], numParts[1], numParts[2], numParts[3])
+    }
+  }
+
+  // Check for decimal IP notation (e.g., 2130706433 = 127.0.0.1)
+  const numericHost = Number(clean)
+  if (Number.isFinite(numericHost) && numericHost > 0) {
+    const a = (numericHost >>> 24) & 0xFF
+    const b = (numericHost >>> 16) & 0xFF
+    const c = (numericHost >>> 8) & 0xFF
+    const d = numericHost & 0xFF
+    return isPrivateIPv4(a, b, c, d)
+  }
+
+  return false
+}
+
+export function validateSafeUrl(url: string): { valid: true } | { valid: false; reason: string } {
+  // Only allow https://
+  if (!url.startsWith('https://')) {
+    return { valid: false, reason: 'Only HTTPS URLs are allowed' }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return { valid: false, reason: 'Invalid URL format' }
+  }
+
+  // Enforce https after parsing (in case of protocol confusion)
+  if (parsed.protocol !== 'https:') {
+    return { valid: false, reason: 'Only HTTPS URLs are allowed' }
+  }
+
+  const hostname = parsed.hostname.toLowerCase()
+
+  // Block known internal hostnames
+  if (BLOCKED_HOSTNAMES.has(hostname)) {
+    return { valid: false, reason: 'Internal hostnames are not allowed' }
+  }
+
+  // Block private/reserved IP ranges
+  if (isPrivateIP(hostname)) {
+    return { valid: false, reason: 'Private or reserved IP addresses are not allowed' }
+  }
+
+  // Block DNS rebinding service domains
+  const BLOCKED_REBINDING_DOMAINS = ['nip.io', 'sslip.io', 'xip.io', 'localtest.me', 'lvh.me', 'vcap.me']
+  if (BLOCKED_REBINDING_DOMAINS.some(d => hostname.endsWith('.' + d) || hostname === d)) {
+    return { valid: false, reason: 'DNS rebinding domain not allowed' }
+  }
+
+  return { valid: true }
 }
 
 // ─── UUID Validation ─────────────────────────────────────

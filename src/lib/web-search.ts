@@ -16,6 +16,61 @@ const MAX_RESULTS = 5
 const TIMEOUT_MS = 8000
 
 /**
+ * Use an AI model to autonomously decide whether the user's message needs a web search.
+ */
+export async function shouldAutoSearch(
+  message: string,
+  chatCompletionFn: (
+    messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+    model: string
+  ) => Promise<{ content: string }>,
+  model: string
+): Promise<boolean> {
+  // Skip very short messages (greetings, etc.)
+  if (message.trim().length < 4) return false
+
+  try {
+    console.log(`[AutoSearch] Classifying: "${message}" with model: ${model}`)
+    const { content } = await chatCompletionFn(
+      [
+        {
+          role: 'system',
+          content: `You are a search intent classifier. Given a user message, decide if it needs a web search to answer properly.
+
+Answer ONLY "yes" or "no".
+
+Say "yes" if the message:
+- Asks about current events, prices, weather, news, scores, stock/crypto prices
+- Asks about real-time or time-sensitive information (today, latest, current, etc.)
+- Asks factual questions that need up-to-date data (release dates, schedules, etc.)
+- Asks to look up specific information (addresses, phone numbers, reviews, etc.)
+- References specific recent events, people in current news, or new products
+
+Say "no" if the message:
+- Is a greeting or casual conversation (สวัสดี, hi, thanks, etc.)
+- Asks for creative writing, coding help, math, translation
+- Asks general knowledge questions that don't need current data
+- Is a follow-up or continuation of a conversation (ต่อ, อธิบายเพิ่ม, etc.)
+- Asks for opinions, advice, or explanations of concepts`,
+        },
+        {
+          role: 'user',
+          content: message,
+        },
+      ],
+      model
+    )
+
+    const decision = content.trim().toLowerCase().startsWith('yes')
+    console.log(`[AutoSearch] Model response: "${content.trim()}" → decision: ${decision}`)
+    return decision
+  } catch (err) {
+    console.error('[AutoSearch] Classification FAILED:', err)
+    return false
+  }
+}
+
+/**
  * Search the web via self-hosted SearXNG instance.
  * Returns empty results gracefully if SearXNG is unavailable.
  */

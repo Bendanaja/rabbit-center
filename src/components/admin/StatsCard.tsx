@@ -17,6 +17,7 @@ interface StatsCardProps {
   icon: React.ReactNode;
   color?: 'primary' | 'green' | 'blue' | 'purple' | 'orange' | 'yellow';
   delay?: number;
+  loading?: boolean;
 }
 
 const colorStyles = {
@@ -96,6 +97,7 @@ export function StatsCard({
   icon,
   color = 'primary',
   delay = 0,
+  loading = false,
 }: StatsCardProps) {
   const styles = colorStyles[color];
 
@@ -156,12 +158,16 @@ export function StatsCard({
 
         {/* Value */}
         <div className="flex items-end gap-3">
+          {loading ? (
+            <div className="h-9 w-24 bg-neutral-800 rounded-lg animate-pulse" />
+          ) : (
           <h3 className="text-3xl font-bold text-white">
             <AnimatedNumber value={value} format={format} />
           </h3>
+          )}
 
           {/* Trend indicator */}
-          {trend && (
+          {!loading && trend && (
             <motion.div
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}

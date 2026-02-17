@@ -21,6 +21,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate, OwnerOnly } from '@/components/admin/PermissionGate';
 import { PERMISSIONS, AdminRole } from '@/types/admin';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 
 interface AdminUserData {
   id: string;
@@ -47,7 +48,7 @@ export default function AdminManagementPage() {
 
   const fetchAdmins = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/admins');
+      const response = await authFetch('/api/admin/admins');
       if (response.ok) {
         const data = await response.json();
         setAdmins(data || []);
@@ -73,7 +74,7 @@ export default function AdminManagementPage() {
     if (!newAdminEmail) return;
 
     try {
-      const response = await fetch('/api/admin/admins', {
+      const response = await authFetch('/api/admin/admins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +96,7 @@ export default function AdminManagementPage() {
 
   const handleUpdateRole = async (adminId: string, newRole: AdminRole) => {
     try {
-      const response = await fetch(`/api/admin/admins/${adminId}`, {
+      const response = await authFetch(`/api/admin/admins/${adminId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: newRole }),
@@ -114,7 +115,7 @@ export default function AdminManagementPage() {
 
   const handleToggleActive = async (adminId: string, isActive: boolean) => {
     try {
-      const response = await fetch(`/api/admin/admins/${adminId}`, {
+      const response = await authFetch(`/api/admin/admins/${adminId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !isActive }),
@@ -134,7 +135,7 @@ export default function AdminManagementPage() {
     if (!confirm('คุณแน่ใจหรือไม่ที่จะลบ admin นี้?')) return;
 
     try {
-      const response = await fetch(`/api/admin/admins/${adminId}`, {
+      const response = await authFetch(`/api/admin/admins/${adminId}`, {
         method: 'DELETE',
       });
 
@@ -146,39 +147,7 @@ export default function AdminManagementPage() {
     }
   };
 
-  // Mock data
-  const mockAdmins: AdminUserData[] = [
-    {
-      id: '1',
-      user_id: 'user-1',
-      role: 'owner',
-      is_active: true,
-      last_login_at: new Date().toISOString(),
-      created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-      user_profile: { full_name: 'Super Admin', avatar_url: null },
-    },
-    {
-      id: '2',
-      user_id: 'user-2',
-      role: 'admin',
-      is_active: true,
-      last_login_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      user_profile: { full_name: 'Admin User', avatar_url: null },
-    },
-    {
-      id: '3',
-      user_id: 'user-3',
-      role: 'moderator',
-      is_active: true,
-      last_login_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      user_profile: { full_name: 'Moderator', avatar_url: null },
-    },
-  ];
-
-  const displayAdmins = admins.length > 0 ? admins : mockAdmins;
-  const filteredAdmins = displayAdmins.filter(a =>
+  const filteredAdmins = admins.filter(a =>
     a.user_profile?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
     a.role.includes(search.toLowerCase())
   );
@@ -231,7 +200,7 @@ export default function AdminManagementPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">จัดการ Admin</h1>
             <p className="text-neutral-400 mt-1">
-              จัดการทีม admin ทั้งหมด {displayAdmins.length} คน
+              จัดการทีม admin ทั้งหมด {admins.length} คน
             </p>
           </div>
           <OwnerOnly>
@@ -256,7 +225,7 @@ export default function AdminManagementPage() {
         >
           {(['owner', 'admin', 'moderator'] as const).map((role, index) => {
             const config = roleConfig[role];
-            const count = displayAdmins.filter(a => a.role === role).length;
+            const count = admins.filter(a => a.role === role).length;
             const Icon = config.icon;
 
             return (
@@ -315,6 +284,16 @@ export default function AdminManagementPage() {
               />
             ))}
           </div>
+        ) : filteredAdmins.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center py-16 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+          >
+            <Shield className="h-12 w-12 text-neutral-600 mb-4" />
+            <p className="text-lg font-medium text-white">ไม่มีข้อมูล</p>
+            <p className="text-neutral-500 text-sm mt-1">ยังไม่มีรายชื่อ Admin ในระบบ</p>
+          </motion.div>
         ) : (
           <div className="space-y-4">
             {filteredAdmins.map((admin, index) => {

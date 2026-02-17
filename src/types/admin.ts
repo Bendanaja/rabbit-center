@@ -208,6 +208,9 @@ export const PERMISSIONS = {
   VIEW_ADMINS: 'view_admins',
   MANAGE_ADMINS: 'manage_admins',
   VIEW_ACTIVITY_LOGS: 'view_activity_logs',
+
+  // Notifications
+  MANAGE_NOTIFICATIONS: 'manage_notifications',
 } as const;
 
 // Role permissions mapping
@@ -230,6 +233,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
     PERMISSIONS.CANCEL_SUBSCRIPTIONS,
     PERMISSIONS.VIEW_ADMINS,
     PERMISSIONS.VIEW_ACTIVITY_LOGS,
+    PERMISSIONS.MANAGE_NOTIFICATIONS,
   ],
   moderator: [
     PERMISSIONS.VIEW_DASHBOARD,
@@ -257,6 +261,7 @@ export interface AdminNavItem {
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: 'แดชบอร์ด', href: '/admin', icon: 'LayoutDashboard', permission: PERMISSIONS.VIEW_DASHBOARD },
   { name: 'ผู้ใช้งาน', href: '/admin/users', icon: 'Users', permission: PERMISSIONS.VIEW_USERS },
+  { name: 'ส่องแชท', href: '/admin/chats', icon: 'MessageSquare', permission: PERMISSIONS.VIEW_USERS },
   { name: 'AI Models', href: '/admin/models', icon: 'Bot', permission: PERMISSIONS.VIEW_MODELS },
   { name: 'จัดการเนื้อหา', href: '/admin/content', icon: 'FileEdit', permission: PERMISSIONS.EDIT_SITE_CONFIG },
   { name: 'วิเคราะห์', href: '/admin/analytics', icon: 'BarChart3', permission: PERMISSIONS.VIEW_DASHBOARD },
@@ -264,6 +269,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: 'ตรวจสอบ', href: '/admin/moderation', icon: 'Shield', permission: PERMISSIONS.VIEW_FLAGS },
   { name: 'สมาชิก', href: '/admin/subscriptions', icon: 'CreditCard', permission: PERMISSIONS.VIEW_SUBSCRIPTIONS },
   { name: 'จัดการ Admin', href: '/admin/admins', icon: 'UserCog', permission: PERMISSIONS.MANAGE_ADMINS },
+  { name: 'Rate Limits', href: '/admin/rate-limits', icon: 'Gauge', permission: PERMISSIONS.SET_MODEL_LIMITS },
   { name: 'ประวัติ', href: '/admin/activity', icon: 'History', permission: PERMISSIONS.VIEW_ACTIVITY_LOGS },
+  { name: 'การแจ้งเตือน', href: '/admin/notifications', icon: 'Bell', permission: PERMISSIONS.MANAGE_NOTIFICATIONS },
   { name: 'System Health', href: '/admin/system', icon: 'Activity', permission: PERMISSIONS.MANAGE_SYSTEM_SETTINGS },
 ];

@@ -2,8 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getUserFromRequest } from '@/lib/supabase/auth-helper';
 import { MODELS } from '@/lib/byteplus';
+import { invalidateModelAccessCache } from '@/lib/plan-limits';
 
 export const dynamic = 'force-dynamic';
+
+// Derive provider icon from model ID slug (for OpenRouter models without icon_url in DB)
+const PROVIDER_ICONS: Record<string, string> = {
+  'openai': '/images/models/openai.svg',
+  'anthropic': '/images/models/anthropic.svg',
+  'google': '/images/models/google.svg',
+  'deepseek': '/images/models/deepseek.svg',
+  'meta-llama': '/images/models/meta.svg',
+  'meta': '/images/models/meta.svg',
+  'mistralai': '/images/models/mistral.svg',
+  'mistral': '/images/models/mistral.svg',
+  'x-ai': '/images/models/xai.svg',
+  'nvidia': '/images/models/nvidia.svg',
+  'qwen': '/images/models/byteplus.svg',
+  'stepfun': '/images/models/stepfun.svg',
+  'moonshotai': '/images/models/kimi.svg',
+  'moonshot': '/images/models/kimi.svg',
+  'zhipu': '/images/models/zhipu.svg',
+  'thudm': '/images/models/zhipu.svg',
+};
+
+function resolveIcon(modelId: string, iconUrl: string | null, defIcon?: string): string {
+  if (iconUrl) return iconUrl;
+  if (defIcon) return defIcon;
+  const slug = modelId.split('/')[0]?.toLowerCase();
+  if (slug && PROVIDER_ICONS[slug]) return PROVIDER_ICONS[slug];
+  return '/images/models/byteplus.svg';
+}
 
 // Verify admin access
 async function verifyAdminAccess(request: Request) {
@@ -31,31 +60,37 @@ async function syncModelsToDb() {
 
   const { data: existing } = await supabase
     .from('ai_models')
-    .select('model_id');
+    .select('id');
 
-  const existingIds = new Set((existing || []).map(m => m.model_id));
+  const existingIds = new Set((existing || []).map(m => m.id));
 
   const toInsert = Object.entries(MODELS)
     .filter(([key]) => !existingIds.has(key))
     .map(([key, def], idx) => ({
-      model_id: key,
+      id: key,
       name: def.name,
       provider: def.provider,
-      icon: def.icon,
+      icon_url: def.icon,
       description: `${def.modelType.toUpperCase()} model — ${def.provider}`,
-      tier: 'pro' as const,
+      tier: def.isFree ? 'free' : 'starter',
       is_active: true,
       daily_limit: null,
       hourly_limit: null,
       cooldown_seconds: 0,
       priority: 100 - idx,
-      context_length: def.maxContextTokens || null,
+      context_window: def.maxContextTokens || null,
+      max_tokens: 4096,
+      supports_streaming: def.modelType === 'chat',
+      display_order: idx,
     }));
 
   if (toInsert.length > 0) {
     await supabase.from('ai_models').insert(toInsert);
   }
 }
+
+// Track if sync has run this process lifecycle
+let syncDone = false;
 
 // Get all models
 export async function GET(request: Request) {
@@ -67,27 +102,33 @@ export async function GET(request: Request) {
   try {
     const supabase = createAdminClient();
 
-    // Auto-sync real models from byteplus.ts into DB
-    await syncModelsToDb();
+    // Auto-sync only once per server lifecycle (or if ?sync=1)
+    const url = new URL(request.url);
+    if (!syncDone || url.searchParams.get('sync') === '1') {
+      await syncModelsToDb();
+      syncDone = true;
+    }
 
-    const { data: models, error } = await supabase
-      .from('ai_models')
-      .select('*')
-      .order('priority', { ascending: false });
-
-    if (error) throw error;
-
-    // Get usage stats for each model (last 7 days)
+    // Run both queries in parallel
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const { data: usage } = await supabase
-      .from('usage_records')
-      .select('model_id, tokens_input, tokens_output')
-      .gte('date', weekAgo.toISOString().split('T')[0]);
+    const [modelsResult, usageResult] = await Promise.all([
+      supabase
+        .from('ai_models')
+        .select('*')
+        .order('priority', { ascending: false }),
+      supabase
+        .from('usage_records')
+        .select('model_id, tokens_input, tokens_output')
+        .gte('date', weekAgo.toISOString().split('T')[0])
+        .limit(5000),
+    ]);
+
+    if (modelsResult.error) throw modelsResult.error;
 
     const usageMap = new Map<string, { requests: number; tokens: number }>();
-    usage?.forEach((u: { model_id: string; tokens_input: number; tokens_output: number }) => {
+    usageResult.data?.forEach((u: { model_id: string; tokens_input: number; tokens_output: number }) => {
       const current = usageMap.get(u.model_id) || { requests: 0, tokens: 0 };
       usageMap.set(u.model_id, {
         requests: current.requests + 1,
@@ -95,12 +136,17 @@ export async function GET(request: Request) {
       });
     });
 
-    // Enrich with modelType from MODELS constant
-    const modelsWithStats = models?.map(model => ({
-      ...model,
-      model_type: MODELS[model.model_id]?.modelType || 'chat',
-      usage_stats: usageMap.get(model.model_id) || { requests: 0, tokens: 0 },
-    }));
+    // Enrich with modelType from MODELS constant, fallback to 'chat'
+    const modelsWithStats = modelsResult.data?.map(model => {
+      const modelDef = MODELS[model.id];
+      return {
+        ...model,
+        icon_url: resolveIcon(model.id, model.icon_url, modelDef?.icon),
+        model_type: modelDef?.modelType || 'chat',
+        api_provider: modelDef?.apiProvider || (model.id.includes('/') ? 'openrouter' : 'byteplus'),
+        usage_stats: usageMap.get(model.id) || { requests: 0, tokens: 0 },
+      };
+    });
 
     return NextResponse.json(modelsWithStats);
   } catch (error) {
@@ -124,39 +170,75 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
 
     const {
-      model_id,
+      id,
       name,
       provider,
       description,
-      icon,
+      icon_url,
       tier,
       daily_limit,
       hourly_limit,
       cooldown_seconds,
       priority,
-      context_length,
+      context_window,
+      max_tokens,
+      input_cost_per_1k,
+      output_cost_per_1k,
     } = body;
+
+    if (!id || !name || !provider) {
+      return NextResponse.json(
+        { error: 'id, name, and provider are required' },
+        { status: 400 }
+      );
+    }
+
+    // Check for duplicate
+    const { data: existing } = await supabase
+      .from('ai_models')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Model with this ID already exists' },
+        { status: 409 }
+      );
+    }
+
+    // Map tier to DB-valid values ('free', 'starter', 'pro', 'premium')
+    const validTiers = ['free', 'starter', 'pro', 'premium'];
+    const dbTier = validTiers.includes(tier) ? tier : 'pro';
 
     const { data, error } = await supabase
       .from('ai_models')
       .insert({
-        model_id,
+        id,
         name,
         provider,
-        description,
-        icon,
-        tier: tier || 'pro',
+        description: description || `Chat model — ${provider}`,
+        icon_url: icon_url || null,
+        tier: dbTier,
         is_active: true,
-        daily_limit,
-        hourly_limit,
+        daily_limit: daily_limit || null,
+        hourly_limit: hourly_limit || null,
         cooldown_seconds: cooldown_seconds || 0,
         priority: priority || 0,
-        context_length,
+        context_window: context_window || null,
+        max_tokens: max_tokens || 4096,
+        input_cost_per_1k: input_cost_per_1k || null,
+        output_cost_per_1k: output_cost_per_1k || null,
+        supports_streaming: true,
+        display_order: 0,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    // Fire-and-forget: don't block the response for cache invalidation
+    invalidateModelAccessCache().catch(() => {});
 
     return NextResponse.json(data);
   } catch (error) {

@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { useRealtime } from './useRealtime';
 import type { AdminUser, AdminRole } from '@/types/admin';
 import { hasPermission } from '@/types/admin';
+import { authFetch } from '@/lib/api-client';
 
 interface UseAdminReturn {
   isAdmin: boolean;
@@ -25,6 +27,7 @@ export function useAdmin(): UseAdminReturn {
   const [role, setRole] = useState<AdminRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const checkedUserIdRef = useRef<string | null>(null);
 
   const checkAdmin = useCallback(async () => {
     if (!user) {
@@ -33,11 +36,20 @@ export function useAdmin(): UseAdminReturn {
       setAdminData(null);
       setRole(null);
       setLoading(false);
+      checkedUserIdRef.current = null;
+      return;
+    }
+
+    // Skip re-check if same user was already verified (token refresh, tab focus, etc.)
+    if (checkedUserIdRef.current === user.id && adminData !== null) {
       return;
     }
 
     try {
-      setLoading(true);
+      // Only show loading spinner on first check
+      if (checkedUserIdRef.current !== user.id) {
+        setLoading(true);
+      }
       setError(null);
 
       const supabase = createClient();
@@ -81,19 +93,16 @@ export function useAdmin(): UseAdminReturn {
         setIsOwner(data.role === 'owner');
         setAdminData(adminWithProfile);
         setRole(data.role as AdminRole);
+        checkedUserIdRef.current = user.id;
 
-        // Log admin login
-        try {
-          await supabase.rpc('log_admin_activity', {
-            p_admin_user_id: user.id,
-            p_action: 'login',
-            p_resource_type: null,
-            p_resource_id: null,
-            p_details: { timestamp: new Date().toISOString() }
-          });
-        } catch {
-          // Ignore logging errors
-        }
+        // Log admin login (fire-and-forget)
+        supabase.rpc('log_admin_activity', {
+          p_admin_user_id: user.id,
+          p_action: 'login',
+          p_resource_type: null,
+          p_resource_id: null,
+          p_details: { timestamp: new Date().toISOString() }
+        }).then(() => {});
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
@@ -105,7 +114,7 @@ export function useAdmin(): UseAdminReturn {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     checkAdmin();
@@ -145,7 +154,7 @@ export function useAdminStats() {
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/analytics/overview');
+      const response = await authFetch('/api/admin/analytics/overview');
       if (!response.ok) throw new Error('Failed to fetch stats');
       const data = await response.json();
       setStats(data);
@@ -159,6 +168,15 @@ export function useAdminStats() {
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Real-time: auto-refetch when relevant tables change
+  const statsSubs = useMemo(() => [
+    { table: 'daily_usage' },
+    { table: 'customer_profiles' },
+    { table: 'chats' },
+    { table: 'subscriptions' },
+  ], []);
+  useRealtime(statsSubs, fetchStats, !loading);
 
   return { stats, loading, error, refetch: fetchStats };
 }

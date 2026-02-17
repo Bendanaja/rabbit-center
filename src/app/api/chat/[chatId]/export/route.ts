@@ -19,7 +19,7 @@ export async function GET(
   // Get chat with ownership check
   const { data: chat, error: chatError } = await adminSupabase
     .from('chats')
-    .select('*')
+    .select('id, title, model_id, created_at, updated_at')
     .eq('id', chatId)
     .eq('user_id', user.id)
     .single()
@@ -31,7 +31,7 @@ export async function GET(
   // Get messages
   const { data: messages, error: msgError } = await adminSupabase
     .from('messages')
-    .select('*')
+    .select('id, role, content, model_id, created_at')
     .eq('chat_id', chatId)
     .order('created_at', { ascending: true })
 

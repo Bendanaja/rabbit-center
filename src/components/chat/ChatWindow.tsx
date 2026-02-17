@@ -16,17 +16,24 @@ import { PROMPT_TEMPLATES, PROMPT_CATEGORIES } from '@/lib/prompt-templates';
 import type { Message } from '@/types/database';
 import type { ModelId } from '@/lib/constants';
 
+interface ModelDisplayInfo {
+  name: string;
+  icon: string;
+  provider: string;
+}
+
 interface ChatWindowProps {
   chatId: string | null;
   userId: string;
   onChatCreated?: (chatId: string) => void;
   onCreateChat?: () => Promise<void>;
   selectedModel: string;
+  modelDisplay?: ModelDisplayInfo | null;
   onModelChange: (modelId: string) => void;
   onMessageSent?: () => void;
 }
 
-export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, selectedModel, onModelChange, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, selectedModel, modelDisplay, onModelChange, onMessageSent }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<number>(0);
@@ -158,16 +165,21 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     };
   }, []);
 
-  // Update selected model when chat changes (only if the stored model_id is valid)
+  // Restore model from DB only when switching to a DIFFERENT chat
+  // Skip if ModelSelector already picked a valid model (avoids race with auto-fallback)
+  const prevChatIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (chat?.model_id && chat.model_id !== selectedModel) {
-      // Only sync if model_id exists in the MODELS registry; skip stale/invalid IDs
+    if (!chat?.id || chat.id === prevChatIdRef.current) return;
+    prevChatIdRef.current = chat.id;
+
+    // Only restore if selectedModel is empty (initial state) — don't override ModelSelector's choice
+    if (!selectedModel && chat.model_id) {
       const model = getModelById(chat.model_id);
-      if (model) {
+      if (model || chat.model_id.includes('/')) {
         onModelChange(chat.model_id);
       }
     }
-  }, [chat?.model_id]);
+  }, [chat?.id, chat?.model_id]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -239,7 +251,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       typewriterRef.current = null;
     }
 
-    // Show searching indicator if web search enabled
+    // Show searching indicator if web search manually enabled
     if (webSearchEnabled) {
       setIsSearching(true);
     }
@@ -251,6 +263,11 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       selectedModel,
       {
         webSearch: webSearchEnabled,
+        onSearching: () => {
+          // Backend is auto-searching — show indicator
+          if (activeChatIdRef.current !== targetChatId) return;
+          setIsSearching(true);
+        },
         onSearchResults: () => {
           // Search complete, AI will start generating
           setIsSearching(false);
@@ -869,7 +886,26 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     );
   }, [chatId, localMessages, selectedModel, generate]);
 
-  const currentModel = getModelById(selectedModel) || getModelById('deepseek-v3-2-251201');
+  // Resolve model info: MODELS registry → parent-supplied display info → derive from ID
+  const currentModel = getModelById(selectedModel) || (modelDisplay ? {
+    id: selectedModel, name: modelDisplay.name, provider: modelDisplay.provider, icon: modelDisplay.icon,
+    isFree: false, isLocked: false, modelType: 'chat' as const, apiProvider: 'openrouter' as const,
+  } : selectedModel ? (() => {
+    const hasSlash = selectedModel.includes('/');
+    return {
+      id: selectedModel,
+      name: hasSlash
+        ? (selectedModel.split('/').pop()?.replace(/:.*$/, '') || selectedModel)
+        : selectedModel,
+      provider: hasSlash
+        ? ((selectedModel.split('/')[0] || 'AI').charAt(0).toUpperCase() + (selectedModel.split('/')[0] || '').slice(1))
+        : 'AI',
+      icon: hasSlash
+        ? `/images/models/${selectedModel.split('/')[0]?.toLowerCase() || 'byteplus'}.svg`
+        : '/images/models/byteplus.svg',
+      isFree: false, isLocked: false, modelType: 'chat' as const, apiProvider: 'openrouter' as const,
+    };
+  })() : null);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-neutral-950">

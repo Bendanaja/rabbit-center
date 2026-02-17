@@ -19,6 +19,7 @@ import {
 import Image from 'next/image';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 
 interface FlaggedChat {
   id: string;
@@ -56,7 +57,7 @@ export default function AdminModerationPage() {
         severity: filterSeverity,
         search,
       });
-      const response = await fetch(`/api/admin/moderation?${params}`);
+      const response = await authFetch(`/api/admin/moderation?${params}`);
       if (response.ok) {
         const data = await response.json();
         setFlags(data || []);
@@ -82,7 +83,7 @@ export default function AdminModerationPage() {
 
   const handleAction = async (flagId: string, action: 'dismiss' | 'warn' | 'ban') => {
     try {
-      const response = await fetch(`/api/admin/moderation/${flagId}`, {
+      const response = await authFetch(`/api/admin/moderation/${flagId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, notes: actionNotes }),

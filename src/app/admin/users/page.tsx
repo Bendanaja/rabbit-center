@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -23,6 +24,8 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { AdminTable, Column } from '@/components/admin/AdminTable';
 import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
+import { useRealtime } from '@/hooks/useRealtime';
 
 interface User {
   id: string;
@@ -81,26 +84,41 @@ export default function AdminUsersPage() {
         params.set('plan', planFilter);
       }
 
-      const response = await fetch(`/api/admin/users?${params}`);
+      const response = await authFetch(`/api/admin/users?${params}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
         setTotal(data.total || 0);
         setTotalPages(data.totalPages || 1);
+        setLoading(false);
+        setRefreshing(false);
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [page, search, statusFilter, planFilter, sortBy, sortOrder]);
 
+  // Initial load: immediate. Search: debounce 300ms. Keep old data visible.
+  const isFirstLoad = useRef(true);
   useEffect(() => {
-    setLoading(true);
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      fetchUsers();
+      return;
+    }
+    // Don't show loading skeleton when filtering - keep old data visible
     const debounce = setTimeout(fetchUsers, 300);
     return () => clearTimeout(debounce);
   }, [fetchUsers]);
+
+  // Real-time: auto-refetch on DB changes
+  const userSubs = useMemo(() => [
+    { table: 'customer_profiles' },
+    { table: 'subscriptions' },
+  ], []);
+  useRealtime(userSubs, fetchUsers);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -120,7 +138,7 @@ export default function AdminUsersPage() {
     if (!selectedUser || !banReason) return;
 
     try {
-      const response = await fetch(`/api/admin/users/${selectedUser.user_id}/ban`, {
+      const response = await authFetch(`/api/admin/users/${selectedUser.user_id}/ban`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,7 +160,7 @@ export default function AdminUsersPage() {
 
   const handleUnbanUser = async (userId: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/ban`, {
+      const response = await authFetch(`/api/admin/users/${userId}/ban`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -158,7 +176,7 @@ export default function AdminUsersPage() {
   const handleChangePlan = async (userId: string, newPlan: PlanType) => {
     setChangingPlan(true);
     try {
-      const response = await fetch(`/api/admin/users/${userId}/plan`, {
+      const response = await authFetch(`/api/admin/users/${userId}/plan`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: newPlan }),
@@ -344,7 +362,11 @@ export default function AdminUsersPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">จัดการผู้ใช้</h1>
             <p className="text-neutral-400 mt-1">
-              จัดการผู้ใช้ทั้งหมด {total.toLocaleString()} คน
+              {loading ? (
+                <span className="inline-block h-4 w-40 bg-neutral-800 rounded animate-pulse" />
+              ) : (
+                <>จัดการผู้ใช้ทั้งหมด {total.toLocaleString()} คน</>
+              )}
             </p>
           </div>
         </motion.div>
@@ -428,6 +450,9 @@ export default function AdminUsersPage() {
         </motion.div>
       </div>
 
+      {/* Modals via Portal to avoid framer-motion transform breaking fixed positioning */}
+      {typeof document !== 'undefined' && createPortal(
+        <>
       {/* Plan Change Modal */}
       <AnimatePresence>
         {showPlanModal && selectedUser && (
@@ -684,6 +709,9 @@ export default function AdminUsersPage() {
           </motion.div>
         )}
       </AnimatePresence>
+        </>,
+        document.body
+      )}
     </div>
   );
 }

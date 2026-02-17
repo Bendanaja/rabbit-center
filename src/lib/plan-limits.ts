@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cacheGet, cacheSet, cacheDel } from '@/lib/redis'
+import { cacheGet, cacheSet, cacheDel, redisIncrByFloat } from '@/lib/redis'
 import { getModelKey } from '@/lib/byteplus'
 
 // Plan IDs matching PRICING_PLANS in constants.ts
@@ -7,11 +7,18 @@ export type PlanId = 'free' | 'starter' | 'pro' | 'premium'
 
 export type PlanAction = 'chat' | 'image' | 'video' | 'search'
 
+/**
+ * Plan tier hierarchy (lower index = lower tier).
+ * A model with tier='starter' is accessible by starter, pro, and premium.
+ */
+const PLAN_HIERARCHY: PlanId[] = ['free', 'starter', 'pro', 'premium']
+
+export function getPlanLevel(planId: PlanId): number {
+  return PLAN_HIERARCHY.indexOf(planId)
+}
+
 export interface PlanLimits {
   monthlyBudgetThb: number     // Monthly budget in THB (0 = unlimited)
-  allowedModels: string[]      // empty = all models
-  allowedImageModels: string[] // empty = all image models
-  allowedVideoModels: string[] // empty = all video models
   canGenerateImages: boolean   // false = blocked entirely (Free plan)
   canGenerateVideos: boolean   // false = blocked entirely (Free plan)
   chatHistoryDays: number      // 0 = unlimited
@@ -19,38 +26,32 @@ export interface PlanLimits {
   hasPrioritySpeed: boolean
 }
 
-// Economy-tier models (cheapest to operate)
-const FREE_MODELS = ['seed-1-6-flash', 'gpt-oss-120b']
-const STARTER_MODELS = ['seed-1-6-flash', 'gpt-oss-120b', 'deepseek-v3-2', 'glm-4', 'nano-banana']
-// Pro gets all BytePlus + nano-banana-pro + gpt-5-2 (NOT grok-4 or claude-4-6)
-const PRO_MODELS = [
+// Hardcoded fallback model lists (used if DB query fails)
+const FALLBACK_FREE_MODELS = ['seed-1-6-flash', 'gpt-oss-120b']
+const FALLBACK_STARTER_MODELS = ['seed-1-6-flash', 'gpt-oss-120b', 'deepseek-v3-2', 'glm-4', 'nano-banana']
+const FALLBACK_PRO_MODELS = [
   'seed-1-6-flash', 'gpt-oss-120b', 'deepseek-v3-2', 'glm-4', 'nano-banana',
   'deepseek-r1', 'deepseek-v3-1', 'seed-1-8', 'seed-1-6', 'kimi-k2-thinking', 'kimi-k2',
   'nano-banana-pro', 'gpt-5-2'
 ]
-// Premium: [] (all models including grok-4, claude-4-6)
-const STARTER_IMAGE_MODELS = ['seedream-3', 'seedream-4'] // exclude 4.5 (most expensive)
-const STARTER_VIDEO_MODELS = ['seedance-lite-t2v', 'seedance-lite-i2v', 'seedance-pro-fast'] // cheap video models only
 
 /**
  * Plan limits with monthly budget system.
  * Budget = 50% of plan price, guaranteeing 50%+ margin.
  *
  * Budget per plan:
- *   Free:    ฿5/month (acquisition cost)
+ *   Free:    ฿10/month (acquisition cost)
  *   Starter: ฿100/month (฿199 revenue → 50% margin)
  *   Pro:     ฿250/month (฿499 revenue → 50% margin)
  *   Premium: ฿400/month (฿799 revenue → 50% margin)
  *
- * Model tier restrictions still apply — Free users can't use Claude 4.6 etc.
+ * Model access is now DYNAMIC — managed via ai_models.tier in DB.
+ * The tier field on each model sets the MINIMUM plan required.
  * Free users can't generate images/videos regardless of budget.
  */
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   free: {
-    monthlyBudgetThb: 5,
-    allowedModels: FREE_MODELS,
-    allowedImageModels: [],
-    allowedVideoModels: [],
+    monthlyBudgetThb: 10,
     canGenerateImages: false,
     canGenerateVideos: false,
     chatHistoryDays: 7,
@@ -59,9 +60,6 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   starter: {
     monthlyBudgetThb: 100,
-    allowedModels: STARTER_MODELS,
-    allowedImageModels: STARTER_IMAGE_MODELS,
-    allowedVideoModels: STARTER_VIDEO_MODELS,
     canGenerateImages: true,
     canGenerateVideos: true,
     chatHistoryDays: 30,
@@ -70,9 +68,6 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   pro: {
     monthlyBudgetThb: 250,
-    allowedModels: PRO_MODELS,
-    allowedImageModels: [], // all image models
-    allowedVideoModels: [], // all video models
     canGenerateImages: true,
     canGenerateVideos: true,
     chatHistoryDays: 0, // unlimited
@@ -81,15 +76,103 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
   },
   premium: {
     monthlyBudgetThb: 400,
-    allowedModels: [], // all models (including grok-4, claude-4-6)
-    allowedImageModels: [],
-    allowedVideoModels: [],
     canGenerateImages: true,
     canGenerateVideos: true,
     chatHistoryDays: 0, // unlimited
     hasApiAccess: true,
     hasPrioritySpeed: true,
   },
+}
+
+/**
+ * Get allowed model IDs for a plan by querying the DB.
+ * All paid plans (starter/pro/premium) can use ALL models.
+ * Only the free plan is restricted to free-tier models.
+ * Results are cached for 2 minutes.
+ * Returns empty array meaning all models allowed.
+ */
+export async function getAllowedModelsForPlan(
+  planId: PlanId,
+  modelType?: 'chat' | 'image' | 'video'
+): Promise<string[]> {
+  // All paid plans get all models
+  if (planId !== 'free') return []
+
+  const cacheKey = `plan_models:${planId}:${modelType || 'all'}`
+  const cached = await cacheGet<string[]>(cacheKey)
+  if (cached) return cached
+
+  try {
+    const supabase = createAdminClient()
+
+    // Free plan: only get models with tier='free'
+    const { data } = await supabase
+      .from('ai_models')
+      .select('id, tier')
+      .eq('is_active', true)
+
+    if (!data || data.length === 0) {
+      const fallback = getFallbackModels(planId, modelType)
+      await cacheSet(cacheKey, fallback, 30)
+      return fallback
+    }
+
+    // Free users only get free-tier models
+    const allowed = data
+      .filter(m => normalizeTier(m.tier) === 'free')
+      .map(m => m.id)
+
+    await cacheSet(cacheKey, allowed, 120) // cache 2 min
+    return allowed
+  } catch (err) {
+    console.warn('Failed to fetch plan models from DB, using fallback:', err)
+    return getFallbackModels(planId, modelType)
+  }
+}
+
+/**
+ * Normalize tier values from DB (handles legacy 'enterprise' → 'premium').
+ */
+function normalizeTier(tier: string): PlanId {
+  if (tier === 'enterprise') return 'premium'
+  if (PLAN_HIERARCHY.includes(tier as PlanId)) return tier as PlanId
+  return 'pro' // default unknown tiers to pro
+}
+
+/**
+ * Fallback hardcoded model lists when DB is unavailable.
+ */
+function getFallbackModels(planId: PlanId, modelType?: string): string[] {
+  if (modelType === 'image') {
+    if (planId === 'free') return []
+    if (planId === 'starter') return ['seedream-3', 'seedream-4']
+    return [] // pro+ gets all
+  }
+  if (modelType === 'video') {
+    if (planId === 'free') return []
+    if (planId === 'starter') return ['seedance-lite-t2v', 'seedance-lite-i2v', 'seedance-pro-fast']
+    return [] // pro+ gets all
+  }
+  // Chat models
+  if (planId === 'free') return FALLBACK_FREE_MODELS
+  if (planId === 'starter') return FALLBACK_STARTER_MODELS
+  if (planId === 'pro') return FALLBACK_PRO_MODELS
+  return [] // premium gets all
+}
+
+/**
+ * Invalidate cached model access lists for all plans.
+ * Call this when admin changes model tier settings.
+ */
+export async function invalidateModelAccessCache(): Promise<void> {
+  const types = ['all', 'chat', 'image', 'video']
+  const promises: Promise<void>[] = []
+  for (const plan of PLAN_HIERARCHY) {
+    for (const type of types) {
+      promises.push(cacheDel(`plan_models:${plan}:${type}`))
+    }
+  }
+  await Promise.all(promises)
 }
 
 export interface UserPlan {
@@ -121,7 +204,7 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
 
   if (!subscription) {
     const result: UserPlan = { planId: 'free', status: 'none', expiresAt: null }
-    await cacheSet(cacheKey, result, 300)
+    await cacheSet(cacheKey, result, 60)
     return result
   }
 
@@ -129,7 +212,7 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
   const expiresAt = subscription.current_period_end
   if (expiresAt && new Date(expiresAt) < new Date()) {
     const result: UserPlan = { planId: 'free', status: 'expired', expiresAt }
-    await cacheSet(cacheKey, result, 300)
+    await cacheSet(cacheKey, result, 60)
     return result
   }
 
@@ -137,7 +220,7 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
   // Validate plan_id is a known plan
   if (!PLAN_LIMITS[planId]) {
     const result: UserPlan = { planId: 'free', status: 'none', expiresAt: null }
-    await cacheSet(cacheKey, result, 300)
+    await cacheSet(cacheKey, result, 60)
     return result
   }
 
@@ -146,7 +229,7 @@ export async function getUserPlan(userId: string): Promise<UserPlan> {
     status: subscription.status as UserPlan['status'],
     expiresAt,
   }
-  await cacheSet(cacheKey, result, 300)
+  await cacheSet(cacheKey, result, 60)
   return result
 }
 
@@ -158,12 +241,111 @@ export async function invalidateUserPlanCache(userId: string): Promise<void> {
   await cacheDel(`plan:${userId}`)
 }
 
+export interface PlanOverrides {
+  monthly_budget_thb: number | null
+  rate_chat_per_min: number | null
+  rate_image_per_min: number | null
+  rate_video_per_min: number | null
+  rate_search_per_min: number | null
+  allowed_models: string[] | null
+  blocked_models: string[] | null
+  notes: string | null
+}
+
+// Sentinel value to distinguish "no override exists" from "cache miss"
+const NO_OVERRIDE_SENTINEL = '__NO_OVERRIDE__'
+
+/**
+ * Get admin-configured overrides for a plan tier from plan_overrides table.
+ * Cached in Redis for 2 minutes. Returns null if no overrides set.
+ */
+export async function getPlanOverrides(planId: PlanId): Promise<PlanOverrides | null> {
+  const cacheKey = `plan_overrides:${planId}`
+  const cached = await cacheGet<PlanOverrides | string>(cacheKey)
+  if (cached === NO_OVERRIDE_SENTINEL) return null
+  if (cached !== undefined && cached !== null) return cached as PlanOverrides
+
+  try {
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from('plan_overrides')
+      .select('monthly_budget_thb, rate_chat_per_min, rate_image_per_min, rate_video_per_min, rate_search_per_min, allowed_models, blocked_models, notes')
+      .eq('plan_id', planId)
+      .single()
+
+    if (!data) {
+      await cacheSet(cacheKey, NO_OVERRIDE_SENTINEL, 120)
+      return null
+    }
+
+    await cacheSet(cacheKey, data, 120) // cache 2 min
+    return data as PlanOverrides
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Invalidate cached plan overrides.
+ * Call this when admin changes plan overrides.
+ */
+export async function invalidatePlanOverridesCache(planId?: PlanId): Promise<void> {
+  if (planId) {
+    await cacheDel(`plan_overrides:${planId}`)
+  } else {
+    // Invalidate all plans
+    await Promise.all(
+      PLAN_HIERARCHY.map(p => cacheDel(`plan_overrides:${p}`))
+    )
+  }
+}
+
+// Keep for backwards compatibility with user_overrides table
+export async function invalidateUserOverridesCache(userId: string): Promise<void> {
+  await cacheDel(`user_overrides:${userId}`)
+}
+
 export interface PlanCheckResult {
   allowed: boolean
   reason?: string
   planId: PlanId
   budgetUsed?: number   // THB used this month
   budgetLimit?: number  // THB monthly budget
+}
+
+/**
+ * Get the Redis key for a user's monthly budget reservation counter.
+ */
+function getBudgetKey(userId: string): string {
+  const now = new Date()
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return `budget:${userId}:${monthKey}`
+}
+
+/**
+ * Atomically reserve budget for a request using Redis INCRBYFLOAT.
+ * Returns { allowed, newTotal } or null if Redis is unavailable.
+ * If the new total exceeds the budget, the reservation is rolled back.
+ */
+export async function reserveBudget(
+  userId: string,
+  estimatedCostThb: number,
+  budgetLimit: number
+): Promise<{ allowed: boolean; newTotal: number } | null> {
+  const key = getBudgetKey(userId)
+  // TTL: remainder of the month + 1 day buffer (max ~32 days)
+  const ttlSeconds = 32 * 24 * 60 * 60
+
+  const newTotal = await redisIncrByFloat(key, estimatedCostThb, ttlSeconds)
+  if (newTotal === null) return null // Redis unavailable, caller uses DB fallback
+
+  if (newTotal > budgetLimit) {
+    // Over budget -- roll back the reservation
+    await redisIncrByFloat(key, -estimatedCostThb)
+    return { allowed: false, newTotal: newTotal - estimatedCostThb }
+  }
+
+  return { allowed: true, newTotal }
 }
 
 /**
@@ -257,35 +439,39 @@ async function isAdminUser(userId: string): Promise<boolean> {
     .single()
 
   const result = !!data
-  await cacheSet(cacheKey, result, 300) // cache 5 min
+  await cacheSet(cacheKey, result, 60) // cache 1 min
   return result
 }
 
 /**
- * Check if a model is active (not disabled by admin).
- * Returns true if the model is active or not found in DB (defaults to active).
+ * Check if a model is active and get its tier.
+ * Returns { isActive, tier } or defaults if not found in DB.
  */
-async function isModelActive(modelKey: string): Promise<boolean> {
-  const cacheKey = `model_active:${modelKey}`
-  const cached = await cacheGet<boolean>(cacheKey)
-  if (cached !== null) return cached
+async function getModelInfo(modelKey: string): Promise<{ isActive: boolean; tier: PlanId }> {
+  const cacheKey = `model_info:${modelKey}`
+  const cached = await cacheGet<{ isActive: boolean; tier: PlanId }>(cacheKey)
+  if (cached) return cached
 
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('ai_models')
-    .select('is_active')
-    .eq('model_id', modelKey)
+    .select('is_active, tier')
+    .eq('id', modelKey)
     .single()
 
-  // If not in DB, default to active (follows hardcoded MODELS list)
-  const isActive = data ? data.is_active !== false : true
-  await cacheSet(cacheKey, isActive, 60) // cache 1 min
-  return isActive
+  // If not in DB, treat as inactive to reject unknown/arbitrary model IDs
+  const result = data
+    ? { isActive: data.is_active !== false, tier: normalizeTier(data.tier) }
+    : { isActive: false, tier: 'free' as PlanId }
+
+  await cacheSet(cacheKey, result, 60) // cache 1 min
+  return result
 }
 
 /**
  * Check whether a user is allowed to perform an action based on their plan.
  * Admin users bypass all limits.
+ * Model access is determined by the model's tier in the DB.
  * Returns allowed/denied with reason.
  */
 export async function checkPlanLimit(
@@ -301,30 +487,56 @@ export async function checkPlanLimit(
 
   const userPlan = await getUserPlan(userId)
   const limits = PLAN_LIMITS[userPlan.planId]
+  const overrides = await getPlanOverrides(userPlan.planId)
 
   // Resolve full model ID (e.g. 'deepseek-v3-2-251201') to short key (e.g. 'deepseek-v3-2')
-  // The allowedModels lists use short keys, but the API receives full IDs
   const resolvedModelKey = modelKey ? (getModelKey(modelKey) || modelKey) : undefined
 
-  // Check if model is disabled by admin
+  // Plan-level model whitelist/blocklist check (takes priority over tier check)
+  if (resolvedModelKey && overrides) {
+    // Whitelist takes priority over blocklist
+    if (overrides.allowed_models && overrides.allowed_models.length > 0) {
+      if (!overrides.allowed_models.includes(resolvedModelKey)) {
+        return {
+          allowed: false,
+          reason: 'แพลนของคุณไม่มีสิทธิ์ใช้โมเดลนี้ กรุณาเลือกโมเดลอื่น',
+          planId: userPlan.planId,
+        }
+      }
+    } else if (overrides.blocked_models && overrides.blocked_models.length > 0) {
+      if (overrides.blocked_models.includes(resolvedModelKey)) {
+        return {
+          allowed: false,
+          reason: 'โมเดลนี้ถูกจำกัดสำหรับแพลนของคุณ กรุณาเลือกโมเดลอื่น',
+          planId: userPlan.planId,
+        }
+      }
+    }
+  }
+
+  // Check model access via DB tier
   if (resolvedModelKey) {
-    const active = await isModelActive(resolvedModelKey)
-    if (!active) {
+    const modelInfo = await getModelInfo(resolvedModelKey)
+
+    // Check if model is disabled by admin
+    if (!modelInfo.isActive) {
       return {
         allowed: false,
         reason: 'โมเดลนี้ถูกปิดใช้งานชั่วคราว กรุณาเลือกโมเดลอื่น',
         planId: userPlan.planId,
       }
     }
-  }
 
-  // Check model access for chat actions
-  if (action === 'chat' && resolvedModelKey && limits.allowedModels.length > 0) {
-    if (!limits.allowedModels.includes(resolvedModelKey)) {
-      return {
-        allowed: false,
-        reason: `โมเดลนี้ต้องใช้แพลนที่สูงกว่า กรุณาอัปเกรดเพื่อใช้งานโมเดลนี้`,
-        planId: userPlan.planId,
+    // All paid plans (starter+) can use ALL models.
+    // Only free users are restricted to free-tier models.
+    if (userPlan.planId === 'free') {
+      const modelTier = normalizeTier(modelInfo.tier)
+      if (modelTier !== 'free') {
+        return {
+          allowed: false,
+          reason: 'โมเดลนี้สำหรับสมาชิกเท่านั้น กรุณาอัปเกรดแพลนเพื่อใช้งาน',
+          planId: userPlan.planId,
+        }
       }
     }
   }
@@ -338,17 +550,6 @@ export async function checkPlanLimit(
     }
   }
 
-  // Check image model access (some plans restrict to cheaper models)
-  if (action === 'image' && resolvedModelKey && limits.allowedImageModels.length > 0) {
-    if (!limits.allowedImageModels.includes(resolvedModelKey)) {
-      return {
-        allowed: false,
-        reason: 'โมเดลสร้างรูปนี้ต้องใช้แพลนที่สูงกว่า กรุณาอัปเกรดเพื่อใช้งาน',
-        planId: userPlan.planId,
-      }
-    }
-  }
-
   // Check video access - blocked entirely for plans without video capability
   if (action === 'video' && !limits.canGenerateVideos) {
     return {
@@ -358,34 +559,47 @@ export async function checkPlanLimit(
     }
   }
 
-  // Check video model access
-  if (action === 'video' && resolvedModelKey && limits.allowedVideoModels.length > 0) {
-    if (!limits.allowedVideoModels.includes(resolvedModelKey)) {
-      return {
-        allowed: false,
-        reason: 'โมเดลสร้างวิดีโอนี้ต้องใช้แพลนที่สูงกว่า กรุณาอัปเกรดเพื่อใช้งาน',
-        planId: userPlan.planId,
-      }
-    }
-  }
-
   // Search is unlimited (self-hosted SearXNG, no cost)
   if (action === 'search') {
     return { allowed: true, planId: userPlan.planId }
   }
 
-  // Budget check
-  if (limits.monthlyBudgetThb > 0) {
-    const usedThb = await getMonthlyUsage(userId)
+  // Budget check — use plan override budget if set, otherwise use hardcoded default
+  const budgetLimit = overrides?.monthly_budget_thb != null
+    ? Number(overrides.monthly_budget_thb)
+    : limits.monthlyBudgetThb
+
+  if (budgetLimit > 0) {
     const costEstimate = estimatedCostThb || 0.01 // fallback tiny amount
 
-    if (usedThb + costEstimate > limits.monthlyBudgetThb) {
-      return {
-        allowed: false,
-        reason: `วงเงินประจำเดือนหมดแล้ว (${usedThb.toFixed(2)}/${limits.monthlyBudgetThb} บาท) กรุณาอัปเกรดแพลนหรือรอเดือนหน้า`,
-        planId: userPlan.planId,
-        budgetUsed: usedThb,
-        budgetLimit: limits.monthlyBudgetThb,
+    // Try atomic Redis reservation first to prevent race conditions.
+    // Multiple concurrent requests each atomically increment the counter,
+    // so they see each other's reservations immediately.
+    const reservation = await reserveBudget(userId, costEstimate, budgetLimit)
+
+    if (reservation) {
+      // Redis available — use atomic reservation result
+      if (!reservation.allowed) {
+        return {
+          allowed: false,
+          reason: `วงเงินประจำเดือนหมดแล้ว (${reservation.newTotal.toFixed(2)}/${budgetLimit} บาท) กรุณาอัปเกรดแพลนหรือรอเดือนหน้า`,
+          planId: userPlan.planId,
+          budgetUsed: reservation.newTotal,
+          budgetLimit,
+        }
+      }
+    } else {
+      // Redis unavailable — fall back to DB check (non-atomic, but better than nothing)
+      const usedThb = await getMonthlyUsage(userId)
+
+      if (usedThb + costEstimate > budgetLimit) {
+        return {
+          allowed: false,
+          reason: `วงเงินประจำเดือนหมดแล้ว (${usedThb.toFixed(2)}/${budgetLimit} บาท) กรุณาอัปเกรดแพลนหรือรอเดือนหน้า`,
+          planId: userPlan.planId,
+          budgetUsed: usedThb,
+          budgetLimit,
+        }
       }
     }
   }

@@ -21,6 +21,7 @@ export interface ModelDefinition {
   isFree: boolean
   isLocked: boolean
   modelType: ModelType
+  apiProvider: 'byteplus' | 'openrouter'
   capabilities?: string[] // e.g. ['t2i', 'i2i'] or ['t2v', 'i2v']
   maxContextTokens?: number // Max input context window for chat models
 }
@@ -29,32 +30,41 @@ export const MODELS: Record<string, ModelDefinition> = {
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Chat/LLM (Free)
   // ═══════════════════════════════════════════
-  'deepseek-r1': { id: 'deepseek-r1-250528', name: 'DeepSeek R1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'deepseek-v3-2': { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3.2', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'deepseek-v3-1': { id: 'deepseek-v3-1-250821', name: 'DeepSeek V3.1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'seed-1-8': { id: 'seed-1-8-251228', name: 'Seed 1.8', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'seed-1-6': { id: 'seed-1-6-250915', name: 'Seed 1.6', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'seed-1-6-flash': { id: 'seed-1-6-flash-250715', name: 'Seed 1.6 Flash', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
-  'gpt-oss-120b': { id: 'gpt-oss-120b-250805', name: 'GPT-OSS 120B', provider: 'BytePlus', icon: '/images/models/gpt-oss.svg', isFree: true, isLocked: false, modelType: 'chat', maxContextTokens: 128_000 },
+  'deepseek-r1': { id: 'deepseek-r1-250528', name: 'DeepSeek R1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'deepseek-v3-2': { id: 'deepseek-v3-2-251201', name: 'DeepSeek V3.2', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'deepseek-v3-1': { id: 'deepseek-v3-1-250821', name: 'DeepSeek V3.1', provider: 'DeepSeek', icon: '/images/models/deepseek.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'seed-1-8': { id: 'seed-1-8-251228', name: 'Seed 1.8', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'seed-1-6': { id: 'seed-1-6-250915', name: 'Seed 1.6', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'seed-1-6-flash': { id: 'seed-1-6-flash-250715', name: 'Seed 1.6 Flash', provider: 'ByteDance', icon: '/images/models/byteplus.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
+  'gpt-oss-120b': { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 131_000 },
+
+  // ═══════════════════════════════════════════
+  // OpenRouter Models
+  // ═══════════════════════════════════════════
+  'nano-banana': { id: 'google/gemini-2.5-flash-preview:thinking', name: 'Nano Banana', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 1_000_000 },
+  'nano-banana-pro': { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 65_000 },
+  'gpt-5-2': { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 400_000 },
+  'grok-4': { id: 'x-ai/grok-4', name: 'Grok 4', provider: 'xAI', icon: '/images/models/xai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 256_000 },
+  'claude-4-6': { id: 'anthropic/claude-opus-4-6', name: 'Claude 4.6 Opus', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 200_000 },
 
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Image Generation (Free)
   // ═══════════════════════════════════════════
-  'seedream-3': { id: 'seedream-3-0-t2i-250415', name: 'Seedream 3.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', capabilities: ['t2i'] },
-  'seedream-4': { id: 'seedream-4-0-250828', name: 'Seedream 4.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', capabilities: ['t2i', 'i2i'] },
-  'seedream-4-5': { id: 'seedream-4-5-251128', name: 'Seedream 4.5', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', capabilities: ['t2i', 'i2i'] },
+  'seedream-3': { id: 'seedream-3-0-t2i-250415', name: 'Seedream 3.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i'] },
+  'seedream-4': { id: 'seedream-4-0-250828', name: 'Seedream 4.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i', 'i2i'] },
+  'seedream-4-5': { id: 'seedream-4-5-251128', name: 'Seedream 4.5', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i', 'i2i'] },
 
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Video Generation (Free)
   // ═══════════════════════════════════════════
-  'seedance-lite-t2v': { id: 'seedance-1-0-lite-t2v-250428', name: 'Seedance Lite (T2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', capabilities: ['t2v'] },
-  'seedance-lite-i2v': { id: 'seedance-1-0-lite-i2v-250428', name: 'Seedance Lite (I2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', capabilities: ['i2v'] },
-  'seedance-pro': { id: 'seedance-1-0-pro-250528', name: 'Seedance Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', capabilities: ['t2v', 'i2v'] },
-  'seedance-pro-fast': { id: 'seedance-1-0-pro-fast-251015', name: 'Seedance Pro Fast', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', capabilities: ['t2v', 'i2v'] },
-  'seedance-1-5-pro': { id: 'seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', capabilities: ['t2v', 'i2v'] },
+  'seedance-lite-t2v': { id: 'seedance-1-0-lite-t2v-250428', name: 'Seedance Lite (T2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', apiProvider: 'byteplus', capabilities: ['t2v'] },
+  'seedance-lite-i2v': { id: 'seedance-1-0-lite-i2v-250428', name: 'Seedance Lite (I2V)', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', apiProvider: 'byteplus', capabilities: ['i2v'] },
+  'seedance-pro': { id: 'seedance-1-0-pro-250528', name: 'Seedance Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', apiProvider: 'byteplus', capabilities: ['t2v', 'i2v'] },
+  'seedance-pro-fast': { id: 'seedance-1-0-pro-fast-251015', name: 'Seedance Pro Fast', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', apiProvider: 'byteplus', capabilities: ['t2v', 'i2v'] },
+  'seedance-1-5-pro': { id: 'seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', provider: 'ByteDance', icon: '/images/models/seedance.svg', isFree: true, isLocked: false, modelType: 'video', apiProvider: 'byteplus', capabilities: ['t2v', 'i2v'] },
 } as const
 
 export type ModelKey = keyof typeof MODELS
@@ -130,8 +140,8 @@ export function estimateTokens(text: string): number {
 const DEFAULT_MAX_CONTEXT_TOKENS = 128_000
 const RESPONSE_RESERVE_TOKENS = 4_000
 
-/** Cheapest/fastest model for internal tasks (compaction, title gen, etc.) */
-export const COMPACT_MODEL = 'seed-1-6-flash-250715'
+/** Cheapest/fastest model for internal tasks (compaction, title gen, search classification, etc.) */
+export const COMPACT_MODEL = 'openai/gpt-oss-120b'
 
 export function buildContextMessages<T extends { content: string }>(
   messages: T[],
@@ -160,7 +170,7 @@ export function buildContextMessages<T extends { content: string }>(
 
 function getFreeFallbacks(excludeModel: string): string[] {
   return Object.values(MODELS)
-    .filter(m => m.isFree && m.modelType === 'chat' && m.id !== excludeModel)
+    .filter(m => m.isFree && m.modelType === 'chat' && m.apiProvider === 'byteplus' && m.id !== excludeModel)
     .map(m => m.id)
 }
 
@@ -205,6 +215,20 @@ export async function streamChat(
   callbacks: StreamCallbacks,
   signal?: AbortSignal
 ) {
+  // Route OpenRouter models to the OpenRouter client
+  const modelDef = getModelById(model) || MODELS[getModelKey(model) || '']
+  if (modelDef?.apiProvider === 'openrouter') {
+    const { streamChatOpenRouter } = await import('./openrouter')
+    return streamChatOpenRouter(messages, modelDef.id, callbacks, signal)
+  }
+
+  // Fallback: detect OpenRouter models by ID format (contains '/')
+  // This handles models added from OpenRouter admin panel that aren't in the MODELS registry
+  if (!modelDef && model.includes('/')) {
+    const { streamChatOpenRouter } = await import('./openrouter')
+    return streamChatOpenRouter(messages, model, callbacks, signal)
+  }
+
   let fullResponse = ''
 
   // Models to try: requested model first, then free fallbacks
@@ -307,6 +331,18 @@ export async function chatCompletion(
   messages: ChatMessage[],
   model: string
 ): Promise<{ content: string; tokensUsed?: number }> {
+  // Route OpenRouter models to the OpenRouter client
+  const modelDef = getModelById(model) || MODELS[getModelKey(model) || '']
+  if (modelDef?.apiProvider === 'openrouter') {
+    const { chatCompletionOpenRouter } = await import('./openrouter')
+    return chatCompletionOpenRouter(messages, modelDef.id)
+  }
+  // Direct OpenRouter model ID (e.g. 'openai/gpt-oss-120b') not in MODELS registry
+  if (!modelDef && model.includes('/')) {
+    const { chatCompletionOpenRouter } = await import('./openrouter')
+    return chatCompletionOpenRouter(messages, model)
+  }
+
   const apiKey = process.env.BYTEPLUS_API_KEY
   if (!apiKey) throw new Error('BytePlus API key not configured')
 

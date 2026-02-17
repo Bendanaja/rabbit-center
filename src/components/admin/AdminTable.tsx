@@ -137,15 +137,22 @@ export function AdminTable<T>({
           <tbody className="divide-y divide-neutral-800">
             <AnimatePresence mode="wait">
               {loading ? (
-                <tr>
-                  <td
-                    colSpan={columns.length + (selectable ? 1 : 0)}
-                    className="px-4 py-12 text-center"
-                  >
-                    <Loader2 className="h-8 w-8 animate-spin text-primary-500 mx-auto" />
-                    <p className="mt-2 text-sm text-neutral-400">กำลังโหลด...</p>
-                  </td>
-                </tr>
+                <>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} className="animate-pulse">
+                      {selectable && (
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-4 bg-neutral-800 rounded" />
+                        </td>
+                      )}
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-4 py-3">
+                          <div className="h-4 bg-neutral-800 rounded w-3/4" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
               ) : data.length === 0 ? (
                 <tr>
                   <td
@@ -163,10 +170,10 @@ export function AdminTable<T>({
                   return (
                     <motion.tr
                       key={rowId}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ delay: index * 0.03 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
                       onClick={() => onRowClick?.(row)}
                       className={cn(
                         'transition-colors',

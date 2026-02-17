@@ -22,6 +22,8 @@ const pageNames: Record<string, string> = {
   '/admin/moderation': 'ตรวจสอบเนื้อหา',
   '/admin/subscriptions': 'จัดการสมาชิก',
   '/admin/activity': 'ประวัติการใช้งาน',
+  '/admin/rate-limits': 'จัดการ Rate Limits',
+  '/admin/notifications': 'การแจ้งเตือน',
 };
 
 interface AdminHeaderProps {

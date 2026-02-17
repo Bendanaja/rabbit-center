@@ -4,7 +4,8 @@
       "command": "npx",
       "args": ["-y", "@thelord/mcp-cloudflare"],
       "env": {
-        "CLOUDFLARE_API_TOKEN": "sk99-HuWhlYg7JuTDHk4o17mWlZnkcC2mDBEBV6-",
+        "CLOUDFLARE_API_TOKEN": "3db3a402af7dd005987714b85271abb7a5f15",
+        "CLOUDFLARE_EMAIL": "punyaweenaja@gmail.com",
         "CLOUDFLARE_ZONE_ID": "c7769985fb51771263baa301e902467d"
       }
     },

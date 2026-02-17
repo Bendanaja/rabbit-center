@@ -25,6 +25,7 @@ import {
 import Image from 'next/image';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 
 interface ActivityLog {
   id: string;
@@ -65,7 +66,7 @@ export default function AdminActivityPage() {
         resource: filterResource,
       });
 
-      const response = await fetch(`/api/admin/activity?${params}`);
+      const response = await authFetch(`/api/admin/activity?${params}`);
       if (response.ok) {
         const data = await response.json();
         setActivities(data.activities || []);

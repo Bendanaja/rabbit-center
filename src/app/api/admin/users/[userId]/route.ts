@@ -37,33 +37,34 @@ export async function GET(
     const { userId } = await params;
     const supabase = createAdminClient();
 
-    // Get user profile
-    const { data: user, error } = await supabase
-      .from('user_profiles')
-      .select(`
-        *,
-        subscriptions(*)
-      `)
-      .eq('user_id', userId)
-      .single();
+    // Get user profile and subscription separately (no FK join)
+    const [profileResult, subResult, banResult, chatCountResult] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .single(),
+      supabase
+        .from('user_bans')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single(),
+      supabase
+        .from('chats')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+    ]);
 
-    if (error) throw error;
+    if (profileResult.error) throw profileResult.error;
 
-    // Get ban status
-    const { data: ban } = await supabase
-      .from('user_bans')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-
-    // Get chat count
-    const { count: chatCount } = await supabase
-      .from('chats')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    // Get message count
+    // Get message count via chat IDs
     const { data: chats } = await supabase
       .from('chats')
       .select('id')
@@ -86,10 +87,11 @@ export async function GET(
       .limit(30);
 
     return NextResponse.json({
-      ...user,
-      is_banned: !!ban,
-      ban_details: ban,
-      chat_count: chatCount || 0,
+      ...profileResult.data,
+      subscription: subResult.data || null,
+      is_banned: !!banResult.data,
+      ban_details: banResult.data || null,
+      chat_count: chatCountResult.count || 0,
       message_count: messageCount || 0,
       recent_usage: usage || [],
     });
@@ -117,15 +119,15 @@ export async function PUT(
     const body = await request.json();
     const supabase = createAdminClient();
 
-    const { full_name, avatar_url } = body;
+    const { full_name: display_name, avatar_url } = body;
 
     // Validate and sanitize
-    const safeName = full_name ? sanitizeInput(String(full_name)).slice(0, INPUT_LIMITS.fullName) : full_name;
+    const safeName = display_name ? sanitizeInput(String(display_name)).slice(0, INPUT_LIMITS.fullName) : display_name;
 
     const { data, error } = await supabase
       .from('user_profiles')
       .update({
-        full_name: safeName,
+        display_name: safeName,
         avatar_url,
         updated_at: new Date().toISOString(),
       })
@@ -160,13 +162,12 @@ export async function PATCH(
     const body = await request.json();
     const supabase = createAdminClient();
 
-    const { action, plan_id, ban_reason, ban_permanent, ban_expires_at, admin_user_id } = body as {
+    const { action, plan_id, ban_reason, ban_permanent, ban_expires_at } = body as {
       action: 'update_plan' | 'ban' | 'unban';
       plan_id?: string;
       ban_reason?: string;
       ban_permanent?: boolean;
       ban_expires_at?: string;
-      admin_user_id?: string;
     };
 
     if (action === 'update_plan' && plan_id) {
@@ -180,8 +181,8 @@ export async function PATCH(
       // If plan is not 'free', create a new subscription
       if (plan_id !== 'free') {
         const now = new Date();
-        const expiresAt = new Date(now);
-        expiresAt.setMonth(expiresAt.getMonth() + 1);
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
 
         await supabase
           .from('subscriptions')
@@ -189,7 +190,8 @@ export async function PATCH(
             user_id: userId,
             plan_id,
             status: 'active',
-            expires_at: expiresAt.toISOString(),
+            current_period_start: now.toISOString(),
+            current_period_end: periodEnd.toISOString(),
           });
       }
 
@@ -210,7 +212,7 @@ export async function PATCH(
         .from('user_bans')
         .insert({
           user_id: userId,
-          banned_by: admin_user_id || 'admin',
+          banned_by: auth.user.id,
           reason: ban_reason ? sanitizeInput(ban_reason).slice(0, 500) : 'Banned by admin',
           is_permanent: ban_permanent ?? false,
           expires_at: ban_expires_at || null,
@@ -260,12 +262,12 @@ export async function DELETE(
       .update({ status: 'cancelled' })
       .eq('user_id', userId);
 
-    // Permanently ban the user
+    // Permanently ban the user (use admin's user_id, not string 'system')
     await supabase
       .from('user_bans')
       .insert({
         user_id: userId,
-        banned_by: 'system',
+        banned_by: auth.user.id,
         reason: 'Account deleted by admin',
         is_permanent: true,
         is_active: true,

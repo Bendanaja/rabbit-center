@@ -47,11 +47,11 @@ export default function ContactPage() {
                   สำหรับคำถาม ข้อเสนอแนะ หรือต้องการความช่วยเหลือ
                 </p>
                 <a
-                  href="mailto:hello@rabbithub.co"
+                  href="mailto:support@rabbithub.co"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-medium transition-colors"
                 >
                   <Mail className="h-4 w-4" />
-                  hello@rabbithub.co
+                  support@rabbithub.co
                 </a>
                 <p className="text-sm text-neutral-500 mt-4">
                   เราจะตอบกลับภายใน 24 ชั่วโมงในวันทำการ

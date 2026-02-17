@@ -1,9 +1,9 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { generateVideo } from '@/lib/byteplus'
-import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
+import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders, getUserRateLimitConfig } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
 import { calculateUsageCost, getVideoCost } from '@/lib/token-costs'
-import { validateContentType, validateInput, INPUT_LIMITS } from '@/lib/security'
+import { validateContentType, validateInput, INPUT_LIMITS, validateSafeUrl } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
 import { NextResponse } from 'next/server'
 
@@ -17,9 +17,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Rate limiting (Redis-backed)
+  // Rate limiting (Redis-backed, per-user config)
   const rateLimitKey = getRateLimitKey(request, user.id, 'video')
-  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, RATE_LIMITS.video)
+  const rateLimitConfig = await getUserRateLimitConfig(user.id, 'video')
+  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, rateLimitConfig)
   if (!rateLimitResult.allowed) {
     const res = NextResponse.json(
       { error: 'Rate limit exceeded. Please wait before generating more videos.' },
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     // Plan limit check: video quota
     const videoModelKey = model || 'seedance-1-5-pro'
     const costThb = getVideoCost(videoModelKey).thb
-    const planCheck = await checkPlanLimit(user.id, 'video', undefined, costThb)
+    const planCheck = await checkPlanLimit(user.id, 'video', videoModelKey, costThb)
     if (!planCheck.allowed) {
       return NextResponse.json(
         { error: planCheck.reason, planId: planCheck.planId },
@@ -73,6 +74,14 @@ export async function POST(request: Request) {
     }
     if (duration !== undefined && (typeof duration !== 'number' || duration < 1 || duration > 30)) {
       return NextResponse.json({ error: 'duration must be between 1 and 30 seconds' }, { status: 400 })
+    }
+
+    // Validate image_url to prevent SSRF
+    if (image_url) {
+      const urlCheck = validateSafeUrl(image_url)
+      if (!urlCheck.valid) {
+        return NextResponse.json({ error: `Invalid image_url: ${urlCheck.reason}` }, { status: 400 })
+      }
     }
 
     // Track activity in customer_profiles (non-blocking)

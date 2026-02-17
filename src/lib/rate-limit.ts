@@ -104,7 +104,7 @@ export function getRateLimitKey(
   } else {
     // Fallback to IP
     const forwarded = request.headers.get('x-forwarded-for')
-    const ip = forwarded?.split(',')[0]?.trim() || 'unknown'
+    const ip = forwarded?.split(',').pop()?.trim() || 'unknown'
     parts.push(`ip:${ip}`)
   }
 
@@ -119,6 +119,42 @@ export function applyRateLimitHeaders(
   headers.set('X-RateLimit-Limit', result.limit.toString())
   headers.set('X-RateLimit-Remaining', result.remaining.toString())
   headers.set('X-RateLimit-Reset', Math.ceil(result.resetAt / 1000).toString())
+}
+
+type RateLimitType = 'chat' | 'image' | 'video' | 'search'
+
+const RATE_TYPE_TO_COLUMN: Record<RateLimitType, string> = {
+  chat: 'rate_chat_per_min',
+  image: 'rate_image_per_min',
+  video: 'rate_video_per_min',
+  search: 'rate_search_per_min',
+}
+
+/**
+ * Get rate limit config for a user based on their plan.
+ * Checks plan_overrides table for admin-configured limits, falls back to RATE_LIMITS defaults.
+ * Requires the user's planId — call getUserPlan() first to get it.
+ * Reuses getPlanOverrides() to avoid duplicate DB queries.
+ */
+export async function getUserRateLimitConfig(
+  userId: string,
+  type: RateLimitType
+): Promise<RateLimitConfig> {
+  // Import dynamically to avoid circular deps at module level
+  const { getUserPlan, getPlanOverrides } = await import('@/lib/plan-limits')
+  const userPlan = await getUserPlan(userId)
+  const overrides = await getPlanOverrides(userPlan.planId)
+
+  if (overrides) {
+    const column = RATE_TYPE_TO_COLUMN[type]
+    const customValue = overrides[column as keyof typeof overrides] as number | null
+
+    if (customValue != null && customValue > 0) {
+      return { maxRequests: customValue, windowMs: 60 * 1000 }
+    }
+  }
+
+  return RATE_LIMITS[type]
 }
 
 /**

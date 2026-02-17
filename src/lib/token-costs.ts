@@ -154,8 +154,8 @@ export function analyzePlanProfitability(): PlanCostAnalysis[] {
     {
       planId: 'free',
       monthlyRevenueTHB: 0,
-      maxMonthlyCostTHB: 5,       // budget cap
-      avgMonthlyCostTHB: 2,       // ~40% utilization
+      maxMonthlyCostTHB: 10,      // budget cap
+      avgMonthlyCostTHB: 4,       // ~40% utilization
       maxMarginPercent: -100,
       worstMarginPercent: -100,
     },

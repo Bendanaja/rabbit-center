@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkRateLimitRedis, getRateLimitKey } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
 
 // GET /api/shared/[shareId] - Get shared chat (public, no auth)
@@ -6,6 +7,16 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ shareId: string }> }
 ) {
+  // Rate limit by IP (public endpoint, no auth)
+  const rateLimitKey = getRateLimitKey(_request, undefined, 'shared')
+  const rateLimitResult = await checkRateLimitRedis(rateLimitKey, { maxRequests: 30, windowMs: 60 * 1000 })
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
+  }
+
   const { shareId } = await params
   const adminSupabase = createAdminClient()
 

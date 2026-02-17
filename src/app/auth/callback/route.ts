@@ -4,7 +4,17 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/chat'
+  let next = searchParams.get('next') ?? '/chat'
+
+  // Validate redirect path to prevent open redirect
+  if (
+    !next.startsWith('/') ||
+    next.includes('//') ||
+    next.includes('\\') ||
+    /^[a-z]+:/i.test(next)
+  ) {
+    next = '/chat'
+  }
 
   if (code) {
     const supabase = await createClient()

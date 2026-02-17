@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     .from('admin_users')
     .select('role')
     .eq('user_id', user.id)
+    .eq('is_active', true)
     .single()
 
   if (!adminData) {

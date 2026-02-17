@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await adminSupabase
     .from('chats')
-    .select('*')
+    .select('id, title, model_id, created_at, updated_at, is_archived')
     .eq('user_id', user.id)
     .eq('is_archived', false)
     .order('updated_at', { ascending: false })

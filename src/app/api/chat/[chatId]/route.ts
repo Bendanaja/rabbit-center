@@ -18,7 +18,7 @@ export async function GET(
 
   const { data, error } = await adminSupabase
     .from('chats')
-    .select('*')
+    .select('id, title, model_id, is_pinned, is_archived, created_at, updated_at')
     .eq('id', chatId)
     .eq('user_id', user.id)
     .single()
