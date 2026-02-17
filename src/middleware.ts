@@ -41,8 +41,11 @@ function checkGlobalRateLimit(ip: string): boolean {
 }
 
 function getClientIP(request: NextRequest): string {
+  // Use X-Real-IP first (set by Traefik), then first entry in X-Forwarded-For (original client)
+  const realIP = request.headers.get('x-real-ip')
+  if (realIP) return realIP.trim()
   const forwarded = request.headers.get('x-forwarded-for')
-  return forwarded?.split(',').pop()?.trim() || 'unknown'
+  return forwarded?.split(',')[0]?.trim() || 'unknown'
 }
 
 function addSecurityHeaders(response: NextResponse) {
