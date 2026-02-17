@@ -153,7 +153,7 @@ export default function AdminModelsPage() {
       m.id === model.id ? { ...m, is_active: newActive } : m
     ));
     try {
-      const response = await authFetch(`/api/admin/models/${model.id}`, {
+      const response = await authFetch(`/api/admin/models/${encodeURIComponent(model.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: newActive }),
@@ -178,7 +178,7 @@ export default function AdminModelsPage() {
     setModels(prev => prev.map(m => m.id === model.id ? model : m));
     setEditingModel(null);
     try {
-      const response = await authFetch(`/api/admin/models/${model.id}`, {
+      const response = await authFetch(`/api/admin/models/${encodeURIComponent(model.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +206,7 @@ export default function AdminModelsPage() {
     const prevModels = models;
     setModels(prev => prev.filter(m => m.id !== modelId));
     try {
-      const response = await authFetch(`/api/admin/models/${modelId}`, {
+      const response = await authFetch(`/api/admin/models/${encodeURIComponent(modelId)}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -231,7 +231,7 @@ export default function AdminModelsPage() {
       m.id === model.id ? { ...m, tier: newTier } : m
     ));
     try {
-      const response = await authFetch(`/api/admin/models/${model.id}`, {
+      const response = await authFetch(`/api/admin/models/${encodeURIComponent(model.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier: newTier }),
