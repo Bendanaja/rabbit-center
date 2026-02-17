@@ -65,27 +65,35 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
       .catch(() => {});
   }, []);
 
-  const isFreeUser = userPlan === 'free' && !isUnlimited;
+  // Tier hierarchy: higher index = higher tier
+  const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2, premium: 3 };
+  const userTierLevel = isUnlimited ? 999 : (TIER_ORDER[userPlan] ?? 0);
 
   // Split models by type (all from DB — active only)
   const chatModels = dbModels.filter(m => m.modelType === 'chat');
   const imageModels = dbModels.filter(m => m.modelType === 'image');
   const videoModels = dbModels.filter(m => m.modelType === 'video');
 
-  // Helper: check if a model is paid
+  // Helper: check if a model is above user's plan
   const isModelPaid = (modelKey: string) => {
     const tier = modelTiers[modelKey];
     return tier && tier !== 'free';
   };
+  const isModelLocked = (modelKey: string) => {
+    const tier = modelTiers[modelKey] || 'free';
+    const modelLevel = TIER_ORDER[tier] ?? 0;
+    return modelLevel > userTierLevel;
+  };
 
-  // For free users: split into free and paid (locked) models
-  const freeChatModels = isFreeUser ? chatModels.filter(m => !isModelPaid(m.key)) : chatModels;
-  const paidChatModels = isFreeUser ? chatModels.filter(m => isModelPaid(m.key)) : [];
-  const freeImageModels = isFreeUser ? imageModels.filter(m => !isModelPaid(m.key)) : imageModels;
-  const paidImageModels = isFreeUser ? imageModels.filter(m => isModelPaid(m.key)) : [];
-  const freeVideoModels = isFreeUser ? videoModels.filter(m => !isModelPaid(m.key)) : videoModels;
-  const paidVideoModels = isFreeUser ? videoModels.filter(m => isModelPaid(m.key)) : [];
+  // Split into accessible and locked models based on user's tier
+  const freeChatModels = chatModels.filter(m => !isModelLocked(m.key));
+  const paidChatModels = chatModels.filter(m => isModelLocked(m.key));
+  const freeImageModels = imageModels.filter(m => !isModelLocked(m.key));
+  const paidImageModels = imageModels.filter(m => isModelLocked(m.key));
+  const freeVideoModels = videoModels.filter(m => !isModelLocked(m.key));
+  const paidVideoModels = videoModels.filter(m => isModelLocked(m.key));
   const allLockedModels = [...paidChatModels, ...paidImageModels, ...paidVideoModels];
+  const hasLockedModels = allLockedModels.length > 0;
 
   const allAvailable = [...freeChatModels, ...freeImageModels, ...freeVideoModels];
 
@@ -111,9 +119,9 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
 
     const selectedKey = getModelKey(selectedModel) || selectedModel;
     const isInActiveList = dbModels.some(m => m.id === selectedModel || m.key === selectedKey);
-    const isPaidAndFreeUser = isFreeUser && isModelPaid(selectedKey);
+    const isLocked = isModelLocked(selectedKey);
 
-    if (!isInActiveList || isPaidAndFreeUser) {
+    if (!isInActiveList || isLocked) {
       const firstAvailable = freeChatModels[0] || freeImageModels[0] || freeVideoModels[0];
       if (firstAvailable && firstAvailable.id !== selectedModel) {
         onModelChange(firstAvailable.id);
@@ -235,15 +243,9 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
                 <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                   เลือกโมเดล AI
                 </span>
-                {isFreeUser ? (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
-                    ฟรี {allAvailable.length} โมเดล
-                  </span>
-                ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                    {allAvailable.length} โมเดล
-                  </span>
-                )}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                  {allAvailable.length} โมเดล
+                </span>
               </div>
             </div>
 
@@ -292,56 +294,57 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
                 />
               )}
 
-              {/* Locked Models Section (free users only) */}
+              {/* Locked Models Section */}
               {allLockedModels.length > 0 && (
                 <div className="py-1 border-t border-neutral-200 dark:border-neutral-700">
                   <div className="px-3 py-1.5">
                     <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
-                      สมาชิกเท่านั้น
+                      ต้องอัปเกรด
                     </span>
                   </div>
-                  {allLockedModels.map((model, index) => (
-                    <motion.button
-                      key={model.key}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: (allAvailable.length + index) * 0.02 }}
-                      onClick={() => handleSelect(model.id, true)}
-                      disabled
-                      className="w-full flex items-center gap-2.5 px-3 py-2 opacity-50 cursor-not-allowed"
-                    >
-                      <div className="relative h-7 w-7 rounded-md overflow-hidden border shrink-0 border-neutral-200 dark:border-neutral-700">
-                        <Image
-                          src={`${model.icon}?v=3`}
-                          alt={model.provider}
-                          fill
-                          className="object-cover grayscale"
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <Lock className="h-3 w-3 text-white" />
+                  {allLockedModels.map((model, index) => {
+                    const tier = modelTiers[model.key] || 'pro';
+                    return (
+                      <motion.button
+                        key={model.key}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: (allAvailable.length + index) * 0.02 }}
+                        onClick={() => handleSelect(model.id, true)}
+                        disabled
+                        className="w-full flex items-center gap-2.5 px-3 py-2 opacity-50 cursor-not-allowed"
+                      >
+                        <div className="relative h-7 w-7 rounded-md overflow-hidden border shrink-0 border-neutral-200 dark:border-neutral-700">
+                          <Image
+                            src={`${model.icon}?v=3`}
+                            alt={model.provider}
+                            fill
+                            className="object-cover grayscale"
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <Lock className="h-3 w-3 text-white" />
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-medium truncate text-neutral-500 dark:text-neutral-400">
-                            {model.name}
-                          </span>
-                          <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-blue-500 text-white leading-none">
-                            สมาชิก
-                          </span>
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium truncate text-neutral-500 dark:text-neutral-400">
+                              {model.name}
+                            </span>
+                            <TierBadge tier={tier} />
+                          </div>
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
+                            {model.provider}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate">
-                          {model.provider}
-                        </p>
-                      </div>
-                    </motion.button>
-                  ))}
+                      </motion.button>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Footer - Upgrade CTA (free users only) */}
-            {isFreeUser && (
+            {/* Footer - Upgrade CTA */}
+            {hasLockedModels && (
               <div className="px-3 py-2 bg-gradient-to-r from-primary-50 to-amber-50 dark:from-primary-950/30 dark:to-amber-950/30 border-t border-neutral-200 dark:border-neutral-700">
                 <a href="/pricing" className="w-full block text-center text-[11px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors">
                   อัปเกรดเพื่อปลดล็อคทุกโมเดล →
@@ -422,15 +425,8 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
               <span className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
                 {currentModel?.name || 'Select Model'}
               </span>
-              {currentModel && !isModelPaid(currentDbModel?.key || getModelKey(selectedModel) || selectedModel) && (
-                <span className="px-1 py-0.5 rounded bg-emerald-500 text-white text-[8px] font-bold">
-                  ฟรี
-                </span>
-              )}
-              {currentModel && isModelPaid(currentDbModel?.key || getModelKey(selectedModel) || selectedModel) && (
-                <span className="px-1 py-0.5 rounded bg-blue-500 text-white text-[8px] font-bold">
-                  สมาชิก
-                </span>
+              {currentModel && (
+                <TierBadge tier={modelTiers[currentDbModel?.key || getModelKey(selectedModel) || selectedModel] || 'free'} />
               )}
               {currentModel?.modelType === 'image' && (
                 <span className="px-1 py-0.5 rounded bg-violet-500 text-white text-[8px] font-bold">
@@ -472,6 +468,22 @@ interface ModelGroupProps {
   showBorder?: boolean;
   modelTiers: Record<string, string>;
   isFreeUser: boolean;
+}
+
+const TIER_BADGE_CONFIG: Record<string, { label: string; color: string }> = {
+  free: { label: 'ฟรี', color: 'bg-emerald-500' },
+  starter: { label: 'เริ่มต้น', color: 'bg-sky-500' },
+  pro: { label: 'โปร', color: 'bg-violet-500' },
+  premium: { label: 'พรีเมียม', color: 'bg-amber-500' },
+};
+
+function TierBadge({ tier }: { tier: string }) {
+  const config = TIER_BADGE_CONFIG[tier] || TIER_BADGE_CONFIG.free;
+  return (
+    <span className={cn('shrink-0 px-1 py-0.5 text-[7px] font-bold rounded text-white leading-none', config.color)}>
+      {config.label}
+    </span>
+  );
 }
 
 function ModelGroup({ label, labelColor, badge, models, selectedModel, onSelect, startIndex, showBorder, modelTiers, isFreeUser }: ModelGroupProps) {
@@ -522,15 +534,7 @@ function ModelGroup({ label, labelColor, badge, models, selectedModel, onSelect,
                 )}>
                   {model.name}
                 </span>
-                {isPaid ? (
-                  <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-blue-500 text-white leading-none">
-                    สมาชิก
-                  </span>
-                ) : (
-                  <span className="shrink-0 px-1 py-0.5 text-[7px] font-bold rounded bg-emerald-500 text-white leading-none">
-                    ฟรี
-                  </span>
-                )}
+                <TierBadge tier={tier || 'free'} />
                 {badge && (
                   <span className={cn('shrink-0 px-1 py-0.5 text-[7px] font-bold rounded text-white leading-none', badge.color)}>
                     {badge.text}
