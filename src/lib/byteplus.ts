@@ -44,8 +44,8 @@ export const MODELS: Record<string, ModelDefinition> = {
   // ═══════════════════════════════════════════
   // OpenRouter Models
   // ═══════════════════════════════════════════
-  'nano-banana': { id: 'google/gemini-2.5-flash-preview:thinking', name: 'Nano Banana', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 1_000_000 },
-  'nano-banana-pro': { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 65_000 },
+  'nano-banana': { id: 'google/gemini-2.5-flash-image-preview', name: 'Nano Banana', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen'] },
+  'nano-banana-pro': { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen'] },
   'gpt-5-2': { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 400_000 },
   'grok-4': { id: 'x-ai/grok-4', name: 'Grok 4', provider: 'xAI', icon: '/images/models/xai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 256_000 },
   'claude-4-6': { id: 'anthropic/claude-opus-4-6', name: 'Claude 4.6 Opus', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 200_000 },
@@ -123,6 +123,11 @@ export function getImageModels() {
   return Object.entries(MODELS)
     .filter(([, model]) => model.modelType === 'image')
     .map(([key, model]) => ({ key, ...model }))
+}
+
+export function isImageGenChatModel(modelId: string): boolean {
+  const model = getModelById(modelId) || MODELS[getModelKey(modelId) || '']
+  return model?.capabilities?.includes('chat-image-gen') ?? false
 }
 
 export function getVideoModels() {

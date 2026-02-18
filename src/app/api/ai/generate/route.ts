@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
-import { streamChat, chatCompletion, generateChatTitle, COMPACT_MODEL, type ChatMessage } from '@/lib/byteplus'
+import { streamChat, chatCompletion, generateChatTitle, COMPACT_MODEL, getModelById, getModelKey, MODELS, type ChatMessage } from '@/lib/byteplus'
+import { chatCompletionOpenRouterMultipart } from '@/lib/openrouter'
 import { checkRateLimitRedis, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders, getUserRateLimitConfig } from '@/lib/rate-limit'
 import { checkPlanLimit, incrementUsage, logUsageCost } from '@/lib/plan-limits'
 import { searchWeb, shouldAutoSearch, formatSearchContext, formatSourcesMarker, type SearchResult } from '@/lib/web-search'
@@ -175,6 +176,72 @@ export async function POST(request: Request) {
             role: 'system',
             content: searchContext,
           })
+        }
+
+        // Check if model supports image generation in chat (e.g. Nano Banana)
+        const modelDef = getModelById(model) || MODELS[getModelKey(model) || '']
+        const isImageGenChat = modelDef?.capabilities?.includes('chat-image-gen') && modelDef?.apiProvider === 'openrouter'
+
+        if (isImageGenChat) {
+          // Use non-streaming for image generation models (images can't be streamed)
+          const { text, imageUrls, tokensUsed } = await chatCompletionOpenRouterMultipart(messagesWithSearch, modelDef.id)
+
+          // Build full response with image markers
+          let fullResponse = text
+          if (imageUrls.length > 0) {
+            fullResponse += `\n\n[GENERATED_IMAGE]\n${imageUrls.join('\n')}\n[/GENERATED_IMAGE]`
+          }
+
+          // Emit text part as chunk for typewriter effect
+          if (text) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', content: text })}\n\n`))
+          }
+
+          // Save to database
+          const { data: savedMessage, error: saveError } = await adminSupabase
+            .from('messages')
+            .insert({
+              chat_id: chatId,
+              role: 'assistant' as const,
+              content: fullResponse,
+              model_id: model,
+            })
+            .select()
+            .single()
+
+          // Usage tracking
+          const inputTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+          const outputTokens = tokensUsed || Math.ceil(fullResponse.length / 4)
+          const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
+          await incrementUsage(user.id, 'chat', costThb)
+
+          if (saveError) {
+            console.error('Save message error:', saveError)
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Failed to save message' })}\n\n`))
+          } else {
+            // Include fullResponse in done event so frontend gets image markers
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', messageId: savedMessage?.id, content: fullResponse })}\n\n`))
+          }
+
+          // Auto-generate title
+          const updateData: { updated_at: string; title?: string } = {
+            updated_at: new Date().toISOString()
+          }
+          if (chatTitle === 'แชทใหม่' && messages.length <= 2) {
+            const userMessage = messages.find(m => m.role === 'user')
+            if (userMessage) {
+              const title = await generateChatTitle(userMessage.content)
+              updateData.title = title
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'title', title })}\n\n`))
+            }
+          }
+          await adminSupabase.from('chats').update(updateData).eq('id', chatId)
+
+          const costUsd = calculateUsageCost({ userId: user.id, modelKey: model, action: 'chat', inputTokens, outputTokens })
+          logUsageCost(user.id, 'chat', model, costUsd, inputTokens, outputTokens)
+
+          controller.close()
+          return
         }
 
         await streamChat(

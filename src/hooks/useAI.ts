@@ -125,7 +125,8 @@ export function useAI() {
                   }
                   break
                 case 'done':
-                  options.onDone?.(fullResponseRef.current, event.messageId)
+                  // Use content from event if provided (image gen models include full response with image markers)
+                  options.onDone?.(event.content || fullResponseRef.current, event.messageId)
                   break
                 case 'error':
                   throw new Error(event.message || 'Generation failed')

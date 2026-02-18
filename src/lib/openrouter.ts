@@ -100,6 +100,67 @@ export async function streamChatOpenRouter(
   }
 }
 
+// Non-streaming chat for image-generation models (Nano Banana, etc.)
+// Handles multipart responses containing text + inline images
+export async function chatCompletionOpenRouterMultipart(
+  messages: ChatMessage[],
+  model: string
+): Promise<{ text: string; imageUrls: string[]; tokensUsed?: number }> {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message || `OpenRouter API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+
+  if (data.error) {
+    throw new Error(data.error.message || 'OpenRouter error')
+  }
+
+  const rawContent = data.choices?.[0]?.message?.content
+  const tokensUsed = data.usage?.total_tokens
+
+  let text = ''
+  const imageUrls: string[] = []
+
+  if (typeof rawContent === 'string') {
+    // Extract inline base64 images from markdown format: ![alt](data:image/...)
+    const imgRegex = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g
+    let match
+    let lastIndex = 0
+
+    while ((match = imgRegex.exec(rawContent)) !== null) {
+      text += rawContent.slice(lastIndex, match.index)
+      imageUrls.push(match[1])
+      lastIndex = match.index + match[0].length
+    }
+
+    text += rawContent.slice(lastIndex)
+  } else if (Array.isArray(rawContent)) {
+    // Multipart content: [{type:"text",text:"..."}, {type:"image_url",image_url:{url:"data:..."}}]
+    for (const part of rawContent) {
+      if (part.type === 'text') {
+        text += part.text || ''
+      } else if (part.type === 'image_url') {
+        const url = part.image_url?.url
+        if (url) imageUrls.push(url)
+      }
+    }
+  }
+
+  return { text: text.trim(), imageUrls, tokensUsed }
+}
+
 export async function chatCompletionOpenRouter(
   messages: ChatMessage[],
   model: string
