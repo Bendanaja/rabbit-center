@@ -147,25 +147,33 @@ export async function chatCompletionOpenRouterMultipart(
   }
 
   // 2. Parse content (text string or multipart array)
+  // Only extract images from content if we didn't already get them from the `images` field
+  const hasImagesFromField = imageUrls.length > 0
+
   if (typeof rawContent === 'string') {
-    // Extract inline base64 images from markdown format: ![alt](data:image/...)
-    const imgRegex = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g
-    let match
-    let lastIndex = 0
+    if (hasImagesFromField) {
+      // Strip inline markdown images but don't add them (already have from images field)
+      text = rawContent.replace(/!\[[^\]]*\]\(data:image\/[^)]+\)/g, '').trim()
+    } else {
+      // Extract inline base64 images from markdown format: ![alt](data:image/...)
+      const imgRegex = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g
+      let match
+      let lastIndex = 0
 
-    while ((match = imgRegex.exec(rawContent)) !== null) {
-      text += rawContent.slice(lastIndex, match.index)
-      imageUrls.push(match[1])
-      lastIndex = match.index + match[0].length
+      while ((match = imgRegex.exec(rawContent)) !== null) {
+        text += rawContent.slice(lastIndex, match.index)
+        imageUrls.push(match[1])
+        lastIndex = match.index + match[0].length
+      }
+
+      text += rawContent.slice(lastIndex)
     }
-
-    text += rawContent.slice(lastIndex)
   } else if (Array.isArray(rawContent)) {
     // Multipart content: [{type:"text",text:"..."}, {type:"image_url",image_url:{url:"data:..."}}]
     for (const part of rawContent) {
       if (part.type === 'text') {
         text += part.text || ''
-      } else if (part.type === 'image_url') {
+      } else if (part.type === 'image_url' && !hasImagesFromField) {
         const url = part.image_url?.url
         if (url) imageUrls.push(url)
       }
