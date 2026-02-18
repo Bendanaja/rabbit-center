@@ -197,13 +197,27 @@ export async function POST(request: Request) {
 
         if (isImageGenChat) {
           // Use non-streaming for image generation models (images can't be streamed)
-          const openrouterModelId = modelDef?.id || model
-          const { text, imageUrls, tokensUsed } = await chatCompletionOpenRouterMultipart(messagesWithSearch, openrouterModelId)
+          // Send heartbeat SSE every 15s to prevent Cloudflare 524 timeout
+          const heartbeat = setInterval(() => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'heartbeat' })}\n\n`))
+          }, 15_000)
 
-          // Upload images to Cloudflare R2 (falls back to base64 if not configured)
-          const finalImageUrls = imageUrls.length > 0
-            ? await uploadGeneratedImages(imageUrls, chatId)
-            : []
+          let text = '', imageUrls: string[] = [], tokensUsed: number | undefined
+          let finalImageUrls: string[] = []
+          try {
+            const openrouterModelId = modelDef?.id || model
+            const result = await chatCompletionOpenRouterMultipart(messagesWithSearch, openrouterModelId)
+            text = result.text
+            imageUrls = result.imageUrls
+            tokensUsed = result.tokensUsed
+
+            // Upload images to Cloudflare R2 (falls back to base64 if not configured)
+            finalImageUrls = imageUrls.length > 0
+              ? await uploadGeneratedImages(imageUrls, chatId)
+              : []
+          } finally {
+            clearInterval(heartbeat)
+          }
 
           // Build full response with image markers
           let fullResponse = text

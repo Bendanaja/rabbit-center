@@ -18,7 +18,7 @@ interface SearchResult {
 }
 
 interface StreamEvent {
-  type: 'chunk' | 'done' | 'error' | 'title' | 'search_results' | 'searching'
+  type: 'chunk' | 'done' | 'error' | 'title' | 'search_results' | 'searching' | 'heartbeat'
   content?: string
   messageId?: string
   message?: string

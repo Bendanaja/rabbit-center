@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X, Globe, ExternalLink } from 'lucide-react';
+import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X, Globe } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const VideoPlayer = dynamic(() => import('@/components/ui/VideoPlayer').then(mod => ({ default: mod.VideoPlayer })), { ssr: false });
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -541,8 +541,10 @@ function GeneratedVideoBlock({ url }: { url: string }) {
   );
 }
 
-// Web Sources Block Component
+// Web Sources Block Component - ChatGPT-style compact pills with favicons
 function WebSourcesBlock({ sources }: { sources: WebSource[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   const getDomain = (url: string) => {
     try {
       return new URL(url).hostname.replace('www.', '');
@@ -551,50 +553,106 @@ function WebSourcesBlock({ sources }: { sources: WebSource[] }) {
     }
   };
 
+  const getFaviconUrl = (url: string) => {
+    try {
+      const domain = new URL(url).hostname;
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    } catch {
+      return null;
+    }
+  };
+
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 overflow-hidden"
+      className="mt-3"
     >
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-sky-500/10 bg-sky-500/5">
-        <Globe className="h-4 w-4 text-sky-400" />
-        <span className="text-xs font-semibold text-sky-400">
-          แหล่งข้อมูลจากเว็บ
-        </span>
-      </div>
-      <div className="divide-y divide-sky-500/10">
-        {sources.map((source, i) => (
-          <a
-            key={i}
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-start gap-3 px-4 py-3 hover:bg-sky-500/5 transition-colors group/source"
-          >
-            <span className="text-xs font-bold text-sky-400/60 mt-0.5 shrink-0">
-              [{i + 1}]
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-medium text-neutral-200 group-hover/source:text-sky-300 transition-colors truncate">
-                  {source.title}
-                </p>
-                <ExternalLink className="h-3 w-3 text-neutral-500 group-hover/source:text-sky-400 shrink-0 transition-colors" />
+      {/* Compact header pill */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors mb-2 group/toggle"
+      >
+        {/* Stacked favicons */}
+        <div className="flex -space-x-1.5">
+          {sources.slice(0, 3).map((source, i) => {
+            const favicon = getFaviconUrl(source.url);
+            return favicon ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                key={i}
+                src={favicon}
+                alt=""
+                className="w-4 h-4 rounded-full border border-white dark:border-neutral-800 bg-white"
+              />
+            ) : (
+              <div key={i} className="w-4 h-4 rounded-full border border-white dark:border-neutral-800 bg-neutral-300 dark:bg-neutral-600 flex items-center justify-center">
+                <Globe className="h-2.5 w-2.5 text-neutral-500" />
               </div>
-              <p className="text-xs text-sky-400/60 mt-0.5">
-                {getDomain(source.url)}
-              </p>
-              {source.description && (
-                <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
-                  {source.description}
-                </p>
-              )}
+            );
+          })}
+        </div>
+        <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
+          แหล่งข้อมูล {sources.length} รายการ
+        </span>
+        <motion.svg
+          animate={{ rotate: expanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="w-3 h-3 text-neutral-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </motion.svg>
+      </button>
+
+      {/* Expandable source pills */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-wrap gap-2 pb-1">
+              {sources.map((source, i) => {
+                const favicon = getFaviconUrl(source.url);
+                const domain = getDomain(source.url);
+                return (
+                  <a
+                    key={i}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all group/pill max-w-xs"
+                  >
+                    {favicon ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={favicon} alt="" className="w-4 h-4 rounded-sm shrink-0" />
+                    ) : (
+                      <Globe className="h-4 w-4 text-neutral-400 shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-neutral-700 dark:text-neutral-200 truncate group-hover/pill:text-primary-600 dark:group-hover/pill:text-primary-400 transition-colors">
+                        {source.title}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 truncate">
+                        {domain}
+                      </p>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
-          </a>
-        ))}
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

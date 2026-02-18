@@ -1005,23 +1005,25 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
               )}
             </AnimatePresence>
 
-            {/* Web Search Indicator */}
+            {/* Web Search Indicator - compact inline style */}
             <AnimatePresence>
               {isSearching && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex items-center gap-3 py-4"
+                  exit={{ opacity: 0, y: -5 }}
+                  className="flex items-center gap-2 py-2"
                 >
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-sky-500 to-cyan-600 shadow-lg">
-                    <Globe className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
-                    <span className="text-sm text-sky-400 font-medium">
-                      กำลังค้นหาเว็บ...
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                    <Globe className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
+                    <span className="text-xs text-neutral-600 dark:text-neutral-300 font-medium">
+                      กำลังค้นหา
                     </span>
+                    <div className="flex gap-0.5">
+                      <span className="w-1 h-1 rounded-full bg-neutral-400 animate-pulse-dot" />
+                      <span className="w-1 h-1 rounded-full bg-neutral-400 animate-pulse-dot" style={{ animationDelay: '0.2s' }} />
+                      <span className="w-1 h-1 rounded-full bg-neutral-400 animate-pulse-dot" style={{ animationDelay: '0.4s' }} />
+                    </div>
                   </div>
                 </motion.div>
               )}
