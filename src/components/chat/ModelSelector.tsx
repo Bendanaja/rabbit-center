@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check, Lock } from 'lucide-react';
 import Image from 'next/image';
 import { getModelById, getModelKey } from '@/lib/byteplus';
+import { authFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 interface DbModel {
@@ -55,7 +56,7 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
   useEffect(() => {
     const sim = typeof window !== 'undefined' ? sessionStorage.getItem('simulate_plan') : null;
     const url = sim ? `/api/user/usage?simulate=${sim}` : '/api/user/usage';
-    fetch(url)
+    authFetch(url)
       .then(r => r.json())
       .then(data => {
         if (data.plan) setUserPlan(data.plan);
