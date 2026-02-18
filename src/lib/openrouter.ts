@@ -113,6 +113,7 @@ export async function chatCompletionOpenRouterMultipart(
       model,
       messages,
       stream: false,
+      modalities: ['text', 'image'],
     }),
   })
 
@@ -127,12 +128,25 @@ export async function chatCompletionOpenRouterMultipart(
     throw new Error(data.error.message || 'OpenRouter error')
   }
 
-  const rawContent = data.choices?.[0]?.message?.content
+  const message = data.choices?.[0]?.message
+  const rawContent = message?.content
+  const rawImages = message?.images
   const tokensUsed = data.usage?.total_tokens
+
+  console.log(`[OpenRouter Multipart] model=${model}, hasMessage=${!!message}, contentType=${typeof rawContent}, contentLen=${typeof rawContent === 'string' ? rawContent.length : Array.isArray(rawContent) ? rawContent.length : 0}, imagesField=${Array.isArray(rawImages) ? rawImages.length : 'none'}`)
 
   let text = ''
   const imageUrls: string[] = []
 
+  // 1. Extract images from the dedicated `images` field (OpenRouter image-gen response format)
+  if (Array.isArray(rawImages)) {
+    for (const img of rawImages) {
+      const url = img?.image_url?.url || img?.url
+      if (url) imageUrls.push(url)
+    }
+  }
+
+  // 2. Parse content (text string or multipart array)
   if (typeof rawContent === 'string') {
     // Extract inline base64 images from markdown format: ![alt](data:image/...)
     const imgRegex = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g
@@ -157,6 +171,8 @@ export async function chatCompletionOpenRouterMultipart(
       }
     }
   }
+
+  console.log(`[OpenRouter Multipart] result: text=${text.trim().length} chars, images=${imageUrls.length}, tokens=${tokensUsed}`)
 
   return { text: text.trim(), imageUrls, tokensUsed }
 }
