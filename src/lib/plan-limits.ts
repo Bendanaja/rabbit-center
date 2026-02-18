@@ -86,17 +86,19 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
 
 /**
  * Get allowed model IDs for a plan by querying the DB.
- * All paid plans (starter/pro/premium) can use ALL models.
- * Only the free plan is restricted to free-tier models.
- * Results are cached for 2 minutes.
- * Returns empty array meaning all models allowed.
+ * Uses tier hierarchy: user can access models at their tier level or below.
+ *   free → free only
+ *   starter → free + starter
+ *   pro → free + starter + pro
+ *   premium → free + starter + pro + premium (all)
+ * Returns empty array meaning all models allowed (for premium).
  */
 export async function getAllowedModelsForPlan(
   planId: PlanId,
   modelType?: 'chat' | 'image' | 'video'
 ): Promise<string[]> {
-  // All paid plans get all models
-  if (planId !== 'free') return []
+  // Premium gets all models
+  if (planId === 'premium') return []
 
   const cacheKey = `plan_models:${planId}:${modelType || 'all'}`
   const cached = await cacheGet<string[]>(cacheKey)
@@ -104,8 +106,8 @@ export async function getAllowedModelsForPlan(
 
   try {
     const supabase = createAdminClient()
+    const userLevel = getPlanLevel(planId)
 
-    // Free plan: only get models with tier='free'
     const { data } = await supabase
       .from('ai_models')
       .select('id, tier')
@@ -117,9 +119,9 @@ export async function getAllowedModelsForPlan(
       return fallback
     }
 
-    // Free users only get free-tier models
+    // Filter models where model tier level <= user plan level
     const allowed = data
-      .filter(m => normalizeTier(m.tier) === 'free')
+      .filter(m => getPlanLevel(normalizeTier(m.tier)) <= userLevel)
       .map(m => m.id)
 
     await cacheSet(cacheKey, allowed, 120) // cache 2 min
@@ -527,16 +529,16 @@ export async function checkPlanLimit(
       }
     }
 
-    // All paid plans (starter+) can use ALL models.
-    // Only free users are restricted to free-tier models.
-    if (userPlan.planId === 'free') {
-      const modelTier = normalizeTier(modelInfo.tier)
-      if (modelTier !== 'free') {
-        return {
-          allowed: false,
-          reason: 'โมเดลนี้สำหรับสมาชิกเท่านั้น กรุณาอัปเกรดแพลนเพื่อใช้งาน',
-          planId: userPlan.planId,
-        }
+    // Tier hierarchy: user can only access models at their tier level or below
+    const modelTier = normalizeTier(modelInfo.tier)
+    const modelLevel = getPlanLevel(modelTier)
+    const userLevel = getPlanLevel(userPlan.planId)
+    if (modelLevel > userLevel) {
+      const tierNames: Record<string, string> = { free: 'ฟรี', starter: 'เริ่มต้น', pro: 'โปร', premium: 'พรีเมียม' }
+      return {
+        allowed: false,
+        reason: `โมเดลนี้ต้องใช้แพลน${tierNames[modelTier] || modelTier}ขึ้นไป กรุณาอัปเกรดเพื่อใช้งาน`,
+        planId: userPlan.planId,
       }
     }
   }
