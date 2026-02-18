@@ -39,7 +39,7 @@ export const MODELS: Record<string, ModelDefinition> = {
   'kimi-k2-thinking': { id: 'kimi-k2-thinking-251104', name: 'Kimi K2 Thinking', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
   'kimi-k2': { id: 'kimi-k2-250905', name: 'Kimi K2', provider: 'Moonshot', icon: '/images/models/kimi.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
   'glm-4': { id: 'glm-4-7-251222', name: 'GLM-4.7', provider: 'Zhipu AI', icon: '/images/models/zhipu.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'byteplus', maxContextTokens: 128_000 },
-  'gpt-oss-120b': { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 131_000 },
+  'gpt-oss-120b': { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: true, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 131_000 },
 
   // ═══════════════════════════════════════════
   // OpenRouter Models
