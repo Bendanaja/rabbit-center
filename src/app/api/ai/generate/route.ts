@@ -68,11 +68,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'messages must be a non-empty array' }, { status: 400 })
   }
 
+  // Filter out messages with empty content (e.g. old image-only responses)
+  const validMessages = messages.filter(msg => msg.role && msg.content)
+
   // Validate and sanitize each message
-  for (const msg of messages) {
-    if (!msg.role || !msg.content) {
-      return NextResponse.json({ error: 'Each message must have role and content' }, { status: 400 })
-    }
+  for (const msg of validMessages) {
     if (!['user', 'assistant', 'system'].includes(msg.role)) {
       return NextResponse.json({ error: 'Invalid message role' }, { status: 400 })
     }
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
   trackActivity(user.id, 'chat')
 
   // Detect if web search is needed: manual toggle or AI-based auto-detect
-  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+  const lastUserMsg = [...validMessages].reverse().find(m => m.role === 'user')
   let needsSearch = webSearch
   if (!webSearch && lastUserMsg) {
     console.log(`[Generate] Auto-search check for: "${lastUserMsg.content}", COMPACT_MODEL: ${COMPACT_MODEL}`)
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
         }
 
         // Inject search context as system message if we have results
-        const messagesWithSearch = [...messages]
+        const messagesWithSearch = [...validMessages]
         if (searchResults.length > 0) {
           const searchContext = formatSearchContext(searchResults)
           messagesWithSearch.unshift({
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
             .single()
 
           // Usage tracking
-          const inputTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+          const inputTokens = validMessages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
           const outputTokens = tokensUsed || Math.ceil(fullResponse.length / 4)
           const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
           await incrementUsage(user.id, 'chat', costThb)
@@ -247,7 +247,7 @@ export async function POST(request: Request) {
             updated_at: new Date().toISOString()
           }
           if (chatTitle === 'แชทใหม่' && messages.length <= 2) {
-            const userMessage = messages.find(m => m.role === 'user')
+            const userMessage = validMessages.find(m => m.role === 'user')
             if (userMessage) {
               const title = await generateChatTitle(userMessage.content)
               updateData.title = title
@@ -289,7 +289,7 @@ export async function POST(request: Request) {
                 .single()
 
               // Calculate tokens and cost for usage tracking
-              const inputTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+              const inputTokens = validMessages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
               const outputTokens = Math.ceil(response.length / 4)
               const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
 
@@ -310,7 +310,7 @@ export async function POST(request: Request) {
               }
 
               if (chatTitle === 'แชทใหม่' && messages.length <= 2) {
-                const userMessage = messages.find(m => m.role === 'user')
+                const userMessage = validMessages.find(m => m.role === 'user')
                 if (userMessage) {
                   const title = await generateChatTitle(userMessage.content)
                   updateData.title = title
