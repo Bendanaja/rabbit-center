@@ -40,7 +40,7 @@ export async function GET() {
     const supabase = createAdminClient()
     const { data } = await supabase
       .from('ai_models')
-      .select('id, name, provider, icon_url, tier, is_active, context_window')
+      .select('id, name, provider, icon_url, tier, is_active, context_window, capabilities')
       .order('priority', { ascending: false })
 
     if (!data) {
@@ -71,6 +71,7 @@ export async function GET() {
           isFree: (m.tier === 'free'),
           modelType: def?.modelType || (m.id.includes('seedream') ? 'image' : m.id.includes('seedance') ? 'video' : 'chat'),
           apiProvider: def?.apiProvider || (m.id.includes('/') ? 'openrouter' : 'byteplus'),
+          capabilities: m.capabilities || def?.capabilities || [],
         }
       })
 

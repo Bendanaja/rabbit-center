@@ -51,6 +51,7 @@ export async function PUT(
       max_tokens,
       input_cost_per_1k,
       output_cost_per_1k,
+      capabilities,
     } = body;
 
     const updateData: Record<string, unknown> = {
@@ -73,6 +74,7 @@ export async function PUT(
     if (max_tokens !== undefined) updateData.max_tokens = max_tokens;
     if (input_cost_per_1k !== undefined) updateData.input_cost_per_1k = input_cost_per_1k;
     if (output_cost_per_1k !== undefined) updateData.output_cost_per_1k = output_cost_per_1k;
+    if (capabilities !== undefined) updateData.capabilities = Array.isArray(capabilities) ? capabilities : [];
 
     const { data, error } = await supabase
       .from('ai_models')

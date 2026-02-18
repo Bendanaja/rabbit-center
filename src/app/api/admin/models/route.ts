@@ -82,6 +82,7 @@ async function syncModelsToDb() {
       max_tokens: 4096,
       supports_streaming: def.modelType === 'chat',
       display_order: idx,
+      capabilities: def.capabilities || [],
     }));
 
   if (toInsert.length > 0) {
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
       max_tokens,
       input_cost_per_1k,
       output_cost_per_1k,
+      capabilities,
     } = body;
 
     if (!id || !name || !provider) {
@@ -231,6 +233,7 @@ export async function POST(request: NextRequest) {
         output_cost_per_1k: output_cost_per_1k || null,
         supports_streaming: true,
         display_order: 0,
+        capabilities: Array.isArray(capabilities) ? capabilities : [],
       })
       .select()
       .single();

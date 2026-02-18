@@ -179,12 +179,21 @@ export async function POST(request: Request) {
         }
 
         // Check if model supports image generation in chat (e.g. Nano Banana)
+        // Look up capabilities from DB first, fallback to hardcoded registry
+        const { data: modelRow } = await adminSupabase
+          .from('ai_models')
+          .select('capabilities')
+          .eq('id', model)
+          .single()
         const modelDef = getModelById(model) || MODELS[getModelKey(model) || '']
-        const isImageGenChat = modelDef?.capabilities?.includes('chat-image-gen') && modelDef?.apiProvider === 'openrouter'
+        const capabilities: string[] = modelRow?.capabilities || modelDef?.capabilities || []
+        const apiProvider = modelDef?.apiProvider || (model.includes('/') ? 'openrouter' : 'byteplus')
+        const isImageGenChat = capabilities.includes('chat-image-gen') && apiProvider === 'openrouter'
 
         if (isImageGenChat) {
           // Use non-streaming for image generation models (images can't be streamed)
-          const { text, imageUrls, tokensUsed } = await chatCompletionOpenRouterMultipart(messagesWithSearch, modelDef.id)
+          const openrouterModelId = modelDef?.id || model
+          const { text, imageUrls, tokensUsed } = await chatCompletionOpenRouterMultipart(messagesWithSearch, openrouterModelId)
 
           // Build full response with image markers
           let fullResponse = text

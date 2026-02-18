@@ -52,6 +52,7 @@ interface AIModel {
   usage_stats: { requests: number; tokens: number };
   input_cost_per_1k: number | null;
   output_cost_per_1k: number | null;
+  capabilities: string[];
 }
 
 interface OpenRouterModel {
@@ -66,6 +67,7 @@ interface OpenRouterModel {
   modality: string;
   already_added: boolean;
   icon_url: string;
+  suggested_capabilities: string[];
 }
 
 const tierColors: Record<string, string> = {
@@ -187,6 +189,7 @@ export default function AdminModelsPage() {
           cooldown_seconds: model.cooldown_seconds,
           priority: model.priority,
           tier: model.tier,
+          capabilities: model.capabilities,
         }),
       });
       if (!response.ok) {
@@ -1024,6 +1027,33 @@ function EditModelModal({
             </div>
           </div>
 
+          {/* Capabilities */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-300 mb-2">ความสามารถ</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-2.5 bg-neutral-800/60 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={model.capabilities?.includes('chat-image-gen') || false}
+                  onChange={(e) => {
+                    const caps = model.capabilities || [];
+                    onChange({
+                      ...model,
+                      capabilities: e.target.checked
+                        ? [...caps, 'chat-image-gen']
+                        : caps.filter(c => c !== 'chat-image-gen'),
+                    });
+                  }}
+                  className="h-4 w-4 rounded border-neutral-600 bg-neutral-700 text-primary-500 focus:ring-primary-500/30"
+                />
+                <div>
+                  <span className="text-sm text-white">Chat Image Gen</span>
+                  <p className="text-[11px] text-neutral-500">สร้างรูปภาพในแชท (เช่น Nano Banana)</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Limits Grid */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -1107,6 +1137,7 @@ function AddModelModal({
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [newTier, setNewTier] = useState<'free' | 'starter' | 'pro' | 'premium'>('pro');
   const [newName, setNewName] = useState('');
+  const [newCapabilities, setNewCapabilities] = useState<string[]>([]);
 
   const searchModels = useCallback(async (query: string) => {
     setSearching(true);
@@ -1143,6 +1174,7 @@ function AddModelModal({
     setSelectedModel(model);
     setNewName(model.name);
     setNewTier(model.is_free ? 'free' : 'starter');
+    setNewCapabilities(model.suggested_capabilities || []);
     setError(null);
     setSuccess(false);
   };
@@ -1167,6 +1199,7 @@ function AddModelModal({
           input_cost_per_1k: selectedModel.prompt_cost ? selectedModel.prompt_cost * 1000 : null,
           output_cost_per_1k: selectedModel.completion_cost ? selectedModel.completion_cost * 1000 : null,
           priority: 50,
+          capabilities: newCapabilities,
         }),
       });
 
@@ -1346,6 +1379,28 @@ function AddModelModal({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Capabilities toggle */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1">ความสามารถ</label>
+                  <label className="flex items-center gap-2.5 p-2 bg-neutral-800/60 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={newCapabilities.includes('chat-image-gen')}
+                      onChange={(e) => {
+                        setNewCapabilities(e.target.checked
+                          ? [...newCapabilities, 'chat-image-gen']
+                          : newCapabilities.filter(c => c !== 'chat-image-gen')
+                        );
+                      }}
+                      className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-700 text-primary-500 focus:ring-primary-500/30"
+                    />
+                    <div>
+                      <span className="text-xs text-white">Chat Image Gen</span>
+                      <p className="text-[10px] text-neutral-500">สร้างรูปในแชท</p>
+                    </div>
+                  </label>
                 </div>
 
                 <div className="space-y-2 text-sm">

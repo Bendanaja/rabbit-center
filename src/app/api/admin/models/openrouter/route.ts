@@ -130,6 +130,13 @@ export async function GET(request: NextRequest) {
         const completionCost = parseFloat(m.pricing?.completion || '0');
         const provider = m.id.split('/')[0] || 'unknown';
 
+        // Auto-detect capabilities from output modalities
+        const outputModalities = m.architecture?.output_modalities || [];
+        const suggestedCapabilities: string[] = [];
+        if (outputModalities.includes('image')) {
+          suggestedCapabilities.push('chat-image-gen');
+        }
+
         return {
           id: m.id,
           name: m.name || m.id,
@@ -142,6 +149,7 @@ export async function GET(request: NextRequest) {
           modality: m.architecture?.modality || 'text->text',
           already_added: existingIds.has(m.id),
           icon_url: getProviderIcon(m.id),
+          suggested_capabilities: suggestedCapabilities,
         };
       });
 
