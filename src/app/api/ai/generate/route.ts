@@ -8,6 +8,7 @@ import { searchWeb, shouldAutoSearch, formatSearchContext, formatSourcesMarker, 
 import { calculateUsageCost, estimateChatCost } from '@/lib/token-costs'
 import { validateContentType, validateInput, sanitizeInput, INPUT_LIMITS } from '@/lib/security'
 import { trackActivity } from '@/lib/activity'
+import { uploadGeneratedImages } from '@/lib/cloudflare-r2'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -199,10 +200,15 @@ export async function POST(request: Request) {
           const openrouterModelId = modelDef?.id || model
           const { text, imageUrls, tokensUsed } = await chatCompletionOpenRouterMultipart(messagesWithSearch, openrouterModelId)
 
+          // Upload images to Cloudflare R2 (falls back to base64 if not configured)
+          const finalImageUrls = imageUrls.length > 0
+            ? await uploadGeneratedImages(imageUrls, chatId)
+            : []
+
           // Build full response with image markers
           let fullResponse = text
-          if (imageUrls.length > 0) {
-            fullResponse += `\n\n[GENERATED_IMAGE]\n${imageUrls.join('\n')}\n[/GENERATED_IMAGE]`
+          if (finalImageUrls.length > 0) {
+            fullResponse += `\n\n[GENERATED_IMAGE]\n${finalImageUrls.join('\n')}\n[/GENERATED_IMAGE]`
           }
 
           // Emit text part as chunk for typewriter effect
