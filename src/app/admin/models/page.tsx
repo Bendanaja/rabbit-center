@@ -184,6 +184,8 @@ export default function AdminModelsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: model.name,
+          icon_url: model.icon_url,
           daily_limit: model.daily_limit,
           hourly_limit: model.hourly_limit,
           cooldown_seconds: model.cooldown_seconds,
@@ -1006,6 +1008,35 @@ function EditModelModal({
         </div>
 
         <div className="space-y-4">
+          {/* Display Name */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-400 mb-1.5">ชื่อแสดงในเว็บ</label>
+            <input
+              type="text"
+              value={model.name}
+              onChange={(e) => onChange({ ...model, name: e.target.value })}
+              placeholder="ชื่อโมเดล"
+              className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            />
+          </div>
+
+          {/* Icon URL */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-400 mb-1.5">URL รูปไอคอน</label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={model.icon_url || ''}
+                onChange={(e) => onChange({ ...model, icon_url: e.target.value || null })}
+                placeholder="https://example.com/icon.png"
+                className="flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+              />
+              {model.icon_url && (
+                <img src={model.icon_url} alt="" className="h-9 w-9 rounded-lg object-cover border border-neutral-700" />
+              )}
+            </div>
+          </div>
+
           {/* Tier */}
           <div>
             <label className="block text-sm font-medium text-neutral-300 mb-2">ระดับ</label>
@@ -1049,6 +1080,26 @@ function EditModelModal({
                 <div>
                   <span className="text-sm text-white">Chat Image Gen</span>
                   <p className="text-[11px] text-neutral-500">สร้างรูปภาพในแชท (เช่น Nano Banana)</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-2.5 bg-neutral-800/60 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={model.capabilities?.includes('vision') || false}
+                  onChange={(e) => {
+                    const caps = model.capabilities || [];
+                    onChange({
+                      ...model,
+                      capabilities: e.target.checked
+                        ? [...caps, 'vision']
+                        : caps.filter(c => c !== 'vision'),
+                    });
+                  }}
+                  className="h-4 w-4 rounded border-neutral-600 bg-neutral-700 text-primary-500 focus:ring-primary-500/30"
+                />
+                <div>
+                  <span className="text-sm text-white">Vision</span>
+                  <p className="text-[11px] text-neutral-500">รับรูปภาพเป็น input ได้ (เช่น Claude, GPT)</p>
                 </div>
               </label>
             </div>

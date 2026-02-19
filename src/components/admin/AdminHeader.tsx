@@ -10,8 +10,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { authFetch } from '@/lib/api-client';
 
 const pageNames: Record<string, string> = {
   '/admin': 'แดชบอร์ด',
@@ -34,6 +35,23 @@ interface AdminHeaderProps {
 export function AdminHeader({ onRefresh, isRefreshing }: AdminHeaderProps) {
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCount, setActiveCount] = useState(0);
+
+  const fetchActiveCount = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/admin/notifications?status=active&limit=1');
+      if (res.ok) {
+        const data = await res.json();
+        setActiveCount(data.active_count ?? 0);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchActiveCount();
+    const interval = setInterval(fetchActiveCount, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchActiveCount]);
 
   // Build breadcrumbs
   const pathSegments = pathname.split('/').filter(Boolean);
@@ -109,16 +127,20 @@ export function AdminHeader({ onRefresh, isRefreshing }: AdminHeaderProps) {
           )}
 
           {/* Notifications */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="relative h-9 w-9 flex items-center justify-center rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700 transition-colors"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary-500 rounded-full text-[10px] text-white flex items-center justify-center font-medium">
-              3
-            </span>
-          </motion.button>
+          <Link href="/admin/notifications">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative h-9 w-9 flex items-center justify-center rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700 transition-colors"
+            >
+              <Bell className="h-4 w-4" />
+              {activeCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary-500 rounded-full text-[10px] text-white flex items-center justify-center font-medium">
+                  {activeCount > 9 ? '9+' : activeCount}
+                </span>
+              )}
+            </motion.div>
+          </Link>
 
           {/* Live indicator */}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
