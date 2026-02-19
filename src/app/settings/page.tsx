@@ -18,6 +18,10 @@ import {
   Phone,
   Camera,
   Trash2,
+  Zap,
+  Star,
+  Crown,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -509,16 +513,42 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 rounded-lg bg-primary-50 dark:bg-primary-900/20">
-                      <Badge variant="primary">{userData.isAdmin ? 'แอดมิน' : `แผน ${userData.plan}`}</Badge>
-                      <span className="text-sm text-primary-700 dark:text-primary-400">
-                        {userData.isAdmin
-                          ? 'คุณเป็นผู้ดูแลระบบ ใช้งานได้ไม่จำกัด'
-                          : userData.planId === 'free'
-                            ? 'คุณใช้แผนฟรี อัปเกรดเพื่อใช้งานได้มากขึ้น'
-                            : 'คุณใช้แผนที่เข้าถึงทุกฟีเจอร์ได้'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const planStyles: Record<string, { gradient: string; icon: React.ElementType; label: string; desc: string }> = {
+                        admin: { gradient: 'from-emerald-500 to-teal-600', icon: Shield, label: 'แอดมิน', desc: 'ใช้งานได้ไม่จำกัด' },
+                        free: { gradient: 'from-neutral-500 to-neutral-600', icon: User, label: 'แผนฟรี', desc: 'อัปเกรดเพื่อปลดล็อกทุกโมเดล' },
+                        starter: { gradient: 'from-blue-500 to-indigo-600', icon: Zap, label: 'แผนเริ่มต้น', desc: 'เข้าถึงโมเดลยอดนิยม' },
+                        pro: { gradient: 'from-violet-500 to-purple-600', icon: Star, label: 'แผนโปร', desc: 'เข้าถึงโมเดลทั้งหมด' },
+                        premium: { gradient: 'from-amber-500 to-orange-600', icon: Crown, label: 'แผนพรีเมียม', desc: 'เข้าถึงทุกฟีเจอร์ ไม่จำกัด' },
+                      };
+                      const style = userData.isAdmin ? planStyles.admin : (planStyles[userData.planId] || planStyles.free);
+                      const PlanIcon = style.icon;
+                      return (
+                        <div className={`relative overflow-hidden rounded-xl bg-gradient-to-r ${style.gradient} p-4`}>
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                          <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+                          <div className="relative flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-white/20 backdrop-blur-sm">
+                                <PlanIcon className="h-5 w-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-white font-semibold text-sm">{style.label}</p>
+                                <p className="text-white/70 text-xs">{style.desc}</p>
+                              </div>
+                            </div>
+                            {userData.planId === 'free' && !userData.isAdmin && (
+                              <Link href="/pricing">
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-xs font-medium rounded-lg transition-colors">
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  อัปเกรด
+                                </button>
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
 
                     <div className="flex justify-end">

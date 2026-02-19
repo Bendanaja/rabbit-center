@@ -21,6 +21,8 @@ interface ChatInputProps {
   webSearchEnabled?: boolean;
   onToggleWebSearch?: () => void;
   visionEnabled?: boolean;
+  imageGenEnabled?: boolean;
+  videoGenEnabled?: boolean;
 }
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -32,7 +34,7 @@ const SLASH_COMMANDS = [
   { command: '/video', description: 'สร้างวิดีโอจากข้อความ', icon: Video, color: 'text-pink-400' },
 ];
 
-export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabled = false, onToggleWebSearch, visionEnabled = false }: ChatInputProps) {
+export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabled = false, onToggleWebSearch, visionEnabled = false, imageGenEnabled = true, videoGenEnabled = true }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
@@ -40,6 +42,12 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const availableCommands = SLASH_COMMANDS.filter(cmd => {
+    if (cmd.command === '/image' && !imageGenEnabled) return false;
+    if (cmd.command === '/video' && !videoGenEnabled) return false;
+    return true;
+  });
 
   // Auto-resize textarea
   useEffect(() => {
@@ -61,7 +69,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
       setShowCommands(true);
       setSelectedCommand(0);
     } else if (message.startsWith('/')) {
-      const filtered = SLASH_COMMANDS.filter(c =>
+      const filtered = availableCommands.filter(c =>
         c.command.startsWith(message.split(' ')[0])
       );
       setShowCommands(filtered.length > 0 && !message.includes(' '));
@@ -160,17 +168,17 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
     if (showCommands) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedCommand(prev => (prev + 1) % SLASH_COMMANDS.length);
+        setSelectedCommand(prev => (prev + 1) % availableCommands.length);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedCommand(prev => (prev - 1 + SLASH_COMMANDS.length) % SLASH_COMMANDS.length);
+        setSelectedCommand(prev => (prev - 1 + availableCommands.length) % availableCommands.length);
         return;
       }
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
         e.preventDefault();
-        handleCommandSelect(SLASH_COMMANDS[selectedCommand].command);
+        handleCommandSelect(availableCommands[selectedCommand].command);
         return;
       }
     }
@@ -204,7 +212,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
               <Command className="h-3.5 w-3.5 text-neutral-500" />
               <span className="text-xs text-neutral-500">คำสั่ง</span>
             </div>
-            {SLASH_COMMANDS.map((cmd, i) => (
+            {availableCommands.map((cmd, i) => (
               <button
                 key={cmd.command}
                 onClick={() => handleCommandSelect(cmd.command)}
@@ -358,26 +366,30 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
         <div className="flex items-center justify-between px-2 sm:px-3 py-2">
           {/* Left Actions */}
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <ActionButton
-              icon={ImagePlus}
-              label="สร้างภาพ"
-              onClick={() => {
-                setMessage('/image ');
-                textareaRef.current?.focus();
-              }}
-              active={commandMode === 'image'}
-              activeColor="text-violet-400 bg-violet-500/10"
-            />
-            <ActionButton
-              icon={Video}
-              label="สร้างวิดีโอ"
-              onClick={() => {
-                setMessage('/video ');
-                textareaRef.current?.focus();
-              }}
-              active={commandMode === 'video'}
-              activeColor="text-pink-400 bg-pink-500/10"
-            />
+            {imageGenEnabled && (
+              <ActionButton
+                icon={ImagePlus}
+                label="สร้างภาพ"
+                onClick={() => {
+                  setMessage('/image ');
+                  textareaRef.current?.focus();
+                }}
+                active={commandMode === 'image'}
+                activeColor="text-violet-400 bg-violet-500/10"
+              />
+            )}
+            {videoGenEnabled && (
+              <ActionButton
+                icon={Video}
+                label="สร้างวิดีโอ"
+                onClick={() => {
+                  setMessage('/video ');
+                  textareaRef.current?.focus();
+                }}
+                active={commandMode === 'video'}
+                activeColor="text-pink-400 bg-pink-500/10"
+              />
+            )}
             <ActionButton
               icon={Globe}
               label="ค้นหาเว็บ"

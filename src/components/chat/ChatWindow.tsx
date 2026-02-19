@@ -10,7 +10,7 @@ import { ChatInput } from './ChatInput';
 import { getGreeting, cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
-import { getModelById, getModelType, buildContextMessages, isVisionModel } from '@/lib/byteplus';
+import { getModelById, getModelType, buildContextMessages, isVisionModel, getImageModels, getVideoModels, isImageGenChatModel } from '@/lib/byteplus';
 import type { MessageContentPart } from '@/lib/byteplus';
 import { authFetch, getAuthToken } from '@/lib/api-client';
 import type { Attachment } from './ChatInput';
@@ -1276,6 +1276,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
             visionEnabled={isVisionModel(selectedModel)}
+            imageGenEnabled={getImageModels().length > 0 || isImageGenChatModel(selectedModel)}
+            videoGenEnabled={getVideoModels().length > 0}
           />
         </div>
       </div>
