@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .order('name');
 
-    // Get subscriber counts per plan
+    // Get subscriber counts per plan (including free plan in subscriptions table)
     const { data: subCounts } = await supabase
       .from('subscriptions')
       .select('plan_id')
@@ -63,13 +63,16 @@ export async function GET(request: NextRequest) {
       subscriberCounts[s.plan_id] = (subscriberCounts[s.plan_id] || 0) + 1;
     });
 
-    // Get total user count for free (users without active subscription)
+    // Users without any subscription record are also free users
     const { count: totalUsers } = await supabase
       .from('user_profiles')
       .select('*', { count: 'exact', head: true });
 
-    const paidUsers = Object.values(subscriberCounts).reduce((a, b) => a + b, 0);
-    subscriberCounts.free = (totalUsers || 0) - paidUsers;
+    const usersWithSub = subCounts?.length || 0;
+    const usersWithoutSub = (totalUsers || 0) - usersWithSub;
+    if (usersWithoutSub > 0) {
+      subscriberCounts.free += usersWithoutSub;
+    }
 
     // Build response: 4 plan configs
     const plans = (['free', 'starter', 'pro', 'premium'] as const).map(planId => {
