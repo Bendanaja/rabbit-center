@@ -47,6 +47,12 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    if (!phone_number) {
+      return NextResponse.json(
+        { error: 'Phone number is required' },
+        { status: 400 }
+      )
+    }
 
     // Type and length validation
     const emailErr = validateInput(email, { type: 'string', maxLength: INPUT_LIMITS.email, fieldName: 'email' })
@@ -58,7 +64,7 @@ export async function POST(request: Request) {
       const nameErr = validateInput(full_name, { type: 'string', maxLength: INPUT_LIMITS.fullName, fieldName: 'full_name' })
       if (nameErr) return NextResponse.json({ error: nameErr }, { status: 400 })
     }
-    if (phone_number) {
+    {
       const phoneErr = validateInput(phone_number, { type: 'string', maxLength: 20, fieldName: 'phone_number' })
       if (phoneErr) return NextResponse.json({ error: phoneErr }, { status: 400 })
       // Validate Thai phone format

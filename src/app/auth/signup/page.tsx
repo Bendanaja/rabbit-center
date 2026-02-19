@@ -43,8 +43,12 @@ export default function SignupPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    // Validate phone number if provided (Thai format)
-    if (phoneNumber) {
+    // Validate phone number (required, Thai format)
+    if (!phoneNumber) {
+      setErrorMessage('กรุณากรอกเบอร์โทรศัพท์');
+      return;
+    }
+    {
       const cleaned = phoneNumber.replace(/[-\s]/g, '');
       const thaiPhoneRegex = /^0[0-9]{8,9}$/;
       if (!thaiPhoneRegex.test(cleaned)) {
@@ -63,7 +67,7 @@ export default function SignupPage() {
 
     const { data, error } = await signUpWithEmail(email, password, {
       full_name: fullName,
-      phone_number: phoneNumber || undefined,
+      phone_number: phoneNumber,
     });
 
     if (error) {
@@ -211,12 +215,13 @@ export default function SignupPage() {
               />
 
               <Input
-                label="เบอร์โทรศัพท์ (ไม่บังคับ)"
+                label="เบอร์โทรศัพท์"
                 type="tel"
                 placeholder="08x-xxx-xxxx"
                 leftIcon={<Phone className="h-4 w-4" />}
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
+                required
               />
 
               <div className="relative">
