@@ -76,12 +76,39 @@ export async function POST(request: Request) {
     if (!['user', 'assistant', 'system'].includes(msg.role)) {
       return NextResponse.json({ error: 'Invalid message role' }, { status: 400 })
     }
-    if (typeof msg.content !== 'string' || msg.content.length > INPUT_LIMITS.message) {
-      return NextResponse.json({ error: `Message content exceeds maximum length of ${INPUT_LIMITS.message} characters` }, { status: 400 })
-    }
-    // Sanitize user messages before sending to AI
-    if (msg.role === 'user') {
-      msg.content = sanitizeInput(msg.content)
+    // Support multimodal content: string or array of content parts
+    if (Array.isArray(msg.content)) {
+      // Multimodal content: [{type:"text",text:"..."}, {type:"image_url",image_url:{url:"..."}}]
+      for (const part of msg.content) {
+        if (part.type === 'text' && typeof part.text === 'string') {
+          if (part.text.length > INPUT_LIMITS.message) {
+            return NextResponse.json({ error: `Message content exceeds maximum length` }, { status: 400 })
+          }
+          if (msg.role === 'user') {
+            part.text = sanitizeInput(part.text)
+          }
+        }
+        if (part.type === 'image_url') {
+          const imageUrl = part.image_url?.url
+          if (typeof imageUrl !== 'string') {
+            return NextResponse.json({ error: 'Invalid image_url part' }, { status: 400 })
+          }
+          // Allow data URLs (base64 fallback) and https URLs only
+          if (!imageUrl.startsWith('data:image/') && !imageUrl.startsWith('https://')) {
+            return NextResponse.json({ error: 'Image URLs must use https' }, { status: 400 })
+          }
+        }
+      }
+    } else if (typeof msg.content === 'string') {
+      if (msg.content.length > INPUT_LIMITS.message) {
+        return NextResponse.json({ error: `Message content exceeds maximum length of ${INPUT_LIMITS.message} characters` }, { status: 400 })
+      }
+      // Sanitize user messages before sending to AI
+      if (msg.role === 'user') {
+        msg.content = sanitizeInput(msg.content)
+      }
+    } else {
+      return NextResponse.json({ error: 'Invalid message content type' }, { status: 400 })
     }
   }
 
@@ -98,12 +125,19 @@ export async function POST(request: Request) {
   // Track activity in customer_profiles (non-blocking)
   trackActivity(user.id, 'chat')
 
+  // Helper: extract text from content (string or multimodal array)
+  const getTextContent = (content: string | { type: string; text?: string }[]): string => {
+    if (typeof content === 'string') return content
+    return content.filter(p => p.type === 'text').map(p => p.text || '').join(' ')
+  }
+
   // Detect if web search is needed: manual toggle or AI-based auto-detect
   const lastUserMsg = [...validMessages].reverse().find(m => m.role === 'user')
   let needsSearch = webSearch
   if (!webSearch && lastUserMsg) {
-    console.log(`[Generate] Auto-search check for: "${lastUserMsg.content}", COMPACT_MODEL: ${COMPACT_MODEL}`)
-    needsSearch = await shouldAutoSearch(lastUserMsg.content, chatCompletion, COMPACT_MODEL)
+    const lastUserText = getTextContent(lastUserMsg.content)
+    console.log(`[Generate] Auto-search check for: "${lastUserText}", COMPACT_MODEL: ${COMPACT_MODEL}`)
+    needsSearch = await shouldAutoSearch(lastUserText, chatCompletion, COMPACT_MODEL)
     console.log(`[Generate] Auto-search result: ${needsSearch}`)
   }
   const wasAutoSearched = !webSearch && needsSearch
@@ -155,7 +189,7 @@ export async function POST(request: Request) {
           const searchRateLimit = await checkRateLimitRedis(searchRateLimitKey, searchRateLimitConfig)
 
           if (searchRateLimit.allowed) {
-            const searchResponse = await searchWeb(lastUserMsg.content)
+            const searchResponse = await searchWeb(getTextContent(lastUserMsg.content))
             searchResults = searchResponse.results
 
             if (searchResults.length > 0) {
@@ -243,7 +277,11 @@ export async function POST(request: Request) {
             .single()
 
           // Usage tracking
-          const inputTokens = validMessages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+          const inputTokens = validMessages.reduce((sum, m) => {
+            if (typeof m.content === 'string') return sum + Math.ceil(m.content.length / 4)
+            // Multimodal: estimate text tokens + ~1000 per image
+            return sum + m.content.reduce((s, p) => s + (p.type === 'text' ? Math.ceil((p.text?.length || 0) / 4) : 1000), 0)
+          }, 0)
           const outputTokens = tokensUsed || Math.ceil(fullResponse.length / 4)
           const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
           await incrementUsage(user.id, 'chat', costThb)
@@ -263,7 +301,7 @@ export async function POST(request: Request) {
           if (chatTitle === 'แชทใหม่' && messages.length <= 2) {
             const userMessage = validMessages.find(m => m.role === 'user')
             if (userMessage) {
-              const title = await generateChatTitle(userMessage.content)
+              const title = await generateChatTitle(getTextContent(userMessage.content))
               updateData.title = title
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'title', title })}\n\n`))
             }
@@ -303,7 +341,10 @@ export async function POST(request: Request) {
                 .single()
 
               // Calculate tokens and cost for usage tracking
-              const inputTokens = validMessages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
+              const inputTokens = validMessages.reduce((sum, m) => {
+                if (typeof m.content === 'string') return sum + Math.ceil(m.content.length / 4)
+                return sum + m.content.reduce((s, p) => s + (p.type === 'text' ? Math.ceil((p.text?.length || 0) / 4) : 1000), 0)
+              }, 0)
               const outputTokens = Math.ceil(response.length / 4)
               const costThb = estimateChatCost(model, inputTokens, outputTokens).thb
 
@@ -326,7 +367,7 @@ export async function POST(request: Request) {
               if (chatTitle === 'แชทใหม่' && messages.length <= 2) {
                 const userMessage = validMessages.find(m => m.role === 'user')
                 if (userMessage) {
-                  const title = await generateChatTitle(userMessage.content)
+                  const title = await generateChatTitle(getTextContent(userMessage.content))
                   updateData.title = title
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'title', title })}\n\n`))
                 }

@@ -1,8 +1,14 @@
 const BYTEPLUS_BASE_URL = 'https://ark.ap-southeast.bytepluses.com/api/v3'
 
+export interface MessageContentPart {
+  type: 'text' | 'image_url'
+  text?: string
+  image_url?: { url: string }
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: string | MessageContentPart[]
 }
 
 export interface StreamCallbacks {
@@ -44,11 +50,11 @@ export const MODELS: Record<string, ModelDefinition> = {
   // ═══════════════════════════════════════════
   // OpenRouter Models
   // ═══════════════════════════════════════════
-  'nano-banana': { id: 'google/gemini-2.5-flash-image-preview', name: 'Nano Banana', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen'] },
-  'nano-banana-pro': { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen'] },
-  'gpt-5-2': { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 400_000 },
-  'grok-4': { id: 'x-ai/grok-4', name: 'Grok 4', provider: 'xAI', icon: '/images/models/xai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 256_000 },
-  'claude-4-6': { id: 'anthropic/claude-opus-4-6', name: 'Claude 4.6 Opus', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 200_000 },
+  'nano-banana': { id: 'google/gemini-2.5-flash-image-preview', name: 'Nano Banana', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen', 'vision'] },
+  'nano-banana-pro': { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro', provider: 'Google', icon: '/images/models/google.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 32_768, capabilities: ['chat-image-gen', 'vision'] },
+  'gpt-5-2': { id: 'openai/gpt-5.2', name: 'GPT 5.2', provider: 'OpenAI', icon: '/images/models/openai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 400_000, capabilities: ['vision'] },
+  'grok-4': { id: 'x-ai/grok-4', name: 'Grok 4', provider: 'xAI', icon: '/images/models/xai.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 256_000, capabilities: ['vision'] },
+  'claude-4-6': { id: 'anthropic/claude-opus-4-6', name: 'Claude 4.6 Opus', provider: 'Anthropic', icon: '/images/models/anthropic.svg', isFree: false, isLocked: false, modelType: 'chat', apiProvider: 'openrouter', maxContextTokens: 200_000, capabilities: ['vision'] },
 
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Image Generation (Free)
@@ -130,6 +136,11 @@ export function isImageGenChatModel(modelId: string): boolean {
   return model?.capabilities?.includes('chat-image-gen') ?? false
 }
 
+export function isVisionModel(modelId: string): boolean {
+  const model = getModelById(modelId) || MODELS[getModelKey(modelId) || '']
+  return model?.capabilities?.includes('vision') ?? false
+}
+
 export function getVideoModels() {
   return Object.entries(MODELS)
     .filter(([, model]) => model.modelType === 'video')
@@ -148,7 +159,16 @@ const RESPONSE_RESERVE_TOKENS = 4_000
 /** Cheapest/fastest model for internal tasks (compaction, title gen, search classification, etc.) */
 export const COMPACT_MODEL = 'openai/gpt-oss-120b'
 
-export function buildContextMessages<T extends { content: string }>(
+function estimateContentTokens(content: string | MessageContentPart[]): number {
+  if (typeof content === 'string') return estimateTokens(content)
+  return content.reduce((sum, p) => {
+    if (p.type === 'text' && p.text) return sum + estimateTokens(p.text)
+    if (p.type === 'image_url') return sum + 1000 // ~1000 tokens per image
+    return sum
+  }, 0)
+}
+
+export function buildContextMessages<T extends { content: string | MessageContentPart[] }>(
   messages: T[],
   maxTokens: number = DEFAULT_MAX_CONTEXT_TOKENS
 ): { messages: T[]; usagePercent: number } {
@@ -159,7 +179,7 @@ export function buildContextMessages<T extends { content: string }>(
 
   // Work backwards from newest to oldest
   for (let i = messages.length - 1; i >= 0; i--) {
-    const msgTokens = estimateTokens(messages[i].content) + 4 // +4 for role overhead
+    const msgTokens = estimateContentTokens(messages[i].content) + 4 // +4 for role overhead
     if (totalTokens + msgTokens > availableTokens) break
     result.unshift(messages[i])
     totalTokens += msgTokens

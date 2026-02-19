@@ -17,7 +17,7 @@ function getHeaders(): Record<string, string> {
   }
 }
 
-async function uploadImageToR2(
+export async function uploadImageToR2(
   base64Data: string,
   key: string,
   contentType: string = 'image/jpeg'

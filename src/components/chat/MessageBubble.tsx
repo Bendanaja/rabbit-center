@@ -247,10 +247,34 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
             </div>
           ) : (
             // Normal display mode
-            <div>
+            <div className="space-y-2">
+              {/* Attached images */}
+              {(() => {
+                const attachments = (message.metadata?.attachments as { url: string; contentType?: string; fileName?: string }[] | undefined);
+                if (!attachments || attachments.length === 0) return null;
+                // Only render safe URLs (https or data:image)
+                const safeAttachments = attachments.filter(att =>
+                  att.url.startsWith('https://') || att.url.startsWith('data:image/')
+                );
+                if (safeAttachments.length === 0) return null;
+                return (
+                  <div className={cn('grid gap-1.5', safeAttachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                    {safeAttachments.map((att, i) => (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        key={i}
+                        src={att.url}
+                        alt={att.fileName || `Attachment ${i + 1}`}
+                        className="rounded-xl max-h-[200px] w-auto object-cover border border-neutral-200 dark:border-neutral-700"
+                        loading="lazy"
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
               <div className="bg-gradient-to-br from-primary-600 to-primary-700 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl rounded-br-md shadow-lg shadow-primary-500/20">
                 <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">
-                  {message.content}
+                  {message.content === '(แนบรูปภาพ)' ? '' : message.content}
                 </p>
               </div>
             </div>

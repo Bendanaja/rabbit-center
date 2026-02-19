@@ -10,8 +10,10 @@ import { ChatInput } from './ChatInput';
 import { getGreeting, cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
-import { getModelById, getModelType, buildContextMessages } from '@/lib/byteplus';
+import { getModelById, getModelType, buildContextMessages, isVisionModel } from '@/lib/byteplus';
+import type { MessageContentPart } from '@/lib/byteplus';
 import { authFetch, getAuthToken } from '@/lib/api-client';
+import type { Attachment } from './ChatInput';
 import { PROMPT_TEMPLATES, PROMPT_CATEGORIES } from '@/lib/prompt-templates';
 import type { Message } from '@/types/database';
 import type { ModelId } from '@/lib/constants';
@@ -57,7 +59,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const typewriterRef = useRef<NodeJS.Timeout | null>(null);
   const fullContentRef = useRef<string>('');
   const displayedLengthRef = useRef<number>(0);
-  const pendingMessageRef = useRef<string | null>(null);
+  const pendingMessageRef = useRef<{ content: string; attachments?: Attachment[] } | null>(null);
   const videoPollingRef = useRef<NodeJS.Timeout | null>(null);
   // Track active chatId to prevent cross-chat message leakage
   const activeChatIdRef = useRef<string | null>(chatId);
@@ -66,11 +68,13 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const compactSummaryRef = useRef<string | null>(null);
   const compactedCountRef = useRef<number>(0);
 
+  type ContextMsg = { role: 'user' | 'assistant' | 'system'; content: string | MessageContentPart[] };
+
   // Build context with auto-compaction using seed-1-6-flash for dropped messages
   const buildContextWithCompact = useCallback(async (
-    allMsgs: { role: 'user' | 'assistant' | 'system'; content: string }[],
+    allMsgs: ContextMsg[],
     maxTokens: number,
-  ): Promise<{ contextMessages: { role: 'user' | 'assistant' | 'system'; content: string }[]; usagePercent: number }> => {
+  ): Promise<{ contextMessages: ContextMsg[]; usagePercent: number }> => {
     const { messages: fittingMessages, usagePercent } = buildContextMessages(allMsgs, maxTokens);
     const droppedCount = allMsgs.length - fittingMessages.length;
 
@@ -80,15 +84,18 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
     // Use cached summary if we already summarized this many messages
     if (compactSummaryRef.current && compactedCountRef.current === droppedCount) {
-      const summaryMsg: { role: 'user' | 'assistant' | 'system'; content: string } = {
+      const summaryMsg: ContextMsg = {
         role: 'system',
         content: `[สรุปบทสนทนาก่อนหน้า]: ${compactSummaryRef.current}`,
       };
       return { contextMessages: [summaryMsg, ...fittingMessages], usagePercent };
     }
 
-    // Call compact API to summarize dropped messages
-    const droppedMessages = allMsgs.slice(0, droppedCount);
+    // Call compact API to summarize dropped messages (only text content)
+    const droppedMessages = allMsgs.slice(0, droppedCount).map(m => ({
+      ...m,
+      content: typeof m.content === 'string' ? m.content : m.content.filter(p => p.type === 'text').map(p => p.text).join(' '),
+    }));
     try {
       const response = await authFetch('/api/ai/compact', {
         method: 'POST',
@@ -100,7 +107,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         compactSummaryRef.current = summary;
         compactedCountRef.current = droppedCount;
 
-        const summaryMsg: { role: 'user' | 'assistant' | 'system'; content: string } = {
+        const summaryMsg: ContextMsg = {
           role: 'system',
           content: `[สรุปบทสนทนาก่อนหน้า]: ${summary}`,
         };
@@ -191,18 +198,53 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   // Send pending message when chatId becomes available
   useEffect(() => {
     if (chatId && pendingMessageRef.current && !loading) {
-      const pendingMessage = pendingMessageRef.current;
+      const { content: pendingContent, attachments: pendingAttachments } = pendingMessageRef.current;
       pendingMessageRef.current = null;
       // Small delay to ensure chat is ready
       setTimeout(() => {
-        handleSendMessageInternal(pendingMessage, chatId);
+        handleSendMessageInternal(pendingContent, chatId, pendingAttachments);
       }, 100);
     }
   }, [chatId, loading]);
 
   // Internal function that sends message with explicit chatId
-  const handleSendMessageInternal = useCallback(async (content: string, targetChatId: string) => {
-    if (!content.trim() || !targetChatId) return;
+  const handleSendMessageInternal = useCallback(async (content: string, targetChatId: string, attachments?: Attachment[]) => {
+    if ((!content.trim() && (!attachments || attachments.length === 0)) || !targetChatId) return;
+
+    // Upload attachments to R2 if any
+    let uploadedAttachments: { url: string; contentType: string; fileName?: string }[] = [];
+    if (attachments && attachments.length > 0) {
+      try {
+        const uploadRes = await authFetch('/api/chat/upload', {
+          method: 'POST',
+          body: JSON.stringify({
+            chatId: targetChatId,
+            images: attachments.map(a => ({
+              base64: a.base64,
+              contentType: a.contentType,
+              fileName: a.fileName,
+            })),
+          }),
+        });
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          uploadedAttachments = data.images || [];
+        }
+      } catch (err) {
+        console.error('Failed to upload attachments:', err);
+        // Fallback: use base64 data URLs directly
+        uploadedAttachments = attachments.map(a => ({
+          url: a.base64,
+          contentType: a.contentType,
+          fileName: a.fileName,
+        }));
+      }
+    }
+
+    // Build metadata with attachment info
+    const metadata = uploadedAttachments.length > 0
+      ? { attachments: uploadedAttachments }
+      : undefined;
 
     // Add user message to local state immediately
     const userMessage: Message = {
@@ -212,6 +254,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       content,
       model_id: null,
       tokens_used: null,
+      metadata: metadata || null,
       created_at: new Date().toISOString(),
     };
 
@@ -221,7 +264,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     lastMessageRef.current = content;
 
     // Save user message to database
-    const { error: sendError } = await sendMessage(content, 'user');
+    const { error: sendError } = await sendMessage(content, 'user', metadata);
     if (sendError) {
       console.error('Failed to save user message:', sendError);
       return;
@@ -230,10 +273,28 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     // Prepare messages for AI (auto-compact by token count, summarize dropped messages)
     const modelDef = getModelById(selectedModel);
     const maxTokens = modelDef?.maxContextTokens || 128_000;
-    const allContextMsgs = [...localMessages, userMessage].map(m => ({
-      role: m.role as 'user' | 'assistant' | 'system',
-      content: m.content,
-    }));
+
+    // Build context messages — for the latest user message with attachments, use multimodal content
+    const allContextMsgs = [...localMessages, userMessage].map(m => {
+      // Check if this message has image attachments to include as multimodal
+      const msgAttachments = m.metadata?.attachments as { url: string; contentType: string }[] | undefined;
+      if (m.role === 'user' && msgAttachments && msgAttachments.length > 0 && isVisionModel(selectedModel)) {
+        const parts: MessageContentPart[] = [];
+        // Text first, then images (per OpenAI vision spec convention)
+        const userText = m.content === '(แนบรูปภาพ)' ? '' : m.content;
+        if (userText) {
+          parts.push({ type: 'text', text: userText });
+        }
+        for (const att of msgAttachments) {
+          parts.push({ type: 'image_url', image_url: { url: att.url } });
+        }
+        return { role: m.role as 'user' | 'assistant' | 'system', content: parts };
+      }
+      return {
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+      };
+    });
     const { contextMessages, usagePercent } = await buildContextWithCompact(allContextMsgs, maxTokens);
     setContextUsage(usagePercent);
 
@@ -335,6 +396,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
               content: fullResponse,
               model_id: selectedModel,
               tokens_used: null,
+              metadata: null,
               created_at: new Date().toISOString(),
             };
 
@@ -396,6 +458,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       content: isCommand ? `/image ${prompt}` : prompt,
       model_id: null,
       tokens_used: null,
+      metadata: null,
       created_at: new Date().toISOString(),
     };
     setLocalMessages(prev => [...prev, userMessage]);
@@ -433,6 +496,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         content: `[GENERATED_IMAGE]\n${imageUrls.join('\n')}\n[/GENERATED_IMAGE]\n\nสร้างภาพจาก: "${prompt}"`,
         model_id: modelToUse,
         tokens_used: null,
+        metadata: null,
         created_at: new Date().toISOString(),
       };
       setLocalMessages(prev => [...prev, aiMessage]);
@@ -460,6 +524,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       content: isCommand ? `/video ${prompt}` : prompt,
       model_id: null,
       tokens_used: null,
+      metadata: null,
       created_at: new Date().toISOString(),
     };
     setLocalMessages(prev => [...prev, userMessage]);
@@ -516,6 +581,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         content: `[GENERATED_VIDEO]\n${videoUrl}\n[/GENERATED_VIDEO]\n\nสร้างวิดีโอจาก: "${prompt}"`,
         model_id: modelToUse,
         tokens_used: null,
+        metadata: null,
         created_at: new Date().toISOString(),
       };
       setLocalMessages(prev => [...prev, aiMessage]);
@@ -536,13 +602,12 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     }
   }, [sendMessage]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
-    if (!content.trim()) return;
+  const handleSendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
+    if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     // Create new chat if none exists
     if (!chatId && onCreateChat) {
-      // Store the pending message
-      pendingMessageRef.current = content;
+      pendingMessageRef.current = { content, attachments };
       await onCreateChat();
       // The message will be sent via useEffect when chatId becomes available
       return;
@@ -579,7 +644,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       return;
     }
 
-    await handleSendMessageInternal(content, chatId);
+    await handleSendMessageInternal(content, chatId, attachments);
   }, [chatId, onCreateChat, handleSendMessageInternal, handleImageGeneration, handleVideoGeneration]);
 
   const handleStop = useCallback(async () => {
@@ -602,6 +667,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         content: partialContent + '\n\n_(ถูกหยุดกลางทาง)_',
         model_id: selectedModel,
         tokens_used: null,
+        metadata: null,
         created_at: new Date().toISOString(),
       };
 
@@ -728,6 +794,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
               content: fullResponse,
               model_id: selectedModel,
               tokens_used: null,
+              metadata: null,
               created_at: new Date().toISOString(),
             };
             setLocalMessages(prev => [...prev, aiMessage]);
@@ -852,6 +919,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
               content: fullResponse,
               model_id: selectedModel,
               tokens_used: null,
+              metadata: null,
               created_at: new Date().toISOString(),
             };
             setLocalMessages(prev => [...prev, aiMessage]);
@@ -936,6 +1004,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                     content: message.content,
                     timestamp: new Date(message.created_at),
                     modelId: (message.model_id || undefined) as ModelId | undefined,
+                    metadata: (message as Message & { metadata?: Record<string, unknown> | null }).metadata || undefined,
                   }}
                   isLast={index === filteredMessages.length - 1 && !isGenerating}
                   onEdit={!isGenerating ? handleEditMessage : undefined}
@@ -1206,6 +1275,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             onStop={handleStop}
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
+            visionEnabled={isVisionModel(selectedModel)}
           />
         </div>
       </div>

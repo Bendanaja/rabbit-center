@@ -116,6 +116,7 @@ export interface Database {
           content: string
           model_id: string | null
           tokens_used: number | null
+          metadata: Record<string, unknown> | null
           created_at: string
         }
         Insert: {
@@ -125,6 +126,7 @@ export interface Database {
           content: string
           model_id?: string | null
           tokens_used?: number | null
+          metadata?: Record<string, unknown> | null
           created_at?: string
         }
         Update: {
@@ -134,6 +136,7 @@ export interface Database {
           content?: string
           model_id?: string | null
           tokens_used?: number | null
+          metadata?: Record<string, unknown> | null
           created_at?: string
         }
       }

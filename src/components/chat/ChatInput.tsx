@@ -1,29 +1,45 @@
 'use client';
 
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent, type ClipboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Mic, Video, ImagePlus, StopCircle, Sparkles, Command, Globe } from 'lucide-react';
+import { Send, Paperclip, Mic, Video, ImagePlus, StopCircle, Sparkles, Command, Globe, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+
+export interface Attachment {
+  file: File;
+  preview: string; // data URL for preview
+  base64: string; // base64 data for upload
+  contentType: string;
+  fileName: string;
+}
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, attachments?: Attachment[]) => void;
   isGenerating?: boolean;
   onStop?: () => void;
   webSearchEnabled?: boolean;
   onToggleWebSearch?: () => void;
+  visionEnabled?: boolean;
 }
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_FILES = 4;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const SLASH_COMMANDS = [
   { command: '/image', description: 'สร้างภาพจากข้อความ', icon: ImagePlus, color: 'text-violet-400' },
   { command: '/video', description: 'สร้างวิดีโอจากข้อความ', icon: Video, color: 'text-pink-400' },
 ];
 
-export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabled = false, onToggleWebSearch }: ChatInputProps) {
+export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabled = false, onToggleWebSearch, visionEnabled = false }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [selectedCommand, setSelectedCommand] = useState(0);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -54,17 +70,84 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
     }
   }, [message]);
 
+  const processFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const remaining = MAX_FILES - attachments.length;
+    if (remaining <= 0) {
+      toast.error(`แนบได้สูงสุด ${MAX_FILES} ภาพ`);
+      return;
+    }
+    const filesToProcess = fileArray.slice(0, remaining);
+
+    for (const file of filesToProcess) {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        toast.error(`ไม่รองรับไฟล์ ${file.name} — ใช้ได้เฉพาะ JPEG, PNG, GIF, WebP`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} ใหญ่เกินไป (สูงสุด 10MB)`);
+        continue;
+      }
+
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      setAttachments(prev => [...prev, {
+        file,
+        preview: base64,
+        base64,
+        contentType: file.type,
+        fileName: file.name,
+      }]);
+    }
+  };
+
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      processFiles(e.target.files);
+    }
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  };
+
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!visionEnabled) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      processFiles(imageFiles);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = async () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || isGenerating) return;
+    if ((!trimmedMessage && attachments.length === 0) || isGenerating) return;
 
+    const currentAttachments = [...attachments];
     setMessage('');
+    setAttachments([]);
     setShowCommands(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
 
-    onSend(trimmedMessage);
+    onSend(trimmedMessage || (currentAttachments.length > 0 ? '(แนบรูปภาพ)' : ''), currentAttachments.length > 0 ? currentAttachments : undefined);
   };
 
   const handleCommandSelect = (command: string) => {
@@ -195,6 +278,51 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
           )}
         </AnimatePresence>
 
+        {/* Attachment Previews */}
+        <AnimatePresence>
+          {attachments.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 pt-3 flex gap-2 overflow-x-auto"
+            >
+              {attachments.map((att, i) => (
+                <motion.div
+                  key={`${att.fileName}-${i}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="relative shrink-0 group/thumb"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={att.preview}
+                    alt={att.fileName}
+                    className="h-16 w-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700"
+                  />
+                  <button
+                    onClick={() => removeAttachment(i)}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-neutral-800 text-white flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity shadow-md"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         {/* Textarea */}
         <div className="relative">
           <textarea
@@ -202,6 +330,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={
@@ -259,8 +388,9 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
             <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1" />
             <ActionButton
               icon={Paperclip}
-              label="แนบไฟล์"
-              onClick={() => {}}
+              label={visionEnabled ? 'แนบรูปภาพ' : 'โมเดลนี้ไม่รองรับรูปภาพ'}
+              onClick={() => visionEnabled && fileInputRef.current?.click()}
+              disabled={!visionEnabled}
             />
             <ActionButton
               icon={Mic}
@@ -307,10 +437,10 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSend}
-                disabled={!message.trim()}
+                disabled={!message.trim() && attachments.length === 0}
                 className={cn(
                   'flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-xl transition-all duration-200',
-                  message.trim()
+                  (message.trim() || attachments.length > 0)
                     ? commandMode === 'image'
                       ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/25'
                       : commandMode === 'video'
@@ -344,17 +474,20 @@ interface ActionButtonProps {
   onClick: () => void;
   active?: boolean;
   activeColor?: string;
+  disabled?: boolean;
 }
 
-function ActionButton({ icon: Icon, label, onClick, active, activeColor }: ActionButtonProps) {
+function ActionButton({ icon: Icon, label, onClick, active, activeColor, disabled }: ActionButtonProps) {
   return (
     <motion.button
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={onClick}
+      whileHover={disabled ? {} : { scale: 1.05 }}
+      whileTap={disabled ? {} : { scale: 0.95 }}
+      onClick={disabled ? undefined : onClick}
       className={cn(
         'p-2 rounded-lg transition-colors',
-        active && activeColor
+        disabled
+          ? 'text-neutral-300 dark:text-neutral-600 cursor-not-allowed'
+          : active && activeColor
           ? activeColor
           : active
           ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'

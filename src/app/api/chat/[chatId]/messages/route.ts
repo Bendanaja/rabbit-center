@@ -67,7 +67,7 @@ export async function POST(
   }
 
   const body = await request.json()
-  const { role, content, model_id, tokens_used } = body
+  const { role, content, model_id, tokens_used, metadata } = body
 
   if (!role || !content) {
     return NextResponse.json({ error: 'role and content are required' }, { status: 400 })
@@ -83,19 +83,27 @@ export async function POST(
   if (tokens_used !== undefined && typeof tokens_used !== 'number') {
     return NextResponse.json({ error: 'tokens_used must be a number' }, { status: 400 })
   }
+  if (metadata !== undefined && (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata))) {
+    return NextResponse.json({ error: 'metadata must be an object' }, { status: 400 })
+  }
 
   // Sanitize user messages before storing
   const safeContent = role === 'user' ? sanitizeInput(content) : content
 
+  const insertData: Record<string, unknown> = {
+    chat_id: chatId,
+    role,
+    content: safeContent,
+    model_id: model_id ? String(model_id).slice(0, INPUT_LIMITS.modelId) : chat.model_id,
+    tokens_used,
+  }
+  if (metadata) {
+    insertData.metadata = metadata
+  }
+
   const { data, error } = await adminSupabase
     .from('messages')
-    .insert({
-      chat_id: chatId,
-      role,
-      content: safeContent,
-      model_id: model_id ? String(model_id).slice(0, INPUT_LIMITS.modelId) : chat.model_id,
-      tokens_used,
-    })
+    .insert(insertData)
     .select()
     .single()
 

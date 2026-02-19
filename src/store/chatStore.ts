@@ -9,6 +9,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   modelId?: ModelId;
+  metadata?: Record<string, unknown>;
   // New fields for streaming animation
   isStreaming?: boolean;
   streamedContent?: string;

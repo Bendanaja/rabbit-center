@@ -115,7 +115,7 @@ export function useChat(chatId: string | undefined) {
     }
   }, [fetchChat, chatId])
 
-  const sendMessage = useCallback(async (content: string, role: 'user' | 'assistant' = 'user'): Promise<{ data?: Message; error?: Error }> => {
+  const sendMessage = useCallback(async (content: string, role: 'user' | 'assistant' = 'user', metadata?: Record<string, unknown>): Promise<{ data?: Message; error?: Error }> => {
     if (!chatId) return { error: new Error('No chat ID') }
 
     try {
@@ -125,6 +125,7 @@ export function useChat(chatId: string | undefined) {
           role,
           content,
           model_id: state.chat?.model_id,
+          ...(metadata ? { metadata } : {}),
         }),
       })
 
@@ -213,6 +214,7 @@ export function useChat(chatId: string | undefined) {
       content: message.content || '',
       model_id: state.chat?.model_id || null,
       tokens_used: null,
+      metadata: null,
       created_at: new Date().toISOString(),
     }
 
