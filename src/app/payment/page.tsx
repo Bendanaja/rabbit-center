@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { Navbar } from '@/components/layout';
 import { PRICING_PLANS } from '@/lib/constants';
+import { authFetch } from '@/lib/api-client';
 
 type PaymentStep = 'pay' | 'verify' | 'success';
 
@@ -395,7 +396,7 @@ function PaymentContent() {
   const generateQR = async () => {
     setQrLoading(true);
     try {
-      const response = await fetch('/api/payment/qr', {
+      const response = await authFetch('/api/payment/qr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: selectedPlan.price }),
@@ -441,7 +442,7 @@ function PaymentContent() {
     setVerifying(true);
     setError(null);
     try {
-      const response = await fetch('/api/payment/verify', {
+      const response = await authFetch('/api/payment/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: slipImage, planId: selectedPlan.id, checkDuplicate: true }),
