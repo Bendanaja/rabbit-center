@@ -59,10 +59,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Verify slip with Thunder API
-    const result = await verifySlipByBase64(imageBase64, {
-      checkDuplicate: true,
-    })
+    // Verify slip with Thunder API (no external duplicate check — we check our own DB)
+    const result = await verifySlipByBase64(imageBase64)
 
     if (!result.success || !result.data) {
       const res = NextResponse.json(
@@ -73,8 +71,16 @@ export async function POST(request: Request) {
       return res
     }
 
-    // Check duplicate
-    if (result.data.isDuplicate) {
+    // Check duplicate from our own database
+    const supabaseCheck = createAdminClient()
+    const { data: existingTx } = await supabaseCheck
+      .from('payment_transactions')
+      .select('id')
+      .eq('transaction_ref', result.data.transRef)
+      .limit(1)
+      .single()
+
+    if (existingTx) {
       return NextResponse.json(
         { success: false, error: 'สลิปนี้เคยถูกใช้แล้ว กรุณาใช้สลิปใหม่' },
         { status: 400 }
@@ -88,6 +94,34 @@ export async function POST(request: Request) {
         { success: false, error: 'สลิปนี้ไม่ใช่การโอนเงินไปยังบัญชีของเรา กรุณาตรวจสอบบัญชีปลายทาง' },
         { status: 400 }
       )
+    }
+
+    // Validate receiver bank is Kasikorn
+    const receiverBank = result.data.receiver.bankName || ''
+    if (!receiverBank.includes('กสิกร')) {
+      return NextResponse.json(
+        { success: false, error: 'สลิปนี้ไม่ใช่การโอนไปยังธนาคารกสิกรไทย กรุณาตรวจสอบบัญชีปลายทาง' },
+        { status: 400 }
+      )
+    }
+
+    // Validate receiver account number - at least 3 consecutive digits must match
+    const expectedAccount = (process.env.NEXT_PUBLIC_PAYMENT_ACCOUNT_NUMBER || '').replace(/\D/g, '')
+    const actualAccount = (result.data.receiver.accountNumber || '').replace(/\D/g, '')
+    if (expectedAccount.length >= 3 && actualAccount.length >= 3) {
+      let accountMatch = false
+      for (let i = 0; i <= expectedAccount.length - 3; i++) {
+        if (actualAccount.includes(expectedAccount.substring(i, i + 3))) {
+          accountMatch = true
+          break
+        }
+      }
+      if (!accountMatch) {
+        return NextResponse.json(
+          { success: false, error: 'เลขบัญชีปลายทางไม่ตรงกับบัญชีของเรา กรุณาตรวจสอบบัญชีปลายทาง' },
+          { status: 400 }
+        )
+      }
     }
 
     // Check amount >= plan price
