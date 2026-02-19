@@ -229,6 +229,14 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         if (uploadRes.ok) {
           const data = await uploadRes.json();
           uploadedAttachments = data.images || [];
+        } else {
+          console.warn('Upload failed with status', uploadRes.status, '— using base64 fallback');
+          // Fallback: use base64 data URLs directly
+          uploadedAttachments = attachments.map(a => ({
+            url: a.base64,
+            contentType: a.contentType,
+            fileName: a.fileName,
+          }));
         }
       } catch (err) {
         console.error('Failed to upload attachments:', err);

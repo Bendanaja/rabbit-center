@@ -69,7 +69,7 @@ export async function POST(
   const body = await request.json()
   const { role, content, model_id, tokens_used, metadata } = body
 
-  if (!role || !content) {
+  if (!role || (!content && !metadata?.attachments)) {
     return NextResponse.json({ error: 'role and content are required' }, { status: 400 })
   }
 
@@ -77,7 +77,8 @@ export async function POST(
   if (typeof role !== 'string' || !['user', 'assistant', 'system'].includes(role)) {
     return NextResponse.json({ error: 'role must be user, assistant, or system' }, { status: 400 })
   }
-  if (typeof content !== 'string' || content.length > INPUT_LIMITS.message) {
+  const messageContent = content || ''
+  if (typeof messageContent !== 'string' || messageContent.length > INPUT_LIMITS.message) {
     return NextResponse.json({ error: `content exceeds maximum length of ${INPUT_LIMITS.message} characters` }, { status: 400 })
   }
   if (tokens_used !== undefined && typeof tokens_used !== 'number') {
@@ -88,7 +89,7 @@ export async function POST(
   }
 
   // Sanitize user messages before storing
-  const safeContent = role === 'user' ? sanitizeInput(content) : content
+  const safeContent = role === 'user' ? sanitizeInput(messageContent) : messageContent
 
   const insertData: Record<string, unknown> = {
     chat_id: chatId,
