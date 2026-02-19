@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     }
 
     const ext = contentType.split('/')[1] || 'jpg'
-    const key = `attachments/${chatId}/${timestamp}-${i}.${ext}`
+    const key = `chats/${chatId}/attachments/${timestamp}-${i}.${ext}`
 
     try {
       const url = await uploadImageToR2(base64, key, contentType)

@@ -46,6 +46,18 @@ export async function uploadImageToR2(
   return `https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/${key}`
 }
 
+export async function deleteFromR2(key: string): Promise<void> {
+  const response = await fetch(`${R2_API_BASE()}/${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(`R2 delete failed: ${response.status} ${JSON.stringify(err)}`)
+  }
+}
+
 /**
  * Upload generated base64 images to Cloudflare R2 and return public URLs.
  * Falls back to original base64 URLs if R2 is not configured or upload fails.
@@ -74,7 +86,7 @@ export async function uploadGeneratedImages(
     const mimeMatch = url.match(/^data:(image\/\w+);base64,/)
     const contentType = mimeMatch?.[1] || 'image/jpeg'
     const ext = contentType.split('/')[1] || 'jpg'
-    const key = `generated/${chatId}/${timestamp}-${i}.${ext}`
+    const key = `chats/${chatId}/generated/${timestamp}-${i}.${ext}`
 
     try {
       const publicUrl = await uploadImageToR2(url, key, contentType)

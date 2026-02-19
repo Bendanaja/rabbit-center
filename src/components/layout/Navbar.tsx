@@ -144,6 +144,7 @@ export function Navbar() {
                   </Button>
                   <Link href="/settings">
                     <Avatar
+                      src={user?.user_metadata?.avatar_url}
                       name={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'}
                       size="sm"
                       status="online"
@@ -294,6 +295,7 @@ export function Navbar() {
                     <>
                       <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800">
                         <Avatar
+                          src={user?.user_metadata?.avatar_url}
                           name={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้'}
                           size="md"
                           status="online"

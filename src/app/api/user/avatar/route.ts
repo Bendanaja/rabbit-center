@@ -1,5 +1,6 @@
 import { getUserFromRequest } from '@/lib/supabase/auth-helper'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { uploadImageToR2, deleteFromR2 } from '@/lib/cloudflare-r2'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -38,56 +39,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ไฟล์มีขนาดใหญ่เกิน 2MB' }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
     const ext = (contentType || 'image/jpeg').split('/')[1] || 'jpeg'
-    const filePath = `${user.id}/avatar.${ext}`
+    const key = `avatars/${user.id}.${ext}`
 
-    // Try to upload to Supabase storage
     let avatarUrl: string | null = null
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, buffer, {
-        contentType: contentType || 'image/jpeg',
-        upsert: true,
-      })
-
-    if (!uploadError) {
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
-      avatarUrl = urlData.publicUrl
-    } else {
-      // Storage bucket may not exist - try to create it and retry
-      if (uploadError.message?.includes('not found') || uploadError.message?.includes('Bucket')) {
-        await supabase.storage.createBucket('avatars', {
-          public: true,
-          fileSizeLimit: MAX_FILE_SIZE,
-          allowedMimeTypes: ALLOWED_TYPES,
-        })
-
-        const { error: retryError } = await supabase.storage
-          .from('avatars')
-          .upload(filePath, buffer, {
-            contentType: contentType || 'image/jpeg',
-            upsert: true,
-          })
-
-        if (!retryError) {
-          const { data: urlData } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(filePath)
-          avatarUrl = urlData.publicUrl
-        }
-      }
-
-      // If storage still fails, store as data URL fallback
-      if (!avatarUrl) {
-        const mimeType = contentType || 'image/jpeg'
-        avatarUrl = `data:${mimeType};base64,${base64Data}`
-      }
+    try {
+      avatarUrl = await uploadImageToR2(imageBase64, key, contentType)
+    } catch {
+      // R2 not configured or upload failed — fallback to base64 data URL
+      const mimeType = contentType || 'image/jpeg'
+      avatarUrl = `data:${mimeType};base64,${base64Data}`
     }
+
+    const supabase = createAdminClient()
 
     // Update customer_profiles
     const { error: updateError } = await supabase
@@ -131,9 +96,13 @@ export async function DELETE(request: Request) {
 
   const supabase = createAdminClient()
 
-  // Remove from storage (try common extensions)
+  // Try to delete from R2 (try common extensions)
   for (const ext of ['jpeg', 'png', 'gif', 'webp']) {
-    await supabase.storage.from('avatars').remove([`${user.id}/avatar.${ext}`])
+    try {
+      await deleteFromR2(`avatars/${user.id}.${ext}`)
+    } catch {
+      // Ignore — key may not exist
+    }
   }
 
   // Clear avatar_url in customer_profiles
