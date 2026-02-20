@@ -46,7 +46,8 @@ export async function POST(request: Request) {
 
     try {
       avatarUrl = await uploadImageToR2(imageBase64, key, contentType)
-    } catch {
+    } catch (r2Error) {
+      console.error('R2 upload failed, using base64 fallback:', r2Error)
       // R2 not configured or upload failed — fallback to base64 data URL
       const mimeType = contentType || 'image/jpeg'
       avatarUrl = `data:${mimeType};base64,${base64Data}`
@@ -54,25 +55,32 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient()
 
-    // Update customer_profiles
-    const { error: updateError } = await supabase
+    // Try update first, then upsert if no row exists
+    const { data: updated, error: updateError } = await supabase
       .from('customer_profiles')
-      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .update({ avatar_url: avatarUrl })
       .eq('user_id', user.id)
+      .select('user_id')
 
-    if (updateError && updateError.code === 'PGRST116') {
-      // No row to update - upsert instead
-      await supabase
+    if (updateError) {
+      console.error('Failed to update avatar in DB:', updateError.message, updateError.code, updateError.details)
+      return NextResponse.json({ error: 'บันทึกรูปภาพล้มเหลว' }, { status: 500 })
+    }
+
+    // No existing row — insert one
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await supabase
         .from('customer_profiles')
-        .upsert({
+        .insert({
           user_id: user.id,
           avatar_url: avatarUrl,
           display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
           signup_source: user.app_metadata?.provider || 'email',
-        }, { onConflict: 'user_id' })
-    } else if (updateError) {
-      console.error('Failed to update avatar:', updateError)
-      return NextResponse.json({ error: 'บันทึกรูปภาพล้มเหลว' }, { status: 500 })
+        })
+      if (insertError) {
+        console.error('Failed to insert avatar profile:', insertError.message, insertError.code)
+        return NextResponse.json({ error: 'บันทึกรูปภาพล้มเหลว' }, { status: 500 })
+      }
     }
 
     // Also update Supabase auth user metadata
