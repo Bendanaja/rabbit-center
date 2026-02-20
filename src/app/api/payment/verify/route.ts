@@ -4,6 +4,7 @@ import { verifySlipByBase64 } from '@/lib/thunder'
 import { checkRateLimit, getRateLimitKey, RATE_LIMITS, applyRateLimitHeaders } from '@/lib/rate-limit'
 import { validateContentType, validateInput, INPUT_LIMITS } from '@/lib/security'
 import { PRICING_PLANS } from '@/lib/constants'
+import { invalidateUserPlanCache } from '@/lib/plan-limits'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -178,6 +179,9 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    // Clear cached plan so getUserPlan() reads the new subscription immediately
+    await invalidateUserPlanCache(user.id)
 
     const res = NextResponse.json({
       success: true,
