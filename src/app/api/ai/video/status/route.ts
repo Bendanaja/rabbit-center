@@ -30,7 +30,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: taskIdErr }, { status: 400 })
     }
 
-    const result = await checkVideoStatus(taskId)
+    let result
+    if (taskId.startsWith('rep_')) {
+      // Replicate prediction — strip prefix and check via Replicate API
+      const { checkVideoStatusReplicate } = await import('@/lib/replicate')
+      result = await checkVideoStatusReplicate(taskId.slice(4))
+    } else {
+      result = await checkVideoStatus(taskId)
+    }
 
     return NextResponse.json(result)
   } catch (error) {

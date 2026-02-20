@@ -63,6 +63,10 @@ export const IMAGE_MODEL_COSTS: Record<string, ImageCost> = {
   'seedream-3':   { perImage: 0.015 },  // Seedream 3.0
   'seedream-4':   { perImage: 0.018 },  // Seedream 4.0
   'seedream-4-5': { perImage: 0.024 },  // Seedream 4.5 (highest quality)
+
+  // Replicate FLUX models (no discount - direct Replicate pricing)
+  'flux-schnell':   { perImage: 0.003 },  // FLUX Schnell (~$0.003/run)
+  'flux-1.1-pro':   { perImage: 0.04 },   // FLUX 1.1 Pro (~$0.04/run)
 }
 
 // ═══════════════════════════════════════════

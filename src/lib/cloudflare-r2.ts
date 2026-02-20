@@ -105,3 +105,71 @@ function buffer_size(dataUrl: string): number {
   const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
   return Math.ceil(base64.length * 0.75)
 }
+
+/**
+ * Download a file from a URL and upload it to R2.
+ * Used for Replicate outputs which expire after 1 hour.
+ */
+export async function downloadAndUploadToR2(
+  sourceUrl: string,
+  key: string,
+  contentType: string = 'image/webp'
+): Promise<string> {
+  const response = await fetch(sourceUrl)
+  if (!response.ok) throw new Error(`Failed to download: ${response.status}`)
+  const buffer = Buffer.from(await response.arrayBuffer())
+
+  const uploadResponse = await fetch(`${R2_API_BASE()}/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: {
+      ...getHeaders(),
+      'Content-Type': contentType,
+    },
+    body: buffer,
+  })
+
+  if (!uploadResponse.ok) {
+    const err = await uploadResponse.json().catch(() => ({}))
+    throw new Error(`R2 upload failed: ${uploadResponse.status} ${JSON.stringify(err)}`)
+  }
+
+  if (R2_PUBLIC_URL) {
+    return `${R2_PUBLIC_URL}/${key}`
+  }
+  return `https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/${key}`
+}
+
+/**
+ * Download generated images from external URLs and re-upload to R2.
+ * Used for Replicate images which have expiring URLs.
+ */
+export async function downloadAndUploadGeneratedImages(
+  imageUrls: string[],
+  chatId: string
+): Promise<string[]> {
+  if (!CF_ACCOUNT_ID || !CF_API_KEY || !CF_EMAIL) {
+    return imageUrls // R2 not configured, return original URLs
+  }
+
+  const uploadedUrls: string[] = []
+  const timestamp = Date.now()
+
+  for (let i = 0; i < imageUrls.length; i++) {
+    const url = imageUrls[i]
+    // Determine extension from URL or default to webp
+    const ext = url.match(/\.(png|jpg|jpeg|webp)(\?|$)/i)?.[1] || 'webp'
+    const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`
+    const key = `chats/${chatId}/generated/${timestamp}-${i}.${ext}`
+
+    try {
+      const publicUrl = await downloadAndUploadToR2(url, key, contentType)
+      uploadedUrls.push(publicUrl)
+      console.log(`[R2] Downloaded & uploaded Replicate image ${i} -> ${key}`)
+    } catch (error) {
+      console.error(`[R2] Failed to download/upload image ${i}:`, error)
+      uploadedUrls.push(url) // Fallback to original URL
+    }
+  }
+
+  return uploadedUrls
+}

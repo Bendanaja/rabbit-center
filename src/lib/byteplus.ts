@@ -27,7 +27,7 @@ export interface ModelDefinition {
   isFree: boolean
   isLocked: boolean
   modelType: ModelType
-  apiProvider: 'byteplus' | 'openrouter'
+  apiProvider: 'byteplus' | 'openrouter' | 'replicate'
   capabilities?: string[] // e.g. ['t2i', 'i2i'] or ['t2v', 'i2v']
   maxContextTokens?: number // Max input context window for chat models
 }
@@ -62,6 +62,12 @@ export const MODELS: Record<string, ModelDefinition> = {
   'seedream-3': { id: 'seedream-3-0-t2i-250415', name: 'Seedream 3.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i'] },
   'seedream-4': { id: 'seedream-4-0-250828', name: 'Seedream 4.0', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i', 'i2i'] },
   'seedream-4-5': { id: 'seedream-4-5-251128', name: 'Seedream 4.5', provider: 'ByteDance', icon: '/images/models/seedream.svg', isFree: true, isLocked: false, modelType: 'image', apiProvider: 'byteplus', capabilities: ['t2i', 'i2i'] },
+
+  // ═══════════════════════════════════════════
+  // Replicate — Image Generation
+  // ═══════════════════════════════════════════
+  'flux-schnell': { id: 'black-forest-labs/flux-schnell', name: 'FLUX Schnell', provider: 'Black Forest Labs', icon: '/images/models/flux.svg', isFree: false, isLocked: false, modelType: 'image', apiProvider: 'replicate', capabilities: ['t2i'] },
+  'flux-1.1-pro': { id: 'black-forest-labs/flux-1.1-pro', name: 'FLUX 1.1 Pro', provider: 'Black Forest Labs', icon: '/images/models/flux.svg', isFree: false, isLocked: false, modelType: 'image', apiProvider: 'replicate', capabilities: ['t2i'] },
 
   // ═══════════════════════════════════════════
   // BytePlus ModelArk — Video Generation (Free)

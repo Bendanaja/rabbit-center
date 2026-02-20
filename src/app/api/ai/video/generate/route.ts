@@ -87,7 +87,36 @@ export async function POST(request: Request) {
     // Track activity in customer_profiles (non-blocking)
     trackActivity(user.id, 'video')
 
-    const result = await generateVideo({ prompt, model, duration, image_url })
+    // Route to the correct provider
+    const { getModelById, getModelKey, MODELS } = await import('@/lib/byteplus')
+    const modelDef = getModelById(model || '') || MODELS[model || ''] || MODELS[getModelKey(model || '') || '']
+
+    // Determine provider: check MODELS first, then DB for dynamically-added models
+    let isReplicate = modelDef?.apiProvider === 'replicate'
+    let replicateModelId = modelDef?.id || ''
+
+    if (!modelDef && model) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = createAdminClient()
+      const { data: dbModel } = await supabase
+        .from('ai_models')
+        .select('id, capabilities')
+        .eq('id', model)
+        .single()
+      if (dbModel?.capabilities?.includes('__replicate')) {
+        isReplicate = true
+        replicateModelId = dbModel.id
+      }
+    }
+
+    let result: { taskId: string }
+
+    if (isReplicate) {
+      const { generateVideoReplicate } = await import('@/lib/replicate')
+      result = await generateVideoReplicate({ prompt, replicateModelId, duration, image_url })
+    } else {
+      result = await generateVideo({ prompt, model, duration, image_url })
+    }
 
     // Increment usage AFTER successful generation
     await incrementUsage(user.id, 'video', costThb)

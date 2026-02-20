@@ -24,8 +24,13 @@ const PROVIDER_ICONS: Record<string, string> = {
   'thudm': '/images/models/zhipu.svg',
 }
 
+function isVideoUrl(url: string): boolean {
+  const path = url.split('?')[0].toLowerCase()
+  return /\.(mp4|webm|mov|avi|mkv)$/.test(path)
+}
+
 function resolveIcon(modelId: string, iconUrl: string | null, defIcon?: string): string {
-  if (iconUrl) return iconUrl
+  if (iconUrl && !isVideoUrl(iconUrl)) return iconUrl
   if (defIcon) return defIcon
   // Try to derive from model ID slug (e.g. "openai/gpt-5" → "openai")
   const slug = modelId.split('/')[0]?.toLowerCase()
@@ -69,8 +74,8 @@ export async function GET() {
           icon: resolveIcon(m.id, m.icon_url, def?.icon),
           tier: m.tier === 'enterprise' ? 'premium' : m.tier,
           isFree: (m.tier === 'free'),
-          modelType: def?.modelType || (m.id.includes('seedream') ? 'image' : m.id.includes('seedance') ? 'video' : 'chat'),
-          apiProvider: def?.apiProvider || (m.id.includes('/') ? 'openrouter' : 'byteplus'),
+          modelType: def?.modelType || (m.capabilities?.some((c: string) => ['t2i','i2i'].includes(c)) ? 'image' : m.capabilities?.some((c: string) => ['t2v','i2v'].includes(c)) ? 'video' : m.id.includes('seedream') ? 'image' : m.id.includes('seedance') ? 'video' : 'chat'),
+          apiProvider: def?.apiProvider || (m.capabilities?.includes('__replicate') ? 'replicate' : m.id.includes('/') ? 'openrouter' : 'byteplus'),
           capabilities: m.capabilities || def?.capabilities || [],
         }
       })
