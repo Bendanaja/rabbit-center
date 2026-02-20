@@ -69,14 +69,14 @@ function LoginOverlay() {
       className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md"
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ delay: 0.2, type: "spring", stiffness: 100 }}
-        className="max-w-md w-full mx-4"
+        transition={{ delay: 0.2, type: "spring", bounce: 0.5, stiffness: 100 }}
+        className="max-w-md w-full mx-4 hover-lift"
       >
-        <div className="relative p-8 rounded-3xl bg-neutral-900/90 border border-neutral-800 backdrop-blur-xl overflow-hidden">
+        <div className="relative p-8 rounded-3xl glass-premium shadow-premium-glow border border-white/20 dark:border-neutral-700/50 overflow-hidden">
           {/* Background glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 via-rose-600/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-600/20 via-rose-600/10 to-transparent animate-pulse-ring" />
 
           {/* Static decorative dots */}
           {[...Array(5)].map((_, i) => (
@@ -129,8 +129,8 @@ function LoginOverlay() {
 
             {/* CTAs */}
             <div className="space-y-3">
-              <Link href="/auth/login?redirect=/chat" className="block">
-                <button className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center justify-center gap-2 transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]">
+              <Link href="/auth/login?redirect=/chat" className="block relative group border-glow-premium rounded-xl">
+                <button className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-primary-500 to-rose-500 text-white font-semibold flex items-center justify-center gap-2 shadow-premium hover-lift">
                   เข้าสู่ระบบ
                   <ArrowRight className="h-4 w-4" />
                 </button>
@@ -179,11 +179,10 @@ function PreviewChatWindow() {
                   <Bot className="h-4 w-4 text-white" />
                 </div>
               )}
-              <div className={`max-w-[80%] ${
-                msg.role === 'user'
-                  ? 'bg-primary-500 text-white rounded-2xl rounded-tr-md px-4 py-3'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-2xl rounded-tl-md px-4 py-3'
-              }`}>
+              <div className={`max-w-[80%] shadow-sm ${msg.role === 'user'
+                  ? 'bg-gradient-to-r from-primary-500 to-rose-500 text-white rounded-2xl rounded-tr-md px-4 py-3 shadow-premium'
+                  : 'bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-neutral-900 dark:text-white rounded-2xl rounded-tl-md px-4 py-3 border border-white/20 dark:border-neutral-700/50'
+                }`}>
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               </div>
               {msg.role === 'user' && (
@@ -250,7 +249,12 @@ export default function ChatPage() {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('');
+  const [selectedModel, setSelectedModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rabbithub-selected-model') || '';
+    }
+    return '';
+  });
   const [modelDisplay, setModelDisplay] = useState<{ name: string; icon: string; provider: string; modelType?: string; capabilities?: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [usage, setUsage] = useState<UsageData | null>(null);
@@ -316,6 +320,7 @@ export default function ChatPage() {
 
   const handleModelChange = useCallback(async (modelId: string) => {
     setSelectedModel(modelId);
+    try { localStorage.setItem('rabbithub-selected-model', modelId); } catch { /* ignore */ }
     if (activeChat) {
       try {
         await authFetch(`/api/chat/${activeChat}`, {
@@ -542,10 +547,17 @@ export default function ChatPage() {
               </Link>
               <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-neutral-400">
                 <Avatar name={user.email || 'User'} size="sm" />
-                <span className="text-sm truncate flex-1">{user.email?.split('@')[0] || 'ผู้ใช้งาน'}</span>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm truncate">{user.email?.split('@')[0] || 'ผู้ใช้งาน'}</span>
+                    {usage && usage.plan !== 'free' && (
+                      <PlanBadge plan={usage.plan} />
+                    )}
+                  </div>
+                </div>
                 <button
                   onClick={handleSignOut}
-                  className="p-1 hover:bg-neutral-700 rounded transition-colors"
+                  className="p-1 hover:bg-neutral-700 rounded transition-colors shrink-0"
                   title="ออกจากระบบ"
                 >
                   <LogOut className="h-4 w-4" />
@@ -835,6 +847,46 @@ interface UsageData {
     videos: number;
     searches: number;
   };
+}
+
+// Plan Badge Component
+const PLAN_BADGE_CONFIG: Record<string, { label: string; gradient: string; glow: string; icon: string }> = {
+  starter: {
+    label: 'Starter',
+    gradient: 'from-sky-400 to-blue-500',
+    glow: 'shadow-sky-500/30',
+    icon: '⚡',
+  },
+  pro: {
+    label: 'Pro',
+    gradient: 'from-violet-400 to-purple-500',
+    glow: 'shadow-violet-500/30',
+    icon: '💎',
+  },
+  premium: {
+    label: 'Premium',
+    gradient: 'from-amber-400 to-orange-500',
+    glow: 'shadow-amber-500/30',
+    icon: '👑',
+  },
+};
+
+function PlanBadge({ plan }: { plan: string }) {
+  const config = PLAN_BADGE_CONFIG[plan];
+  if (!config) return null;
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white leading-none shrink-0',
+        `bg-gradient-to-r ${config.gradient}`,
+        `shadow-sm ${config.glow}`
+      )}
+    >
+      <span className="text-[9px]">{config.icon}</span>
+      {config.label}
+    </span>
+  );
 }
 
 function UsageIndicator({ usage }: { usage: UsageData }) {
