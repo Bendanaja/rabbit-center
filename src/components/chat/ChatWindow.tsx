@@ -10,7 +10,7 @@ import { ChatInput } from './ChatInput';
 import { getGreeting, cn } from '@/lib/utils';
 import { useChat } from '@/hooks/useChat';
 import { useAI } from '@/hooks/useAI';
-import { getModelById, getModelType, buildContextMessages, isVisionModel, getImageModels, getVideoModels, isImageGenChatModel } from '@/lib/byteplus';
+import { getModelById, getModelType, buildContextMessages, isVisionModel, isImageGenChatModel } from '@/lib/byteplus';
 import type { MessageContentPart } from '@/lib/byteplus';
 import { authFetch, getAuthToken } from '@/lib/api-client';
 import type { Attachment } from './ChatInput';
@@ -22,6 +22,8 @@ interface ModelDisplayInfo {
   name: string;
   icon: string;
   provider: string;
+  modelType?: string;
+  capabilities?: string[];
 }
 
 interface ChatWindowProps {
@@ -455,7 +457,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
   // Handle /image command
   const handleImageGeneration = useCallback(async (prompt: string, targetChatId: string, imageModelId?: string) => {
-    const modelToUse = imageModelId || 'seedream-5-0-260128';
+    const modelToUse = imageModelId || 'seedream-4-5';
     const isCommand = !imageModelId; // if no explicit model, it came from /image command
 
     // Add user message
@@ -623,8 +625,18 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
     if (!chatId) return;
 
-    // Detect /image command
+    // Resolve model type: prefer modelDisplay from API, fallback to hardcoded MODELS
+    const resolvedModelType = modelDisplay?.modelType || getModelType(selectedModel);
+    const resolvedCaps = modelDisplay?.capabilities || [];
+    const canImage = resolvedModelType === 'image' || resolvedCaps.includes('chat-image-gen') || isImageGenChatModel(selectedModel);
+    const canVideo = resolvedModelType === 'video';
+
+    // Detect /image command — only allow if selected model supports image gen
     if (content.startsWith('/image ')) {
+      if (!canImage) {
+        toast.error('โมเดลนี้ไม่รองรับการสร้างรูปภาพ กรุณาเปลี่ยนเป็นโมเดลสร้างรูปภาพ');
+        return;
+      }
       const prompt = content.slice(7).trim();
       if (prompt) {
         await handleImageGeneration(prompt, chatId);
@@ -632,8 +644,12 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       }
     }
 
-    // Detect /video command
+    // Detect /video command — only allow if selected model supports video gen
     if (content.startsWith('/video ')) {
+      if (!canVideo) {
+        toast.error('โมเดลนี้ไม่รองรับการสร้างวิดีโอ กรุณาเปลี่ยนเป็นโมเดลสร้างวิดีโอ');
+        return;
+      }
       const prompt = content.slice(7).trim();
       if (prompt) {
         await handleVideoGeneration(prompt, chatId);
@@ -642,18 +658,17 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     }
 
     // Auto-route based on selected model type
-    const modelType = getModelType(selectedModel);
-    if (modelType === 'image') {
+    if (resolvedModelType === 'image') {
       await handleImageGeneration(content, chatId, selectedModel);
       return;
     }
-    if (modelType === 'video') {
+    if (resolvedModelType === 'video') {
       await handleVideoGeneration(content, chatId, selectedModel);
       return;
     }
 
     await handleSendMessageInternal(content, chatId, attachments);
-  }, [chatId, onCreateChat, handleSendMessageInternal, handleImageGeneration, handleVideoGeneration]);
+  }, [chatId, onCreateChat, handleSendMessageInternal, handleImageGeneration, handleVideoGeneration, modelDisplay, selectedModel]);
 
   const handleStop = useCallback(async () => {
     stop();
@@ -1284,8 +1299,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
             visionEnabled={isVisionModel(selectedModel)}
-            imageGenEnabled={getImageModels().length > 0 || isImageGenChatModel(selectedModel)}
-            videoGenEnabled={getVideoModels().length > 0}
+            imageGenEnabled={(modelDisplay?.modelType || getModelType(selectedModel)) === 'image' || modelDisplay?.capabilities?.includes('chat-image-gen') || isImageGenChatModel(selectedModel)}
+            videoGenEnabled={(modelDisplay?.modelType || getModelType(selectedModel)) === 'video'}
           />
         </div>
       </div>

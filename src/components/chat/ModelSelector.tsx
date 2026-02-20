@@ -19,12 +19,13 @@ interface DbModel {
   isFree: boolean;
   modelType: 'chat' | 'image' | 'video';
   apiProvider: string;
+  capabilities?: string[];
 }
 
 interface ModelSelectorProps {
   selectedModel: string;
   onModelChange: (modelId: string) => void;
-  onModelDisplayChange?: (info: { name: string; icon: string; provider: string } | null) => void;
+  onModelDisplayChange?: (info: { name: string; icon: string; provider: string; modelType?: string; capabilities?: string[] } | null) => void;
   variant?: 'default' | 'compact';
 }
 
@@ -108,7 +109,7 @@ export function ModelSelector({ selectedModel, onModelChange, onModelDisplayChan
   useEffect(() => {
     if (!onModelDisplayChange) return;
     if (currentDbModel) {
-      onModelDisplayChange({ name: currentDbModel.name, icon: currentDbModel.icon, provider: currentDbModel.provider });
+      onModelDisplayChange({ name: currentDbModel.name, icon: currentDbModel.icon, provider: currentDbModel.provider, modelType: currentDbModel.modelType, capabilities: currentDbModel.capabilities });
     } else {
       onModelDisplayChange(null);
     }

@@ -251,7 +251,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
-  const [modelDisplay, setModelDisplay] = useState<{ name: string; icon: string; provider: string } | null>(null);
+  const [modelDisplay, setModelDisplay] = useState<{ name: string; icon: string; provider: string; modelType?: string; capabilities?: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [usage, setUsage] = useState<UsageData | null>(null);
 
