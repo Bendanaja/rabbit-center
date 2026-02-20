@@ -12,9 +12,16 @@ import { type Message } from '@/store/chatStore';
 import { cn, formatMessageTime } from '@/lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
+interface ModelInfo {
+  name: string;
+  icon: string;
+  provider: string;
+}
+
 interface MessageBubbleProps {
   message: Message;
   isLast?: boolean;
+  modelInfo?: ModelInfo | null;
   onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: (messageId: string) => void;
 }
@@ -102,7 +109,7 @@ function parseMessageContent(content: string): ParsedContent[] {
   return parts;
 }
 
-export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }: MessageBubbleProps) {
+export function MessageBubble({ message, isLast = false, modelInfo, onEdit, onRegenerate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -147,9 +154,25 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
     }
   };
 
-  // Find model definition by ID (MODELS registry first, then derive from ID format)
+  // Find model definition: props modelInfo (from DB) → MODELS registry → derive from ID
   const model = message.modelId
-    ? (getModelById(message.modelId) || (() => {
+    ? ((() => {
+        // Prefer admin-configured info from DB (passed via modelInfo prop)
+        if (modelInfo) {
+          const base = getModelById(message.modelId);
+          return {
+            id: message.modelId,
+            name: modelInfo.name,
+            provider: modelInfo.provider,
+            icon: modelInfo.icon,
+            isFree: base?.isFree ?? false,
+            isLocked: base?.isLocked ?? false,
+            modelType: base?.modelType ?? ('chat' as const),
+            apiProvider: base?.apiProvider ?? ('byteplus' as const),
+          };
+        }
+        return null;
+      })() || getModelById(message.modelId) || (() => {
         const mid = message.modelId!;
         const hasSlash = mid.includes('/');
         return {
@@ -204,11 +227,11 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
       )}
     >
       {isUser ? (
-        // User Message - Right aligned, clean bubble
+        // User Message - Right aligned, polished bubble
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="max-w-[85%] sm:max-w-[75%]"
+          className="max-w-[85%] sm:max-w-[70%]"
         >
           {isEditing ? (
             // Inline edit mode
@@ -272,21 +295,22 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
                   </div>
                 );
               })()}
-              <div className="bg-gradient-to-br from-primary-600 to-primary-700 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl rounded-br-md shadow-lg shadow-primary-500/20">
-                <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">
+              <div className="relative bg-gradient-to-br from-primary-500 via-primary-600 to-rose-700 text-white px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl rounded-br-sm shadow-lg shadow-primary-600/30 ring-1 ring-white/10">
+                <div className="absolute inset-0 rounded-2xl rounded-br-sm bg-gradient-to-t from-black/5 to-white/5 pointer-events-none" />
+                <p className="relative text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap">
                   {message.content === '(แนบรูปภาพ)' ? '' : message.content}
                 </p>
               </div>
             </div>
           )}
           {/* Timestamp + Edit button row */}
-          <div className="flex items-center justify-end gap-1.5 mt-1.5 pr-1">
+          <div className="flex items-center justify-end gap-1.5 mt-2 pr-1">
             {!isEditing && onEdit && (
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={handleStartEdit}
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded-md text-neutral-400 hover:text-neutral-300 hover:bg-neutral-700/50"
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 backdrop-blur-sm"
                 title="แก้ไข"
               >
                 <Pencil className="h-3 w-3" />
@@ -298,33 +322,33 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
           </div>
         </motion.div>
       ) : (
-        // AI Message - Full width with avatar
+        // AI Message - Full width with avatar and card
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex gap-3 sm:gap-4"
+          className="flex gap-3 sm:gap-3.5 max-w-[95%] sm:max-w-[85%]"
         >
           {/* AI Avatar */}
-          <div className="shrink-0">
+          <div className="shrink-0 mt-0.5">
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="relative h-6 w-6 sm:h-7 sm:w-7 rounded-full overflow-hidden shadow-md"
+              className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-xl overflow-hidden shadow-md ring-1 ring-neutral-200 dark:ring-neutral-700"
             >
               {model?.icon ? (
                 <Image src={model.icon} alt={model.name} fill className="object-cover" />
               ) : (
                 <div className="h-full w-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                  <span className="text-white text-xs sm:text-sm">AI</span>
+                  <span className="text-white text-xs font-medium">AI</span>
                 </div>
               )}
             </motion.div>
           </div>
 
           {/* Message Content */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 bg-neutral-50 dark:bg-neutral-900/80 rounded-2xl rounded-tl-sm px-4 sm:px-5 py-3 sm:py-4 border border-neutral-200/80 dark:border-neutral-800 shadow-sm">
             {/* Model Name & Time */}
-            <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+            <div className="flex items-center gap-2 mb-2 sm:mb-2.5">
               <span className="text-xs sm:text-sm font-semibold text-neutral-900 dark:text-white">
                 {model?.name || 'AI'}
               </span>
@@ -483,7 +507,10 @@ export function MessageBubble({ message, isLast = false, onEdit, onRegenerate }:
 
 // Generated Image Block Component
 function GeneratedImageBlock({ urls }: { urls: string[] }) {
-  const handleDownload = (url: string, index: number) => {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const handleDownload = (e: React.MouseEvent, url: string, index: number) => {
+    e.stopPropagation();
     const link = document.createElement('a');
     link.href = url;
     link.download = `rabbithub-image-${Date.now()}-${index}.png`;
@@ -494,74 +521,167 @@ function GeneratedImageBlock({ urls }: { urls: string[] }) {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="space-y-2"
-    >
-      {/* Header badge */}
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-400">
-        <ImagePlus className="h-3.5 w-3.5" />
-        <span className="text-xs font-medium">ภาพที่สร้างโดย AI</span>
-      </div>
+    <>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="space-y-2"
+      >
+        {/* Header badge */}
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-400">
+          <ImagePlus className="h-3.5 w-3.5" />
+          <span className="text-xs font-medium">ภาพที่สร้างโดย AI</span>
+        </div>
 
-      {/* Image grid */}
-      <div className={cn(
-        'grid gap-2',
-        urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-      )}>
-        {urls.map((url, i) => (
-          <div
-            key={i}
-            className="relative group/img rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-lg"
+        {/* Image grid */}
+        <div className={cn(
+          'grid gap-2',
+          urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+        )}>
+          {urls.map((url, i) => (
+            <div
+              key={i}
+              onClick={() => setLightboxUrl(url)}
+              className="relative group/img rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 shadow-lg cursor-pointer"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`Generated image ${i + 1}`}
+                className="w-full h-auto max-h-[400px] object-contain bg-neutral-100 dark:bg-neutral-800"
+                loading="lazy"
+              />
+              {/* Overlay with download button */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-200">
+                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => handleDownload(e, url, i)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-neutral-800 text-xs font-medium shadow-lg backdrop-blur-sm hover:bg-white transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    ดาวน์โหลด
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightboxUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-pointer"
+            onClick={() => setLightboxUrl(null)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={url}
-              alt={`Generated image ${i + 1}`}
-              className="w-full h-auto max-h-[400px] object-contain bg-neutral-100 dark:bg-neutral-800"
-              loading="lazy"
-            />
-            {/* Overlay with download button */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-200">
-              <div className="absolute bottom-3 right-3">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative max-w-[90vw] max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={lightboxUrl}
+                alt="Full size"
+                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              />
+              {/* Close & Download buttons */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => handleDownload(url, i)}
+                  onClick={(e) => handleDownload(e, lightboxUrl, 0)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-neutral-800 text-xs font-medium shadow-lg backdrop-blur-sm hover:bg-white transition-colors"
                 >
                   <Download className="h-3.5 w-3.5" />
                   ดาวน์โหลด
                 </motion.button>
+                <button
+                  onClick={() => setLightboxUrl(null)}
+                  className="p-2 rounded-lg bg-white/90 text-neutral-800 shadow-lg backdrop-blur-sm hover:bg-white transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
 // Generated Video Block Component
 function GeneratedVideoBlock({ url }: { url: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="space-y-2"
-    >
-      {/* Header badge */}
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400">
-        <Video className="h-3.5 w-3.5" />
-        <span className="text-xs font-medium">วิดีโอที่สร้างโดย AI</span>
-      </div>
+  const [showFullscreen, setShowFullscreen] = useState(false);
 
-      {/* Custom Video Player */}
-      <VideoPlayer src={url} compact />
-    </motion.div>
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="space-y-2"
+      >
+        {/* Header badge */}
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400">
+          <Video className="h-3.5 w-3.5" />
+          <span className="text-xs font-medium">วิดีโอที่สร้างโดย AI</span>
+        </div>
+
+        {/* Custom Video Player with expand button */}
+        <div className="relative group/vid rounded-xl overflow-hidden">
+          <VideoPlayer src={url} compact />
+          <button
+            onClick={() => setShowFullscreen(true)}
+            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white/80 hover:text-white hover:bg-black/80 opacity-0 group-hover/vid:opacity-100 transition-opacity backdrop-blur-sm"
+            title="ขยาย"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Fullscreen Video Lightbox */}
+      <AnimatePresence>
+        {showFullscreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setShowFullscreen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-4xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <VideoPlayer src={url} />
+              <button
+                onClick={() => setShowFullscreen(false)}
+                className="absolute top-3 right-3 p-2 rounded-lg bg-white/90 text-neutral-800 shadow-lg backdrop-blur-sm hover:bg-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -695,10 +815,10 @@ function ActionButton({ icon: Icon, label, onClick, active }: ActionButtonProps)
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
+        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-200',
         active
-          ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30'
-          : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+          ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 shadow-sm'
+          : 'text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/80'
       )}
       title={label}
     >
