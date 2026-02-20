@@ -114,6 +114,7 @@ export async function chatCompletionOpenRouterMultipart(
       messages,
       stream: false,
       modalities: ['text', 'image'],
+      n: 1,
     }),
   })
 
