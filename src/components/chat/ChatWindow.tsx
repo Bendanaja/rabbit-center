@@ -48,6 +48,8 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const [streamingContent, setStreamingContent] = useState('');
   const [displayedContent, setDisplayedContent] = useState(''); // For typewriter effect
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  // Model info map from DB for displaying admin-configured names/icons
+  const [modelInfoMap, setModelInfoMap] = useState<Record<string, { name: string; icon: string; provider: string }>>({});
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [streamingDone, setStreamingDone] = useState(false); // Track when onDone fires but stream still open
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -121,6 +123,20 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
 
     // Fallback: just use fitting messages without summary
     return { contextMessages: fittingMessages, usagePercent };
+  }, []);
+
+  // Fetch model info map from DB (admin-configured names/icons) — once on mount
+  useEffect(() => {
+    fetch('/api/models/active')
+      .then(r => r.json())
+      .then(data => {
+        const map: Record<string, { name: string; icon: string; provider: string }> = {};
+        (data.models || []).forEach((m: { key: string; name: string; icon: string; provider: string }) => {
+          map[m.key] = { name: m.name, icon: m.icon, provider: m.provider };
+        });
+        setModelInfoMap(map);
+      })
+      .catch(() => {});
   }, []);
 
   // Sync local messages with fetched messages from DB
@@ -510,7 +526,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         created_at: new Date().toISOString(),
       };
       setLocalMessages(prev => [...prev, aiMessage]);
-      await sendMessage(aiMessage.content, 'assistant');
+      await sendMessage(aiMessage.content, 'assistant', undefined, modelToUse);
       toast.success('สร้างภาพเสร็จแล้ว');
       onMessageSent?.();
     } catch (error) {
@@ -595,7 +611,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
         created_at: new Date().toISOString(),
       };
       setLocalMessages(prev => [...prev, aiMessage]);
-      await sendMessage(aiMessage.content, 'assistant');
+      await sendMessage(aiMessage.content, 'assistant', undefined, modelToUse);
       toast.success('สร้างวิดีโอเสร็จแล้ว');
       onMessageSent?.();
     } catch (error) {
@@ -999,7 +1015,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   })() : null);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-neutral-950">
+    <div className="flex flex-col h-full bg-gradient-to-b from-white via-white to-neutral-50 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-900/50">
       {/* Messages Area */}
       <div
         ref={scrollContainerRef}
@@ -1029,6 +1045,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                     modelId: (message.model_id || undefined) as ModelId | undefined,
                     metadata: (message as Message & { metadata?: Record<string, unknown> | null }).metadata || undefined,
                   }}
+                  modelInfo={message.model_id ? modelInfoMap[message.model_id] || null : null}
                   isLast={index === filteredMessages.length - 1 && !isGenerating}
                   onEdit={!isGenerating ? handleEditMessage : undefined}
                   onRegenerate={!isGenerating ? handleRegenerate : undefined}
@@ -1045,16 +1062,22 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                   exit={{ opacity: 0, y: -10 }}
                   className="flex gap-4 py-6"
                 >
-                  <div className={cn(
-                    'h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg',
-                    mediaGenerating === 'image'
-                      ? 'bg-gradient-to-br from-violet-500 to-purple-600'
-                      : 'bg-gradient-to-br from-pink-500 to-rose-600'
-                  )}>
-                    {mediaGenerating === 'image' ? (
-                      <ImagePlus className="h-4 w-4 text-white" />
+                  <div className="relative h-8 w-8 rounded-lg overflow-hidden shrink-0 shadow-lg ring-1 ring-neutral-700">
+                    {currentModel?.icon ? (
+                      <Image src={currentModel.icon} alt={currentModel.name} fill className="object-cover" />
                     ) : (
-                      <Video className="h-4 w-4 text-white" />
+                      <div className={cn(
+                        'h-full w-full flex items-center justify-center',
+                        mediaGenerating === 'image'
+                          ? 'bg-gradient-to-br from-violet-500 to-purple-600'
+                          : 'bg-gradient-to-br from-pink-500 to-rose-600'
+                      )}>
+                        {mediaGenerating === 'image' ? (
+                          <ImagePlus className="h-4 w-4 text-white" />
+                        ) : (
+                          <Video className="h-4 w-4 text-white" />
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex-1">
@@ -1128,9 +1151,9 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="flex gap-4 py-6"
+                  className="flex gap-3 sm:gap-3.5 py-4 max-w-[95%] sm:max-w-[85%]"
                 >
-                  <div className="relative h-6 w-6 sm:h-7 sm:w-7 rounded-full overflow-hidden shadow-lg shrink-0 border border-neutral-200 dark:border-neutral-700">
+                  <div className="relative h-7 w-7 sm:h-8 sm:w-8 rounded-xl overflow-hidden shadow-md shrink-0 mt-0.5 ring-1 ring-neutral-200 dark:ring-neutral-700">
                     {currentModel?.icon ? (
                       <Image
                         src={currentModel.icon}
@@ -1144,10 +1167,10 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 bg-neutral-50 dark:bg-neutral-900/80 rounded-2xl rounded-tl-sm px-4 sm:px-5 py-3 sm:py-4 border border-neutral-200/80 dark:border-neutral-800 shadow-sm">
                     {/* Model name and typing indicator */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-semibold text-neutral-900 dark:text-white">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="text-xs sm:text-sm font-semibold text-neutral-900 dark:text-white">
                         {currentModel?.name || 'AI'}
                       </span>
                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/30">
@@ -1191,7 +1214,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
                         </motion.div>
                       </>
                     ) : (
-                      <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800 w-fit">
+                      <div className="flex items-center gap-1.5">
                         {[0, 1, 2].map((i) => (
                           <span
                             key={i}
@@ -1251,7 +1274,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       </div>
 
       {/* Input Area */}
-      <div className="bg-white dark:bg-neutral-950">
+      <div className="relative bg-gradient-to-t from-white via-white to-white/80 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950/80 backdrop-blur-xl border-t border-neutral-100 dark:border-neutral-800/50">
         <div className="max-w-3xl mx-auto">
           {/* Context usage indicator */}
           <AnimatePresence>
