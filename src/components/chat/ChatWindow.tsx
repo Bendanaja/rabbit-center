@@ -288,7 +288,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     const allContextMsgs = [...localMessages, userMessage].map(m => {
       // Check if this message has image attachments to include as multimodal
       const msgAttachments = m.metadata?.attachments as { url: string; contentType: string }[] | undefined;
-      if (m.role === 'user' && msgAttachments && msgAttachments.length > 0 && isVisionModel(selectedModel)) {
+      if (m.role === 'user' && msgAttachments && msgAttachments.length > 0 && (isVisionModel(selectedModel) || modelDisplay?.capabilities?.includes('vision'))) {
         const parts: MessageContentPart[] = [];
         // Text first, then images (per OpenAI vision spec convention)
         const userText = m.content === '(แนบรูปภาพ)' ? '' : m.content;
@@ -1298,7 +1298,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
             onStop={handleStop}
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(prev => !prev)}
-            visionEnabled={isVisionModel(selectedModel)}
+            visionEnabled={isVisionModel(selectedModel) || modelDisplay?.capabilities?.includes('vision') === true}
             imageGenEnabled={(modelDisplay?.modelType || getModelType(selectedModel)) === 'image' || modelDisplay?.capabilities?.includes('chat-image-gen') || isImageGenChatModel(selectedModel)}
             videoGenEnabled={(modelDisplay?.modelType || getModelType(selectedModel)) === 'video'}
           />
