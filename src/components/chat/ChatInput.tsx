@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent, type ClipboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Mic, Video, ImagePlus, StopCircle, Sparkles, Command, Globe, X } from 'lucide-react';
+import { Send, Paperclip, Mic, MicOff, Video, ImagePlus, StopCircle, Sparkles, Command, Globe, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 
 export interface Attachment {
   file: File;
@@ -42,6 +43,24 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { isListening, interimTranscript, isSupported, toggleListening } = useVoiceInput({
+    onTranscript: (text) => {
+      setMessage(prev => {
+        const separator = prev && !prev.endsWith(' ') ? ' ' : '';
+        return prev + separator + text;
+      });
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    },
+  });
+
+  const handleVoiceToggle = () => {
+    if (!isSupported) {
+      toast.error('เบราว์เซอร์ไม่รองรับ กรุณาใช้ Chrome');
+      return;
+    }
+    toggleListening();
+  };
 
   const availableCommands = SLASH_COMMANDS.filter(cmd => {
     if (cmd.command === '/image' && !imageGenEnabled) return false;
@@ -242,19 +261,22 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
         animate={{
           boxShadow: isFocused
             ? commandMode === 'image'
-              ? '0 0 0 2px rgba(139, 92, 246, 0.3), 0 4px 20px -4px rgba(139, 92, 246, 0.15)'
+              ? '0 0 0 1.5px rgba(139, 92, 246, 0.4), 0 8px 32px -8px rgba(139, 92, 246, 0.2)'
               : commandMode === 'video'
-              ? '0 0 0 2px rgba(236, 72, 153, 0.3), 0 4px 20px -4px rgba(236, 72, 153, 0.15)'
-              : '0 0 0 2px rgba(220, 38, 38, 0.1), 0 4px 20px -4px rgba(0, 0, 0, 0.1)'
-            : '0 2px 12px -4px rgba(0, 0, 0, 0.08)',
+              ? '0 0 0 1.5px rgba(236, 72, 153, 0.4), 0 8px 32px -8px rgba(236, 72, 153, 0.2)'
+              : isListening
+              ? '0 0 0 1.5px rgba(239, 68, 68, 0.4), 0 8px 32px -8px rgba(239, 68, 68, 0.15)'
+              : '0 0 0 1.5px rgba(220, 38, 38, 0.15), 0 8px 32px -8px rgba(0, 0, 0, 0.12)'
+            : '0 2px 16px -4px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03)',
         }}
         className={cn(
-          'relative rounded-3xl transition-all duration-300',
-          'bg-neutral-50 dark:bg-neutral-900',
-          'border border-neutral-200 dark:border-neutral-800',
-          isFocused && !commandMode && 'border-primary-300 dark:border-primary-700 bg-white dark:bg-neutral-800',
-          commandMode === 'image' && 'border-violet-500/50 dark:border-violet-500/50 bg-white dark:bg-neutral-800',
-          commandMode === 'video' && 'border-pink-500/50 dark:border-pink-500/50 bg-white dark:bg-neutral-800',
+          'relative rounded-2xl transition-all duration-300',
+          'bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl',
+          'border border-neutral-200/80 dark:border-neutral-700/60',
+          isFocused && !commandMode && !isListening && 'border-primary-300/60 dark:border-primary-700/60 bg-white dark:bg-neutral-900',
+          isListening && 'border-red-400/50 dark:border-red-500/40 bg-white dark:bg-neutral-900',
+          commandMode === 'image' && 'border-violet-400/50 dark:border-violet-500/40 bg-white dark:bg-neutral-900',
+          commandMode === 'video' && 'border-pink-400/50 dark:border-pink-500/40 bg-white dark:bg-neutral-900',
         )}
       >
         {/* Command Mode / Web Search Badge */}
@@ -317,6 +339,33 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
                   </button>
                 </motion.div>
               ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Voice Recording Indicator */}
+        <AnimatePresence>
+          {isListening && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 pt-2.5 pb-0.5"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-50 dark:bg-red-950/40 ring-1 ring-red-200 dark:ring-red-800/50">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                  <span className="text-[11px] font-medium text-red-500 dark:text-red-400">กำลังฟัง...</span>
+                </div>
+                {interimTranscript && (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate flex-1">
+                    {interimTranscript}
+                  </p>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -397,7 +446,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
               active={webSearchEnabled}
               activeColor="text-sky-400 bg-sky-500/10"
             />
-            <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1" />
+            <div className="w-px h-4 bg-neutral-200 dark:bg-neutral-700/50 mx-0.5 sm:mx-1" />
             <ActionButton
               icon={Paperclip}
               label={visionEnabled ? 'แนบรูปภาพ' : 'โมเดลนี้ไม่รองรับรูปภาพ'}
@@ -405,9 +454,12 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
               disabled={!visionEnabled}
             />
             <ActionButton
-              icon={Mic}
-              label="เสียง"
-              onClick={() => {}}
+              icon={isListening ? MicOff : Mic}
+              label={!isSupported ? 'เบราว์เซอร์ไม่รองรับ' : isListening ? 'หยุดฟัง' : 'พูดข้อความ'}
+              onClick={handleVoiceToggle}
+              active={isListening}
+              activeColor="text-red-400 bg-red-500/10"
+              disabled={!isSupported}
             />
           </div>
 
@@ -440,7 +492,7 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={onStop}
-                className="flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
+                className="flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shadow-md"
               >
                 <StopCircle className="h-4 w-4 sm:h-5 sm:w-5" />
               </motion.button>
@@ -451,14 +503,14 @@ export function ChatInput({ onSend, isGenerating = false, onStop, webSearchEnabl
                 onClick={handleSend}
                 disabled={!message.trim() && attachments.length === 0}
                 className={cn(
-                  'flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-xl transition-all duration-200',
+                  'flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-xl transition-all duration-300',
                   (message.trim() || attachments.length > 0)
                     ? commandMode === 'image'
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/25'
+                      ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30 ring-1 ring-violet-400/20'
                       : commandMode === 'video'
-                      ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-500/25'
-                      : 'bg-gradient-to-r from-primary-600 to-rose-600 text-white shadow-lg shadow-primary-500/25'
-                    : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400 cursor-not-allowed'
+                      ? 'bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/30 ring-1 ring-pink-400/20'
+                      : 'bg-gradient-to-br from-primary-500 to-rose-600 text-white shadow-lg shadow-primary-500/30 ring-1 ring-primary-400/20'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-300 dark:text-neutral-600 cursor-not-allowed'
                 )}
               >
                 {commandMode ? (
