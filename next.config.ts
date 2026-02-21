@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     minimumCacheTTL: 3600,
+    remotePatterns: [
+      { hostname: 'tjzk.replicate.delivery' },
+      { hostname: 'replicate.delivery' },
+      { hostname: 'pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev' },
+      { hostname: 'cdn.phototourl.com' },
+    ],
   },
 
   // Compression
