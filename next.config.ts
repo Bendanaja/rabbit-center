@@ -17,11 +17,11 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     minimumCacheTTL: 3600,
     remotePatterns: [
-      { protocol: 'https', hostname: 'images.rabbithub.ai' },
-      { protocol: 'https', hostname: 'tjzk.replicate.delivery' },
-      { protocol: 'https', hostname: 'replicate.delivery' },
-      { protocol: 'https', hostname: 'pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev' },
-      { protocol: 'https', hostname: 'cdn.phototourl.com' },
+      new URL('https://images.rabbithub.ai/**'),
+      new URL('https://tjzk.replicate.delivery/**'),
+      new URL('https://replicate.delivery/**'),
+      new URL('https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/**'),
+      new URL('https://cdn.phototourl.com/**'),
     ],
   },
 
