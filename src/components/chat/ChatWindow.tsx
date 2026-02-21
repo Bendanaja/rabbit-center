@@ -64,7 +64,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
   const fullContentRef = useRef<string>('');
   const displayedLengthRef = useRef<number>(0);
   const pendingMessageRef = useRef<{ content: string; attachments?: Attachment[] } | null>(null);
-  const videoPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const activeVideoPollingRef = useRef<Set<string>>(new Set());
   // Track active chatId to prevent cross-chat message leakage
   const activeChatIdRef = useRef<string | null>(chatId);
 
@@ -184,9 +184,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       if (typewriterRef.current) {
         clearInterval(typewriterRef.current);
       }
-      if (videoPollingRef.current) {
-        clearTimeout(videoPollingRef.current);
-      }
+      activeVideoPollingRef.current.clear();
     };
   }, []);
 
@@ -224,6 +222,96 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       }, 100);
     }
   }, [chatId, loading]);
+
+  // Poll video generation status — persists across chat switches via DB
+  const pollVideoStatus = useCallback((
+    taskId: string,
+    messageId: string,
+    targetChatId: string,
+    modelToUse: string,
+    prompt: string,
+  ) => {
+    if (activeVideoPollingRef.current.has(taskId)) return;
+    activeVideoPollingRef.current.add(taskId);
+
+    const startTime = Date.now();
+    const TIMEOUT = 10 * 60 * 1000; // 10 minutes
+    const POLL_INTERVAL = 5000;
+
+    const updateMessage = async (content: string, metadata: Record<string, unknown>) => {
+      try {
+        await authFetch(`/api/chat/${targetChatId}/messages/${messageId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ content, metadata }),
+        });
+      } catch (e) {
+        console.error('Failed to update video message:', e);
+      }
+      setLocalMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, content, metadata } : m
+      ));
+    };
+
+    const poll = async () => {
+      if (!activeVideoPollingRef.current.has(taskId)) return;
+
+      if (Date.now() - startTime > TIMEOUT) {
+        await updateMessage('การสร้างวิดีโอล้มเหลว', {
+          videoTaskId: taskId, videoStatus: 'failed', videoModel: modelToUse,
+          videoPrompt: prompt, videoError: 'หมดเวลา — การสร้างวิดีโอใช้เวลานานเกินไป (>10 นาที)',
+        });
+        activeVideoPollingRef.current.delete(taskId);
+        if (activeChatIdRef.current === targetChatId) toast.error('การสร้างวิดีโอหมดเวลา');
+        return;
+      }
+
+      try {
+        const statusRes = await authFetch(`/api/ai/video/status?taskId=${taskId}`);
+        const status = await statusRes.json();
+
+        if (status.status === 'completed' && status.videoUrl) {
+          await updateMessage(
+            `[GENERATED_VIDEO]\n${status.videoUrl}\n[/GENERATED_VIDEO]\n\nสร้างวิดีโอจาก: "${prompt}"`,
+            { videoTaskId: taskId, videoStatus: 'completed', videoModel: modelToUse, videoPrompt: prompt, videoUrl: status.videoUrl },
+          );
+          activeVideoPollingRef.current.delete(taskId);
+          if (activeChatIdRef.current === targetChatId) toast.success('สร้างวิดีโอเสร็จแล้ว');
+        } else if (status.status === 'failed') {
+          const errorMsg = status.error || 'Video generation failed';
+          await updateMessage('การสร้างวิดีโอล้มเหลว', {
+            videoTaskId: taskId, videoStatus: 'failed', videoModel: modelToUse, videoPrompt: prompt, videoError: errorMsg,
+          });
+          activeVideoPollingRef.current.delete(taskId);
+          if (activeChatIdRef.current === targetChatId) toast.error('การสร้างวิดีโอล้มเหลว');
+        } else {
+          setTimeout(poll, POLL_INTERVAL);
+        }
+      } catch (err) {
+        console.error('Video polling error:', err);
+        setTimeout(poll, POLL_INTERVAL);
+      }
+    };
+
+    poll();
+  }, []);
+
+  // Resume pending video generation tasks after chat messages load from DB
+  useEffect(() => {
+    if (loading || isInitialLoad || !chatId) return;
+
+    const pendingVideoMessages = localMessages.filter(
+      m => m.role === 'assistant' && m.metadata &&
+        (m.metadata as Record<string, unknown>).videoStatus === 'pending'
+    );
+
+    for (const msg of pendingVideoMessages) {
+      const meta = msg.metadata as Record<string, unknown>;
+      const taskId = meta.videoTaskId as string;
+      if (taskId) {
+        pollVideoStatus(taskId, msg.id, chatId, meta.videoModel as string, meta.videoPrompt as string);
+      }
+    }
+  }, [loading, isInitialLoad, chatId, localMessages, pollVideoStatus]);
 
   // Internal function that sends message with explicit chatId
   const handleSendMessageInternal = useCallback(async (content: string, targetChatId: string, attachments?: Attachment[]) => {
@@ -538,7 +626,7 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     }
   }, [sendMessage, onMessageSent]);
 
-  // Handle /video command
+  // Handle /video command — persistent across chat navigation
   const handleVideoGeneration = useCallback(async (prompt: string, targetChatId: string, videoModelId?: string) => {
     const modelToUse = videoModelId || 'seedance-2-0-260128';
     const isCommand = !videoModelId;
@@ -556,8 +644,6 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
     setLocalMessages(prev => [...prev, userMessage]);
     await sendMessage(isCommand ? `/video ${prompt}` : prompt, 'user');
 
-    setMediaGenerating('video');
-    setVideoProgress('กำลังเริ่มสร้างวิดีโอ...');
     setAiError(null);
 
     try {
@@ -572,61 +658,48 @@ export function ChatWindow({ chatId, userId, onChatCreated, onCreateChat, select
       }
 
       const { taskId } = await response.json();
-      setVideoProgress('กำลังสร้างวิดีโอ... อาจใช้เวลา 1-3 นาที');
 
-      // Poll for status
-      const pollStatus = async (): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const poll = async () => {
-            try {
-              const statusRes = await authFetch(`/api/ai/video/status?taskId=${taskId}`);
-              const status = await statusRes.json();
-
-              if (status.status === 'completed' && status.videoUrl) {
-                resolve(status.videoUrl);
-              } else if (status.status === 'failed') {
-                reject(new Error(status.error || 'Video generation failed'));
-              } else {
-                setVideoProgress('กำลังสร้างวิดีโอ... กรุณารอสักครู่');
-                videoPollingRef.current = setTimeout(poll, 5000);
-              }
-            } catch (err) {
-              reject(err);
-            }
-          };
-          poll();
-        });
+      // Save placeholder assistant message to DB with video generation metadata
+      const videoMetadata = {
+        videoTaskId: taskId,
+        videoStatus: 'pending',
+        videoModel: modelToUse,
+        videoPrompt: prompt,
       };
 
-      const videoUrl = await pollStatus();
+      const { data: savedMessage, error: saveError } = await sendMessage(
+        'กำลังสร้างวิดีโอ...',
+        'assistant',
+        videoMetadata,
+        modelToUse,
+      );
 
-      const aiMessage: Message = {
-        id: `vid-${crypto.randomUUID()}`,
+      if (saveError || !savedMessage) {
+        throw new Error('Failed to save video placeholder message');
+      }
+
+      // Add placeholder to local messages
+      setLocalMessages(prev => [...prev, {
+        id: savedMessage.id,
         chat_id: targetChatId,
-        role: 'assistant',
-        content: `[GENERATED_VIDEO]\n${videoUrl}\n[/GENERATED_VIDEO]\n\nสร้างวิดีโอจาก: "${prompt}"`,
+        role: 'assistant' as const,
+        content: 'กำลังสร้างวิดีโอ...',
         model_id: modelToUse,
         tokens_used: null,
-        metadata: null,
-        created_at: new Date().toISOString(),
-      };
-      setLocalMessages(prev => [...prev, aiMessage]);
-      await sendMessage(aiMessage.content, 'assistant', undefined, modelToUse);
-      toast.success('สร้างวิดีโอเสร็จแล้ว');
+        metadata: videoMetadata,
+        created_at: savedMessage.created_at,
+      }]);
+
+      // Start background polling (handles deduplication internally)
+      pollVideoStatus(taskId, savedMessage.id, targetChatId, modelToUse, prompt);
+
       onMessageSent?.();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสร้างวิดีโอ';
       setAiError(errorMsg);
       toast.error(errorMsg);
-    } finally {
-      setMediaGenerating(null);
-      setVideoProgress('');
-      if (videoPollingRef.current) {
-        clearTimeout(videoPollingRef.current);
-        videoPollingRef.current = null;
-      }
     }
-  }, [sendMessage]);
+  }, [sendMessage, onMessageSent, pollVideoStatus]);
 
   const handleSendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
     if (!content.trim() && (!attachments || attachments.length === 0)) return;

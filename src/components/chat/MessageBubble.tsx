@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X, Globe } from 'lucide-react';
+import { Copy, Check, RotateCcw, ThumbsUp, ThumbsDown, Clock, Hash, Download, ImagePlus, Video, Pencil, X, Globe, Loader2, AlertCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const VideoPlayer = dynamic(() => import('@/components/ui/VideoPlayer').then(mod => ({ default: mod.VideoPlayer })), { ssr: false });
 import { useState, useMemo, useRef, useEffect } from 'react';
@@ -203,6 +203,10 @@ export function MessageBubble({ message, isLast = false, modelInfo, onEdit, onRe
   const parsedContent = useMemo(() => parseMessageContent(displayContent), [displayContent]);
   const hasMedia = parsedContent.some(p => p.type === 'image' || p.type === 'video' || p.type === 'web_sources');
 
+  // Video generation status from metadata (for persistent video polling)
+  const videoMeta = message.metadata as Record<string, unknown> | null;
+  const videoStatus = videoMeta?.videoStatus as string | undefined;
+
   // Calculate current word count during streaming
   const currentWordCount = useMemo(() => {
     return displayContent.split(/\s+/).filter(Boolean).length;
@@ -370,8 +374,12 @@ export function MessageBubble({ message, isLast = false, modelInfo, onEdit, onRe
               )}
             </div>
 
-            {/* Message Content - Text and/or Media */}
-            {hasMedia ? (
+            {/* Message Content - Text, Media, or Video Status */}
+            {videoStatus === 'pending' ? (
+              <VideoGeneratingBlock model={videoMeta?.videoModel as string} />
+            ) : videoStatus === 'failed' ? (
+              <VideoFailedBlock error={videoMeta?.videoError as string | undefined} />
+            ) : hasMedia ? (
               // Render parsed content with media
               <div className="space-y-3">
                 {parsedContent.map((part, idx) => {
@@ -682,6 +690,76 @@ function GeneratedVideoBlock({ url }: { url: string }) {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+// Video Generating Block - Shows while video is being created
+function VideoGeneratingBlock({ model }: { model?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="space-y-3"
+    >
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/15 text-pink-400">
+        <Video className="h-3.5 w-3.5" />
+        <span className="text-xs font-medium">กำลังสร้างวิดีโอ</span>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 p-6 flex flex-col items-center gap-3">
+        <Loader2 className="h-8 w-8 text-pink-500 animate-spin" />
+        <div className="text-center">
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+            กำลังสร้างวิดีโอ...
+          </p>
+          <p className="text-xs text-neutral-400 mt-1">
+            {model ? `โมเดล: ${model}` : 'อาจใช้เวลาสักครู่'}
+          </p>
+        </div>
+        {/* Animated progress bar */}
+        <div className="w-full max-w-xs h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-pink-500 to-violet-500"
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            style={{ width: '40%' }}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// Video Failed Block - Shows when video generation failed
+function VideoFailedBlock({ error }: { error?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="space-y-2"
+    >
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400">
+        <Video className="h-3.5 w-3.5" />
+        <span className="text-xs font-medium">สร้างวิดีโอไม่สำเร็จ</span>
+      </div>
+
+      <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 p-4 flex items-start gap-3">
+        <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-red-700 dark:text-red-300">
+            ไม่สามารถสร้างวิดีโอได้
+          </p>
+          {error && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {error}
+            </p>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
