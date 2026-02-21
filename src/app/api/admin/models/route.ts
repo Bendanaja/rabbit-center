@@ -26,8 +26,13 @@ const PROVIDER_ICONS: Record<string, string> = {
   'thudm': '/images/models/zhipu.svg',
 };
 
+function isVideoUrl(url: string): boolean {
+  const path = url.split('?')[0].toLowerCase();
+  return /\.(mp4|webm|mov|avi|mkv)$/.test(path);
+}
+
 function resolveIcon(modelId: string, iconUrl: string | null, defIcon?: string): string {
-  if (iconUrl) return iconUrl;
+  if (iconUrl && !isVideoUrl(iconUrl)) return iconUrl;
   if (defIcon) return defIcon;
   const slug = modelId.split('/')[0]?.toLowerCase();
   if (slug && PROVIDER_ICONS[slug]) return PROVIDER_ICONS[slug];
@@ -54,39 +59,132 @@ async function verifyAdminAccess(request: Request) {
 /**
  * Auto-sync: ensure every model from byteplus.ts MODELS exists in the ai_models DB table.
  * New models default to is_active=true. Existing rows are not overwritten.
+ * Replicate models from MODELS get '__replicate' injected into capabilities.
  */
 async function syncModelsToDb() {
   const supabase = createAdminClient();
 
   const { data: existing } = await supabase
     .from('ai_models')
-    .select('id');
+    .select('id, capabilities');
 
-  const existingIds = new Set((existing || []).map(m => m.id));
+  const existingMap = new Map((existing || []).map(m => [m.id, m.capabilities as string[] | null]));
 
   const toInsert = Object.entries(MODELS)
-    .filter(([key]) => !existingIds.has(key))
-    .map(([key, def], idx) => ({
-      id: key,
-      name: def.name,
-      provider: def.provider,
-      icon_url: def.icon,
-      description: `${def.modelType.toUpperCase()} model — ${def.provider}`,
-      tier: def.isFree ? 'free' : 'starter',
-      is_active: true,
-      daily_limit: null,
-      hourly_limit: null,
-      cooldown_seconds: 0,
-      priority: 100 - idx,
-      context_window: def.maxContextTokens || null,
-      max_tokens: 4096,
-      supports_streaming: def.modelType === 'chat',
-      display_order: idx,
-      capabilities: def.capabilities || [],
-    }));
+    .filter(([key]) => !existingMap.has(key))
+    .map(([key, def], idx) => {
+      // Inject __replicate tag for Replicate provider models
+      const caps = [...(def.capabilities || [])];
+      if (def.apiProvider === 'replicate' && !caps.includes('__replicate')) {
+        caps.push('__replicate');
+      }
+      return {
+        id: key,
+        name: def.name,
+        provider: def.provider,
+        icon_url: def.icon,
+        description: `${def.modelType.toUpperCase()} model — ${def.provider}`,
+        tier: def.isFree ? 'free' : 'starter',
+        is_active: true,
+        daily_limit: null,
+        hourly_limit: null,
+        cooldown_seconds: 0,
+        priority: 100 - idx,
+        context_window: def.maxContextTokens || null,
+        max_tokens: 4096,
+        supports_streaming: def.modelType === 'chat',
+        display_order: idx,
+        capabilities: caps,
+      };
+    });
 
   if (toInsert.length > 0) {
     await supabase.from('ai_models').insert(toInsert);
+  }
+
+  // Fix existing Replicate models missing __replicate tag
+  for (const [key, def] of Object.entries(MODELS)) {
+    if (def.apiProvider === 'replicate' && existingMap.has(key)) {
+      const existingCaps = existingMap.get(key) || [];
+      if (!existingCaps.includes('__replicate')) {
+        await supabase
+          .from('ai_models')
+          .update({ capabilities: [...existingCaps, '__replicate'] })
+          .eq('id', key);
+      }
+    }
+  }
+}
+
+/**
+ * Auto-sync: fetch ALL image/video models from Replicate curated collections
+ * and insert them into the DB. New models default to is_active=false (admin enables them).
+ */
+let replicateSyncDone = false;
+
+async function syncReplicateModels() {
+  try {
+    const { fetchReplicateCollection } = await import('@/lib/replicate');
+    const supabase = createAdminClient();
+
+    // Fetch existing model IDs
+    const { data: existing } = await supabase.from('ai_models').select('id');
+    const existingIds = new Set((existing || []).map(m => m.id));
+
+    // Fetch from curated Replicate collections
+    const collections = [
+      { slug: 'text-to-image', modelType: 'image', capabilities: ['t2i', '__replicate'] },
+      { slug: 'image-to-image', modelType: 'image', capabilities: ['i2i', '__replicate'] },
+      { slug: 'text-to-video', modelType: 'video', capabilities: ['t2v', '__replicate'] },
+      { slug: 'image-to-video', modelType: 'video', capabilities: ['i2v', '__replicate'] },
+    ];
+
+    const toInsert: Array<Record<string, unknown>> = [];
+
+    for (const col of collections) {
+      const models = await fetchReplicateCollection(col.slug);
+      for (const m of models) {
+        const modelId = `${m.owner}/${m.name}`;
+        if (existingIds.has(modelId)) continue;
+        existingIds.add(modelId); // prevent dups across collections
+
+        const displayName = m.name
+          .split('-')
+          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+
+        toInsert.push({
+          id: modelId,
+          name: displayName,
+          provider: m.owner,
+          icon_url: m.cover_image_url || null,
+          description: (m.description || '').slice(0, 500) || `${col.modelType.toUpperCase()} model — ${m.owner}`,
+          tier: 'pro',
+          is_active: false, // Admin must enable
+          daily_limit: null,
+          hourly_limit: null,
+          cooldown_seconds: 0,
+          priority: 0,
+          context_window: null,
+          max_tokens: 0,
+          supports_streaming: false,
+          display_order: 0,
+          capabilities: col.capabilities,
+        });
+      }
+    }
+
+    if (toInsert.length > 0) {
+      // Insert in batches to avoid payload limits
+      const batchSize = 50;
+      for (let i = 0; i < toInsert.length; i += batchSize) {
+        await supabase.from('ai_models').insert(toInsert.slice(i, i + batchSize));
+      }
+      console.log(`[Replicate Sync] Inserted ${toInsert.length} new models from Replicate collections`);
+    }
+  } catch (error) {
+    console.error('[Replicate Sync] Failed to sync Replicate models:', error);
+    // Non-fatal: don't block the response
   }
 }
 
@@ -105,9 +203,15 @@ export async function GET(request: Request) {
 
     // Auto-sync only once per server lifecycle (or if ?sync=1)
     const url = new URL(request.url);
-    if (!syncDone || url.searchParams.get('sync') === '1') {
+    const forceSync = url.searchParams.get('sync') === '1';
+    if (!syncDone || forceSync) {
       await syncModelsToDb();
       syncDone = true;
+    }
+    // Replicate collection sync (separate flag — depends on external API)
+    if (!replicateSyncDone || forceSync) {
+      await syncReplicateModels();
+      replicateSyncDone = true;
     }
 
     // Run both queries in parallel
@@ -143,8 +247,8 @@ export async function GET(request: Request) {
       return {
         ...model,
         icon_url: resolveIcon(model.id, model.icon_url, modelDef?.icon),
-        model_type: modelDef?.modelType || 'chat',
-        api_provider: modelDef?.apiProvider || (model.id.includes('/') ? 'openrouter' : 'byteplus'),
+        model_type: modelDef?.modelType || (model.capabilities?.some((c: string) => ['t2i','i2i'].includes(c)) ? 'image' : model.capabilities?.some((c: string) => ['t2v','i2v'].includes(c)) ? 'video' : 'chat'),
+        api_provider: modelDef?.apiProvider || (model.capabilities?.includes('__replicate') ? 'replicate' : model.id.includes('/') ? 'openrouter' : 'byteplus'),
         usage_stats: usageMap.get(model.id) || { requests: 0, tokens: 0 },
       };
     });
@@ -186,6 +290,8 @@ export async function POST(request: NextRequest) {
       input_cost_per_1k,
       output_cost_per_1k,
       capabilities,
+      model_type,
+      api_provider,
     } = body;
 
     if (!id || !name || !provider) {
@@ -213,13 +319,21 @@ export async function POST(request: NextRequest) {
     const validTiers = ['free', 'starter', 'pro', 'premium'];
     const dbTier = validTiers.includes(tier) ? tier : 'pro';
 
+    // Build capabilities array — inject provider tag for non-MODELS models
+    let dbCapabilities = Array.isArray(capabilities) ? [...capabilities] : [];
+    if (api_provider === 'replicate' && !dbCapabilities.includes('__replicate')) {
+      dbCapabilities.push('__replicate');
+    }
+
+    const typeLabel = model_type === 'image' ? 'Image' : model_type === 'video' ? 'Video' : 'Chat';
+
     const { data, error } = await supabase
       .from('ai_models')
       .insert({
         id,
         name,
         provider,
-        description: description || `Chat model — ${provider}`,
+        description: description || `${typeLabel} model — ${provider}`,
         icon_url: icon_url || null,
         tier: dbTier,
         is_active: true,
@@ -231,9 +345,9 @@ export async function POST(request: NextRequest) {
         max_tokens: max_tokens || 4096,
         input_cost_per_1k: input_cost_per_1k || null,
         output_cost_per_1k: output_cost_per_1k || null,
-        supports_streaming: true,
+        supports_streaming: model_type === 'chat' || !model_type,
         display_order: 0,
-        capabilities: Array.isArray(capabilities) ? capabilities : [],
+        capabilities: dbCapabilities,
       })
       .select()
       .single();

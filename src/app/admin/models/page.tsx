@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot,
@@ -48,7 +49,7 @@ interface AIModel {
   priority: number;
   context_window: number | null;
   model_type: 'chat' | 'image' | 'video';
-  api_provider: 'byteplus' | 'openrouter';
+  api_provider: 'byteplus' | 'openrouter' | 'replicate';
   usage_stats: { requests: number; tokens: number };
   input_cost_per_1k: number | null;
   output_cost_per_1k: number | null;
@@ -272,8 +273,9 @@ export default function AdminModelsPage() {
 
   // Group models by API provider (byteplus/openrouter), then by provider name
   const groupedByApiProvider = useMemo(() => {
-    const byteplusModels = filteredModels.filter(m => m.api_provider !== 'openrouter');
+    const byteplusModels = filteredModels.filter(m => m.api_provider === 'byteplus' || (m.api_provider !== 'openrouter' && m.api_provider !== 'replicate'));
     const openrouterModels = filteredModels.filter(m => m.api_provider === 'openrouter');
+    const replicateModels = filteredModels.filter(m => m.api_provider === 'replicate');
 
     const groupByProvider = (models: AIModel[]) => {
       const groups: Record<string, AIModel[]> = {};
@@ -288,6 +290,7 @@ export default function AdminModelsPage() {
     return {
       byteplus: { models: byteplusModels, groups: groupByProvider(byteplusModels) },
       openrouter: { models: openrouterModels, groups: groupByProvider(openrouterModels) },
+      replicate: { models: replicateModels, groups: groupByProvider(replicateModels) },
     };
   }, [filteredModels]);
 
@@ -302,6 +305,7 @@ export default function AdminModelsPage() {
     paid: models.filter(m => m.tier !== 'free').length,
     byteplus: models.filter(m => m.api_provider !== 'openrouter').length,
     openrouter: models.filter(m => m.api_provider === 'openrouter').length,
+    replicate: models.filter(m => m.api_provider === 'replicate').length,
   }), [models]);
 
   return (
@@ -502,6 +506,31 @@ export default function AdminModelsPage() {
               </div>
             )}
 
+            {/* Replicate Section */}
+            {groupedByApiProvider.replicate.models.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <Zap className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-sm font-semibold text-emerald-300">Replicate</span>
+                  </div>
+                  <span className="text-xs text-neutral-500">{groupedByApiProvider.replicate.models.length} โมเดล</span>
+                  <div className="flex-1 border-t border-neutral-800/50" />
+                </div>
+                <ModelTable
+                  groups={groupedByApiProvider.replicate.groups}
+                  deleting={deleting}
+                  onToggle={handleToggleModel}
+                  onEdit={setEditingModel}
+                  onDelete={handleDeleteModel}
+                  onTierChange={handleQuickTierChange}
+                  canToggle={canToggle}
+                  canSetLimits={canSetLimits}
+                  canManage={canManage}
+                />
+              </div>
+            )}
+
             {filteredModels.length === 0 && !loading && (
               <div className="py-16 text-center">
                 <Bot className="h-10 w-10 mx-auto mb-3 text-neutral-600" />
@@ -587,6 +616,12 @@ export default function AdminModelsPage() {
                       OR
                     </span>
                   )}
+                  {model.api_provider === 'replicate' && (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      <Zap className="h-2.5 w-2.5" />
+                      RP
+                    </span>
+                  )}
                 </div>
 
                 {/* Stats */}
@@ -652,27 +687,33 @@ export default function AdminModelsPage() {
         )}
       </div>
 
-      {/* Edit Modal */}
-      <AnimatePresence>
-        {editingModel && (
-          <EditModelModal
-            model={editingModel}
-            onChange={setEditingModel}
-            onSave={handleSaveModel}
-            onClose={() => setEditingModel(null)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Edit Modal — Portal to body for correct viewport centering */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {editingModel && (
+            <EditModelModal
+              model={editingModel}
+              onChange={setEditingModel}
+              onSave={handleSaveModel}
+              onClose={() => setEditingModel(null)}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
-      {/* Add Model Modal */}
-      <AnimatePresence>
-        {showAddModal && (
-          <AddModelModal
-            onClose={() => setShowAddModal(false)}
-            onAdded={handleModelAdded}
-          />
-        )}
-      </AnimatePresence>
+      {/* Add Model Modal — Portal to body */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showAddModal && (
+            <AddModelModal
+              onClose={() => setShowAddModal(false)}
+              onAdded={handleModelAdded}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
@@ -769,8 +810,15 @@ function ModelTable({
                     )}
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-8 w-8 rounded-lg overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
+                    <button
+                      onClick={() => canSetLimits ? onEdit(model) : undefined}
+                      className={cn(
+                        'flex items-center gap-3 min-w-0 text-left',
+                        canSetLimits && 'cursor-pointer group/name'
+                      )}
+                      title={canSetLimits ? 'คลิกเพื่อตั้งค่า' : undefined}
+                    >
+                      <div className="h-8 w-8 rounded-lg overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center relative">
                         {model.icon_url ? (
                           <img src={model.icon_url} alt={model.name} className="h-8 w-8 object-cover" />
                         ) : (
@@ -778,10 +826,10 @@ function ModelTable({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{model.name}</p>
+                        <p className="text-sm font-medium text-white truncate group-hover/name:text-primary-400 transition-colors">{model.name}</p>
                         <p className="text-[11px] text-neutral-500 font-mono truncate">{model.id}</p>
                       </div>
-                    </div>
+                    </button>
                   </td>
                   <td className="px-4 py-2.5 hidden md:table-cell">
                     <span className={cn(
@@ -793,7 +841,7 @@ function ModelTable({
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
-                    {canSetLimits && model.is_active ? (
+                    {canSetLimits ? (
                       <TierSelector value={model.tier} onChange={(tier) => onTierChange(model, tier)} />
                     ) : (
                       <span className={cn('inline-flex px-2 py-0.5 rounded-md text-[11px] font-medium border', tierColors[model.tier])}>
@@ -814,33 +862,31 @@ function ModelTable({
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
-                    {model.is_active && (
-                      <div className="flex items-center justify-end gap-1">
-                        {canSetLimits && (
-                          <button
-                            onClick={() => onEdit(model)}
-                            className="p-1.5 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors opacity-0 group-hover:opacity-100"
-                            title="ตั้งค่า"
-                          >
-                            <SlidersHorizontal className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {canManage && (
-                          <button
-                            onClick={() => onDelete(model.id)}
-                            disabled={deleting === model.id}
-                            className="p-1.5 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                            title="ลบ"
-                          >
-                            {deleting === model.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {canSetLimits && (
+                        <button
+                          onClick={() => onEdit(model)}
+                          className="p-1.5 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors"
+                          title="ตั้งค่า"
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => onDelete(model.id)}
+                          disabled={deleting === model.id}
+                          className="p-1.5 rounded-md text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                          title="ลบ"
+                        >
+                          {deleting === model.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -974,6 +1020,55 @@ function EditModelModal({
   onSave: (m: AIModel) => void;
   onClose: () => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('ไฟล์มีขนาดใหญ่เกิน 5MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await authFetch('/api/admin/models/upload-icon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          contentType: file.type,
+          modelId: model.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        onChange({ ...model, icon_url: data.icon_url });
+      } else {
+        const data = await response.json();
+        alert(data.error || 'อัพโหลดไม่สำเร็จ');
+      }
+    } catch {
+      alert('เกิดข้อผิดพลาดในการอัพโหลด');
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1020,20 +1115,53 @@ function EditModelModal({
             />
           </div>
 
-          {/* Icon URL */}
+          {/* Icon / Profile Picture */}
           <div>
-            <label className="block text-xs font-medium text-neutral-400 mb-1.5">URL รูปไอคอน</label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={model.icon_url || ''}
-                onChange={(e) => onChange({ ...model, icon_url: e.target.value || null })}
-                placeholder="https://example.com/icon.png"
-                className="flex-1 px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              />
-              {model.icon_url && (
-                <img src={model.icon_url} alt="" className="h-9 w-9 rounded-lg object-cover border border-neutral-700" />
-              )}
+            <label className="block text-xs font-medium text-neutral-400 mb-1.5">รูปโปรไฟล์ AI</label>
+            <div className="flex items-start gap-3">
+              {/* Preview */}
+              <div className="shrink-0">
+                <div className="h-16 w-16 rounded-xl overflow-hidden bg-neutral-800 border-2 border-neutral-700 flex items-center justify-center">
+                  {model.icon_url ? (
+                    <img src={model.icon_url} alt={model.name} className="h-16 w-16 object-cover" />
+                  ) : (
+                    <Bot className="h-6 w-6 text-neutral-500" />
+                  )}
+                </div>
+              </div>
+              {/* Upload + URL */}
+              <div className="flex-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-sm text-white transition-colors disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4" />
+                  )}
+                  {uploading ? 'กำลังอัพโหลด...' : 'อัพโหลดรูปภาพ'}
+                </button>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={model.icon_url || ''}
+                    onChange={(e) => onChange({ ...model, icon_url: e.target.value || null })}
+                    placeholder="หรือวาง URL รูปภาพ"
+                    className="w-full px-3 py-1.5 bg-neutral-800/60 border border-neutral-700/60 rounded-lg text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                  />
+                </div>
+                <p className="text-[10px] text-neutral-500">รองรับ JPG, PNG, GIF, WebP, SVG, AVIF (ไม่เกิน 5MB)</p>
+              </div>
             </div>
           </div>
 
@@ -1169,7 +1297,18 @@ function EditModelModal({
   );
 }
 
-// ─── Add Model Modal (OpenRouter Search) ─────────────────
+// ─── Add Model Modal (OpenRouter + Replicate Search) ─────
+interface ReplicateModelResult {
+  id: string;
+  name: string;
+  owner: string;
+  description: string;
+  run_count: number;
+  cover_image_url: string | null;
+  model_type: 'image' | 'video';
+  already_added: boolean;
+}
+
 function AddModelModal({
   onClose,
   onAdded,
@@ -1177,11 +1316,14 @@ function AddModelModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const [tab, setTab] = useState<'openrouter' | 'replicate'>('openrouter');
   const [search, setSearch] = useState('');
-  const [results, setResults] = useState<OpenRouterModel[]>([]);
+  const [orResults, setOrResults] = useState<OpenRouterModel[]>([]);
+  const [repResults, setRepResults] = useState<ReplicateModelResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
-  const [selectedModel, setSelectedModel] = useState<OpenRouterModel | null>(null);
+  const [selectedOrModel, setSelectedOrModel] = useState<OpenRouterModel | null>(null);
+  const [selectedRepModel, setSelectedRepModel] = useState<ReplicateModelResult | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -1190,14 +1332,14 @@ function AddModelModal({
   const [newName, setNewName] = useState('');
   const [newCapabilities, setNewCapabilities] = useState<string[]>([]);
 
-  const searchModels = useCallback(async (query: string) => {
+  const searchOpenRouter = useCallback(async (query: string) => {
     setSearching(true);
     setError(null);
     try {
       const response = await authFetch(`/api/admin/models/openrouter?q=${encodeURIComponent(query)}`);
       if (response.ok) {
         const data = await response.json();
-        setResults(data.models || []);
+        setOrResults(data.models || []);
         setTotalResults(data.total || 0);
       } else {
         setError('ไม่สามารถดึงข้อมูลจาก OpenRouter ได้');
@@ -1209,20 +1351,52 @@ function AddModelModal({
     }
   }, []);
 
+  const searchReplicate = useCallback(async (query: string) => {
+    setSearching(true);
+    setError(null);
+    try {
+      const response = await authFetch(`/api/admin/models/replicate?q=${encodeURIComponent(query)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRepResults(data.models || []);
+        setTotalResults(data.total || 0);
+      } else {
+        setError('ไม่สามารถดึงข้อมูลจาก Replicate ได้');
+      }
+    } catch {
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  // Initial load based on active tab
   useEffect(() => {
-    searchModels('');
-  }, [searchModels]);
+    if (tab === 'openrouter') searchOpenRouter('');
+    else searchReplicate('');
+  }, [tab, searchOpenRouter, searchReplicate]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
-      searchModels(value);
+      if (tab === 'openrouter') searchOpenRouter(value);
+      else searchReplicate(value);
     }, 300);
   };
 
-  const handleSelectModel = (model: OpenRouterModel) => {
-    setSelectedModel(model);
+  const handleTabChange = (newTab: 'openrouter' | 'replicate') => {
+    setTab(newTab);
+    setSearch('');
+    setSelectedOrModel(null);
+    setSelectedRepModel(null);
+    setError(null);
+    setSuccess(false);
+  };
+
+  const handleSelectOrModel = (model: OpenRouterModel) => {
+    setSelectedOrModel(model);
+    setSelectedRepModel(null);
     setNewName(model.name);
     setNewTier(model.is_free ? 'free' : 'starter');
     setNewCapabilities(model.suggested_capabilities || []);
@@ -1230,35 +1404,71 @@ function AddModelModal({
     setSuccess(false);
   };
 
+  const handleSelectRepModel = (model: ReplicateModelResult) => {
+    setSelectedRepModel(model);
+    setSelectedOrModel(null);
+    setNewName(model.name.charAt(0).toUpperCase() + model.name.slice(1).replace(/-/g, ' '));
+    setNewTier('starter');
+    setNewCapabilities(model.model_type === 'image' ? ['t2i'] : ['t2v']);
+    setError(null);
+    setSuccess(false);
+  };
+
   const handleAddModel = async () => {
-    if (!selectedModel) return;
     setAdding(true);
     setError(null);
 
     try {
+      let body: Record<string, unknown>;
+
+      if (tab === 'openrouter' && selectedOrModel) {
+        body = {
+          id: selectedOrModel.id,
+          name: newName || selectedOrModel.name,
+          provider: selectedOrModel.provider,
+          description: selectedOrModel.description?.slice(0, 500) || `${selectedOrModel.provider} model via OpenRouter`,
+          icon_url: selectedOrModel.icon_url || null,
+          tier: newTier,
+          context_window: selectedOrModel.context_length || null,
+          input_cost_per_1k: selectedOrModel.prompt_cost ? selectedOrModel.prompt_cost * 1000 : null,
+          output_cost_per_1k: selectedOrModel.completion_cost ? selectedOrModel.completion_cost * 1000 : null,
+          priority: 50,
+          capabilities: newCapabilities,
+        };
+      } else if (tab === 'replicate' && selectedRepModel) {
+        body = {
+          id: selectedRepModel.id,
+          name: newName || selectedRepModel.name,
+          provider: selectedRepModel.owner,
+          description: selectedRepModel.description?.slice(0, 500) || `${selectedRepModel.owner} model via Replicate`,
+          icon_url: selectedRepModel.cover_image_url || '/images/models/flux.svg',
+          tier: newTier,
+          model_type: selectedRepModel.model_type,
+          api_provider: 'replicate',
+          priority: 50,
+          capabilities: newCapabilities,
+        };
+      } else {
+        return;
+      }
+
       const response = await authFetch('/api/admin/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedModel.id,
-          name: newName || selectedModel.name,
-          provider: selectedModel.provider,
-          description: selectedModel.description?.slice(0, 500) || `${selectedModel.provider} model via OpenRouter`,
-          icon_url: selectedModel.icon_url || null,
-          tier: newTier,
-          context_window: selectedModel.context_length || null,
-          input_cost_per_1k: selectedModel.prompt_cost ? selectedModel.prompt_cost * 1000 : null,
-          output_cost_per_1k: selectedModel.completion_cost ? selectedModel.completion_cost * 1000 : null,
-          priority: 50,
-          capabilities: newCapabilities,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
         setSuccess(true);
-        setResults(results.map(r =>
-          r.id === selectedModel.id ? { ...r, already_added: true } : r
-        ));
+        if (tab === 'openrouter') {
+          setOrResults(orResults.map(r =>
+            r.id === selectedOrModel?.id ? { ...r, already_added: true } : r
+          ));
+        } else {
+          setRepResults(repResults.map(r =>
+            r.id === selectedRepModel?.id ? { ...r, already_added: true } : r
+          ));
+        }
         setTimeout(() => { onAdded(); }, 800);
       } else {
         const data = await response.json();
@@ -1270,6 +1480,9 @@ function AddModelModal({
       setAdding(false);
     }
   };
+
+  const hasSelection = (tab === 'openrouter' && selectedOrModel) || (tab === 'replicate' && selectedRepModel);
+  const isAlreadyAdded = (tab === 'openrouter' && selectedOrModel?.already_added) || (tab === 'replicate' && selectedRepModel?.already_added);
 
   return (
     <motion.div
@@ -1289,9 +1502,9 @@ function AddModelModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-neutral-800">
           <div>
-            <h3 className="text-lg font-semibold text-white">เพิ่ม Model จาก OpenRouter</h3>
+            <h3 className="text-lg font-semibold text-white">เพิ่ม AI Model</h3>
             <p className="text-sm text-neutral-400 mt-1">
-              ค้นหาและเพิ่ม AI model ({totalResults} models)
+              ค้นหาและเพิ่ม model ({totalResults} results)
             </p>
           </div>
           <button
@@ -1302,15 +1515,46 @@ function AddModelModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="p-4 border-b border-neutral-800">
+        {/* Tabs + Search */}
+        <div className="p-4 border-b border-neutral-800 space-y-3">
+          {/* Provider Tabs */}
+          <div className="flex items-center gap-1 bg-neutral-800/60 rounded-lg p-0.5">
+            <button
+              onClick={() => handleTabChange('openrouter')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-colors',
+                tab === 'openrouter'
+                  ? 'bg-orange-500/20 text-orange-400'
+                  : 'text-neutral-400 hover:text-white'
+              )}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              OpenRouter
+              <span className="text-[10px] text-neutral-500">แชท</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('replicate')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-colors',
+                tab === 'replicate'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-neutral-400 hover:text-white'
+              )}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Replicate
+              <span className="text-[10px] text-neutral-500">รูป/วิดีโอ</span>
+            </button>
+          </div>
+
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="ค้นหา model... เช่น gpt-4, claude, llama"
+              placeholder={tab === 'openrouter' ? 'ค้นหา model... เช่น gpt-4, claude, llama' : 'ค้นหา... เช่น flux, stable diffusion, video'}
               className="w-full pl-10 pr-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
               autoFocus
             />
@@ -1325,80 +1569,158 @@ function AddModelModal({
           {/* Results List */}
           <div className={cn(
             'overflow-y-auto border-r border-neutral-800 transition-all',
-            selectedModel ? 'w-1/2' : 'w-full'
+            hasSelection ? 'w-1/2' : 'w-full'
           )}>
-            {error && !selectedModel && (
+            {error && !hasSelection && (
               <div className="p-4 text-center text-red-400 text-sm">
                 <AlertCircle className="h-5 w-5 mx-auto mb-2" />
                 {error}
               </div>
             )}
 
-            {results.length === 0 && !searching && (
-              <div className="p-8 text-center text-neutral-500">
-                <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>ไม่พบ model ที่ตรงกัน</p>
-              </div>
-            )}
-
-            {results.map((model) => (
-              <button
-                key={model.id}
-                onClick={() => handleSelectModel(model)}
-                disabled={model.already_added}
-                className={cn(
-                  'w-full text-left p-4 border-b border-neutral-800/50 transition-colors',
-                  model.already_added
-                    ? 'opacity-50 cursor-not-allowed bg-neutral-800/20'
-                    : selectedModel?.id === model.id
-                    ? 'bg-primary-500/10 border-l-2 border-l-primary-500'
-                    : 'hover:bg-neutral-800/50'
+            {/* OpenRouter Results */}
+            {tab === 'openrouter' && (
+              <>
+                {orResults.length === 0 && !searching && (
+                  <div className="p-8 text-center text-neutral-500">
+                    <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>ไม่พบ model ที่ตรงกัน</p>
+                  </div>
                 )}
-              >
-                <div className="flex items-start gap-2.5">
-                  {model.icon_url ? (
-                    <img src={model.icon_url} alt={model.provider} className="h-7 w-7 rounded-md object-cover shrink-0 mt-0.5" />
-                  ) : (
-                    <div className="h-7 w-7 rounded-md bg-neutral-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot className="h-4 w-4 text-neutral-400" />
+                {orResults.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleSelectOrModel(model)}
+                    disabled={model.already_added}
+                    className={cn(
+                      'w-full text-left p-4 border-b border-neutral-800/50 transition-colors',
+                      model.already_added
+                        ? 'opacity-50 cursor-not-allowed bg-neutral-800/20'
+                        : selectedOrModel?.id === model.id
+                        ? 'bg-primary-500/10 border-l-2 border-l-primary-500'
+                        : 'hover:bg-neutral-800/50'
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {model.icon_url ? (
+                        <img src={model.icon_url} alt={model.provider} className="h-7 w-7 rounded-md object-cover shrink-0 mt-0.5" />
+                      ) : (
+                        <div className="h-7 w-7 rounded-md bg-neutral-700 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bot className="h-4 w-4 text-neutral-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-white text-sm truncate">{model.name}</p>
+                          {model.already_added && (
+                            <span className="shrink-0 text-xs text-green-400 flex items-center gap-1">
+                              <Check className="h-3 w-3" />
+                              เพิ่มแล้ว
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-500 font-mono truncate mt-0.5">{model.id}</p>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-white text-sm truncate">{model.name}</p>
-                      {model.already_added && (
-                        <span className="shrink-0 text-xs text-green-400 flex items-center gap-1">
-                          <Check className="h-3 w-3" />
-                          เพิ่มแล้ว
-                        </span>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-neutral-400">{model.provider}</span>
+                      {model.context_length > 0 && (
+                        <span className="text-xs text-neutral-500">{(model.context_length / 1000).toFixed(0)}K ctx</span>
+                      )}
+                      {model.is_free ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">Free</span>
+                      ) : (
+                        <span className="text-xs text-neutral-500">${(model.prompt_cost * 1000000).toFixed(2)}/M tok</span>
                       )}
                     </div>
-                    <p className="text-xs text-neutral-500 font-mono truncate mt-0.5">{model.id}</p>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Replicate Results */}
+            {tab === 'replicate' && (
+              <>
+                {repResults.length === 0 && !searching && (
+                  <div className="p-8 text-center text-neutral-500">
+                    <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>ไม่พบ model ที่ตรงกัน</p>
+                    <p className="text-xs mt-1">ลองค้นหา &quot;flux&quot;, &quot;stable diffusion&quot;, &quot;video&quot;</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs text-neutral-400">{model.provider}</span>
-                  {model.context_length > 0 && (
-                    <span className="text-xs text-neutral-500">{(model.context_length / 1000).toFixed(0)}K ctx</span>
-                  )}
-                  {model.is_free ? (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">Free</span>
-                  ) : (
-                    <span className="text-xs text-neutral-500">${(model.prompt_cost * 1000000).toFixed(2)}/M tok</span>
-                  )}
-                </div>
-              </button>
-            ))}
+                )}
+                {repResults.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleSelectRepModel(model)}
+                    disabled={model.already_added}
+                    className={cn(
+                      'w-full text-left p-4 border-b border-neutral-800/50 transition-colors',
+                      model.already_added
+                        ? 'opacity-50 cursor-not-allowed bg-neutral-800/20'
+                        : selectedRepModel?.id === model.id
+                        ? 'bg-emerald-500/10 border-l-2 border-l-emerald-500'
+                        : 'hover:bg-neutral-800/50'
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {model.cover_image_url ? (
+                        <img src={model.cover_image_url} alt={model.name} className="h-7 w-7 rounded-md object-cover shrink-0 mt-0.5" />
+                      ) : (
+                        <div className="h-7 w-7 rounded-md bg-neutral-700 flex items-center justify-center shrink-0 mt-0.5">
+                          {model.model_type === 'image' ? (
+                            <ImageIcon className="h-4 w-4 text-pink-400" />
+                          ) : (
+                            <Video className="h-4 w-4 text-amber-400" />
+                          )}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-white text-sm truncate">{model.name}</p>
+                          {model.already_added && (
+                            <span className="shrink-0 text-xs text-green-400 flex items-center gap-1">
+                              <Check className="h-3 w-3" />
+                              เพิ่มแล้ว
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-500 font-mono truncate mt-0.5">{model.id}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-neutral-400">{model.owner}</span>
+                      <span className={cn(
+                        'text-xs px-1.5 py-0.5 rounded',
+                        model.model_type === 'image'
+                          ? 'bg-pink-500/10 text-pink-400'
+                          : 'bg-amber-500/10 text-amber-400'
+                      )}>
+                        {model.model_type === 'image' ? 'Image' : 'Video'}
+                      </span>
+                      {model.run_count > 0 && (
+                        <span className="text-xs text-neutral-500">{model.run_count.toLocaleString()} runs</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
 
           {/* Selected Model Config */}
-          {selectedModel && (
+          {hasSelection && (
             <div className="w-1/2 p-4 overflow-y-auto">
-              <h4 className="font-semibold text-white mb-1">{selectedModel.name}</h4>
-              <p className="text-xs text-neutral-500 font-mono mb-3">{selectedModel.id}</p>
+              <h4 className="font-semibold text-white mb-1">
+                {tab === 'openrouter' ? selectedOrModel?.name : selectedRepModel?.name}
+              </h4>
+              <p className="text-xs text-neutral-500 font-mono mb-3">
+                {tab === 'openrouter' ? selectedOrModel?.id : selectedRepModel?.id}
+              </p>
 
-              {selectedModel.description && (
-                <p className="text-sm text-neutral-400 mb-4 line-clamp-3">{selectedModel.description}</p>
+              {((tab === 'openrouter' && selectedOrModel?.description) || (tab === 'replicate' && selectedRepModel?.description)) && (
+                <p className="text-sm text-neutral-400 mb-4 line-clamp-3">
+                  {tab === 'openrouter' ? selectedOrModel?.description : selectedRepModel?.description}
+                </p>
               )}
 
               <div className="space-y-4">
@@ -1432,46 +1754,80 @@ function AddModelModal({
                   </div>
                 </div>
 
-                {/* Capabilities toggle */}
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1">ความสามารถ</label>
-                  <label className="flex items-center gap-2.5 p-2 bg-neutral-800/60 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={newCapabilities.includes('chat-image-gen')}
-                      onChange={(e) => {
-                        setNewCapabilities(e.target.checked
-                          ? [...newCapabilities, 'chat-image-gen']
-                          : newCapabilities.filter(c => c !== 'chat-image-gen')
-                        );
-                      }}
-                      className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-700 text-primary-500 focus:ring-primary-500/30"
-                    />
-                    <div>
-                      <span className="text-xs text-white">Chat Image Gen</span>
-                      <p className="text-[10px] text-neutral-500">สร้างรูปในแชท</p>
-                    </div>
-                  </label>
-                </div>
+                {/* Capabilities toggle — OpenRouter: chat-image-gen, Replicate: t2i/t2v */}
+                {tab === 'openrouter' && (
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-400 mb-1">ความสามารถ</label>
+                    <label className="flex items-center gap-2.5 p-2 bg-neutral-800/60 rounded-lg cursor-pointer hover:bg-neutral-800 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={newCapabilities.includes('chat-image-gen')}
+                        onChange={(e) => {
+                          setNewCapabilities(e.target.checked
+                            ? [...newCapabilities, 'chat-image-gen']
+                            : newCapabilities.filter(c => c !== 'chat-image-gen')
+                          );
+                        }}
+                        className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-700 text-primary-500 focus:ring-primary-500/30"
+                      />
+                      <div>
+                        <span className="text-xs text-white">Chat Image Gen</span>
+                        <p className="text-[10px] text-neutral-500">สร้างรูปในแชท</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-neutral-400">
-                    <span>Provider</span>
-                    <span className="text-white">{selectedModel.provider}</span>
+                {tab === 'replicate' && selectedRepModel && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-neutral-400">
+                      <span>Provider</span>
+                      <span className="text-white">{selectedRepModel.owner}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>ประเภท</span>
+                      <span className={cn(
+                        'px-2 py-0.5 rounded text-xs font-medium',
+                        selectedRepModel.model_type === 'image'
+                          ? 'bg-pink-500/10 text-pink-400'
+                          : 'bg-amber-500/10 text-amber-400'
+                      )}>
+                        {selectedRepModel.model_type === 'image' ? 'สร้างรูป' : 'สร้างวิดีโอ'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>API Provider</span>
+                      <span className="text-emerald-400 text-xs font-medium">Replicate</span>
+                    </div>
+                    {selectedRepModel.run_count > 0 && (
+                      <div className="flex justify-between text-neutral-400">
+                        <span>Total Runs</span>
+                        <span className="text-white">{selectedRepModel.run_count.toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between text-neutral-400">
-                    <span>Context</span>
-                    <span className="text-white">{selectedModel.context_length > 0 ? `${(selectedModel.context_length / 1000).toFixed(0)}K` : 'N/A'}</span>
+                )}
+
+                {tab === 'openrouter' && selectedOrModel && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-neutral-400">
+                      <span>Provider</span>
+                      <span className="text-white">{selectedOrModel.provider}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>Context</span>
+                      <span className="text-white">{selectedOrModel.context_length > 0 ? `${(selectedOrModel.context_length / 1000).toFixed(0)}K` : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>Input Cost</span>
+                      <span className="text-white">{selectedOrModel.is_free ? 'Free' : `$${(selectedOrModel.prompt_cost * 1000000).toFixed(2)}/M`}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>Output Cost</span>
+                      <span className="text-white">{selectedOrModel.is_free ? 'Free' : `$${(selectedOrModel.completion_cost * 1000000).toFixed(2)}/M`}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-neutral-400">
-                    <span>Input Cost</span>
-                    <span className="text-white">{selectedModel.is_free ? 'Free' : `$${(selectedModel.prompt_cost * 1000000).toFixed(2)}/M`}</span>
-                  </div>
-                  <div className="flex justify-between text-neutral-400">
-                    <span>Output Cost</span>
-                    <span className="text-white">{selectedModel.is_free ? 'Free' : `$${(selectedModel.completion_cost * 1000000).toFixed(2)}/M`}</span>
-                  </div>
-                </div>
+                )}
 
                 {error && (
                   <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400 flex items-center gap-2">
@@ -1489,12 +1845,12 @@ function AddModelModal({
 
                 <button
                   onClick={handleAddModel}
-                  disabled={adding || success || selectedModel.already_added}
+                  disabled={adding || success || !!isAlreadyAdded}
                   className={cn(
                     'w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors',
                     success
                       ? 'bg-green-500/20 text-green-400'
-                      : selectedModel.already_added
+                      : isAlreadyAdded
                       ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
                       : 'bg-primary-500 hover:bg-primary-600 text-white'
                   )}
@@ -1506,7 +1862,7 @@ function AddModelModal({
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  {success ? 'เพิ่มแล้ว' : selectedModel.already_added ? 'เพิ่มอยู่ในระบบแล้ว' : 'เพิ่ม Model'}
+                  {success ? 'เพิ่มแล้ว' : isAlreadyAdded ? 'เพิ่มอยู่ในระบบแล้ว' : 'เพิ่ม Model'}
                 </button>
               </div>
             </div>

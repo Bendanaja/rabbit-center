@@ -68,13 +68,13 @@ export default function AdminDashboardPage() {
           const data = await res.json();
           setCustomerStats(data);
         }
-      }).catch(() => {}),
+      }).catch(() => { }),
       authFetch('/api/admin/analytics/overview').then(async (res) => {
         if (res.ok) {
           const data = await res.json();
           setStats(data);
         }
-      }).catch(() => {}),
+      }).catch(() => { }),
     ];
 
     await Promise.all([custPromise, statsPromise]);
@@ -220,12 +220,11 @@ export default function AdminDashboardPage() {
           />
         </div>
 
-        {/* Customer Data (Big Data) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.65 }}
-          className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+          className="p-6 glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -288,12 +287,11 @@ export default function AdminDashboardPage() {
 
         {/* Charts + Activity Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Model Usage */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+            className="p-6 glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl"
           >
             <h3 className="text-lg font-semibold text-white mb-4">การใช้งาน AI Models (7 วัน)</h3>
             <div className="space-y-4">
@@ -330,12 +328,11 @@ export default function AdminDashboardPage() {
             </div>
           </motion.div>
 
-          {/* Recent Activity */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+            className="p-6 glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl"
           >
             <h3 className="text-lg font-semibold text-white mb-4">กิจกรรมล่าสุด</h3>
             <div className="space-y-3">
@@ -371,12 +368,11 @@ export default function AdminDashboardPage() {
           </motion.div>
         </div>
 
-        {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
-          className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-2xl"
+          className="p-6 glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl"
         >
           <h3 className="text-lg font-semibold text-white mb-4">การดำเนินการด่วน</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -394,25 +390,23 @@ export default function AdminDashboardPage() {
               >
                 <Link
                   href={action.href}
-                  className={`block p-4 rounded-xl border transition-all duration-200 hover:scale-[1.02] ${
-                    action.color === 'blue'
+                  className={`block p-4 rounded-xl border transition-all duration-200 hover:scale-[1.02] ${action.color === 'blue'
                       ? 'bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/20'
                       : action.color === 'purple'
-                      ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20'
-                      : action.color === 'green'
-                      ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20'
-                      : 'bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/20'
-                  }`}
+                        ? 'bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20'
+                        : action.color === 'green'
+                          ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20'
+                          : 'bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/20'
+                    }`}
                 >
-                  <action.icon className={`h-6 w-6 mb-2 ${
-                    action.color === 'blue'
+                  <action.icon className={`h-6 w-6 mb-2 ${action.color === 'blue'
                       ? 'text-blue-400'
                       : action.color === 'purple'
-                      ? 'text-purple-400'
-                      : action.color === 'green'
-                      ? 'text-green-400'
-                      : 'text-orange-400'
-                  }`} />
+                        ? 'text-purple-400'
+                        : action.color === 'green'
+                          ? 'text-green-400'
+                          : 'text-orange-400'
+                    }`} />
                   <p className="text-sm font-medium text-white">{action.name}</p>
                 </Link>
               </motion.div>

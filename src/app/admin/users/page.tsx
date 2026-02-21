@@ -388,12 +388,12 @@ export default function AdminUsersPage() {
               placeholder="ค้นหาผู้ใช้ (ชื่อ, อีเมล)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
+              className="w-full h-10 pl-10 pr-4 glass-premium shadow-sm border border-white/20 dark:border-neutral-700/50 rounded-xl text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+          <div className="flex items-center gap-2 glass-premium shadow-sm border border-white/20 dark:border-neutral-700/50 rounded-xl p-1">
             {(['all', 'active', 'banned'] as const).map((status) => (
               <button
                 key={status}
@@ -411,7 +411,7 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Plan Filter */}
-          <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+          <div className="flex items-center gap-2 glass-premium shadow-sm border border-white/20 dark:border-neutral-700/50 rounded-xl p-1">
             {(['all', 'free', 'starter', 'pro', 'premium'] as const).map((plan) => (
               <button
                 key={plan}
@@ -455,262 +455,262 @@ export default function AdminUsersPage() {
       {/* Modals via Portal to avoid framer-motion transform breaking fixed positioning */}
       {typeof document !== 'undefined' && createPortal(
         <>
-      {/* Plan Change Modal */}
-      <AnimatePresence>
-        {showPlanModal && selectedUser && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowPlanModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">เปลี่ยนแผนผู้ใช้</h3>
-                  <p className="text-sm text-neutral-400 mt-1">
-                    {selectedUser.full_name || 'ไม่ระบุชื่อ'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowPlanModal(false)}
-                  className="p-2 text-neutral-400 hover:text-white rounded-lg"
+          {/* Plan Change Modal */}
+          <AnimatePresence>
+            {showPlanModal && selectedUser && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                onClick={() => setShowPlanModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-md glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl p-6"
                 >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {(Object.entries(planConfig) as [PlanType, typeof planConfig[PlanType]][]).map(([planId, config]) => {
-                  const isCurrentPlan = (selectedUser.subscription_tier || 'free') === planId;
-                  const PlanIcon = config.icon;
-                  return (
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">เปลี่ยนแผนผู้ใช้</h3>
+                      <p className="text-sm text-neutral-400 mt-1">
+                        {selectedUser.full_name || 'ไม่ระบุชื่อ'}
+                      </p>
+                    </div>
                     <button
-                      key={planId}
-                      onClick={() => !isCurrentPlan && handleChangePlan(selectedUser.user_id, planId)}
-                      disabled={isCurrentPlan || changingPlan}
-                      className={cn(
-                        'w-full flex items-center gap-3 p-4 rounded-xl border transition-all',
-                        isCurrentPlan
-                          ? 'border-primary-500 bg-primary-500/10 cursor-default'
-                          : 'border-neutral-700 hover:border-neutral-600 hover:bg-neutral-800/50 cursor-pointer',
-                        changingPlan && !isCurrentPlan && 'opacity-50 cursor-not-allowed',
-                      )}
+                      onClick={() => setShowPlanModal(false)}
+                      className="p-2 text-neutral-400 hover:text-white rounded-lg"
                     >
-                      <div className={cn('p-2 rounded-lg', config.bgColor)}>
-                        <PlanIcon className={cn('h-5 w-5', config.color)} />
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(Object.entries(planConfig) as [PlanType, typeof planConfig[PlanType]][]).map(([planId, config]) => {
+                      const isCurrentPlan = (selectedUser.subscription_tier || 'free') === planId;
+                      const PlanIcon = config.icon;
+                      return (
+                        <button
+                          key={planId}
+                          onClick={() => !isCurrentPlan && handleChangePlan(selectedUser.user_id, planId)}
+                          disabled={isCurrentPlan || changingPlan}
+                          className={cn(
+                            'w-full flex items-center gap-3 p-4 rounded-xl border transition-all',
+                            isCurrentPlan
+                              ? 'border-primary-500 bg-primary-500/10 cursor-default'
+                              : 'border-neutral-700 hover:border-neutral-600 hover:bg-neutral-800/50 cursor-pointer',
+                            changingPlan && !isCurrentPlan && 'opacity-50 cursor-not-allowed',
+                          )}
+                        >
+                          <div className={cn('p-2 rounded-lg', config.bgColor)}>
+                            <PlanIcon className={cn('h-5 w-5', config.color)} />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="font-medium text-white">{config.label}</p>
+                            <p className="text-xs text-neutral-400">
+                              {planId === 'free' ? 'ฟรี' : planId === 'starter' ? '199 บาท/เดือน' : planId === 'pro' ? '499 บาท/เดือน' : '799 บาท/เดือน'}
+                            </p>
+                          </div>
+                          {isCurrentPlan && (
+                            <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded-full">
+                              แผนปัจจุบัน
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* User Detail Modal */}
+          <AnimatePresence>
+            {showDetailModal && selectedUser && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                onClick={() => setShowDetailModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-lg glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl p-6"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-white">รายละเอียดผู้ใช้</h3>
+                    <button
+                      onClick={() => setShowDetailModal(false)}
+                      className="p-2 text-neutral-400 hover:text-white rounded-lg"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="relative h-16 w-16 rounded-full overflow-hidden bg-neutral-800">
+                        {selectedUser.avatar_url ? (
+                          <Image src={selectedUser.avatar_url} alt="" fill className="object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-2xl text-neutral-400">
+                            {(selectedUser.full_name || 'U')[0].toUpperCase()}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium text-white">{config.label}</p>
-                        <p className="text-xs text-neutral-400">
-                          {planId === 'free' ? 'ฟรี' : planId === 'starter' ? '199 บาท/เดือน' : planId === 'pro' ? '499 บาท/เดือน' : '799 บาท/เดือน'}
+                      <div>
+                        <p className="text-xl font-semibold text-white">{selectedUser.full_name || 'ไม่ระบุชื่อ'}</p>
+                        <p className="text-sm text-neutral-400">ID: {selectedUser.user_id}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-neutral-800/50 rounded-xl">
+                      <div>
+                        <p className="text-xs text-neutral-500">แผน</p>
+                        <p className="text-sm font-medium text-white mt-1">
+                          {planConfig[(selectedUser.subscription_tier as PlanType) || 'free']?.label || 'Free'}
                         </p>
                       </div>
-                      {isCurrentPlan && (
-                        <span className="text-xs font-medium text-primary-400 bg-primary-500/10 px-2 py-1 rounded-full">
-                          แผนปัจจุบัน
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* User Detail Modal */}
-      <AnimatePresence>
-        {showDetailModal && selectedUser && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowDetailModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-white">รายละเอียดผู้ใช้</h3>
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="p-2 text-neutral-400 hover:text-white rounded-lg"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative h-16 w-16 rounded-full overflow-hidden bg-neutral-800">
-                    {selectedUser.avatar_url ? (
-                      <Image src={selectedUser.avatar_url} alt="" fill className="object-cover" />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-2xl text-neutral-400">
-                        {(selectedUser.full_name || 'U')[0].toUpperCase()}
+                      <div>
+                        <p className="text-xs text-neutral-500">สถานะ</p>
+                        <p className={cn('text-sm font-medium mt-1', selectedUser.is_banned ? 'text-red-400' : 'text-green-400')}>
+                          {selectedUser.is_banned ? 'ถูกแบน' : 'ปกติ'}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xl font-semibold text-white">{selectedUser.full_name || 'ไม่ระบุชื่อ'}</p>
-                    <p className="text-sm text-neutral-400">ID: {selectedUser.user_id}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 p-4 bg-neutral-800/50 rounded-xl">
-                  <div>
-                    <p className="text-xs text-neutral-500">แผน</p>
-                    <p className="text-sm font-medium text-white mt-1">
-                      {planConfig[(selectedUser.subscription_tier as PlanType) || 'free']?.label || 'Free'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500">สถานะ</p>
-                    <p className={cn('text-sm font-medium mt-1', selectedUser.is_banned ? 'text-red-400' : 'text-green-400')}>
-                      {selectedUser.is_banned ? 'ถูกแบน' : 'ปกติ'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500">ข้อความทั้งหมด</p>
-                    <p className="text-sm font-medium text-white mt-1">{selectedUser.total_messages.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500">สมัครเมื่อ</p>
-                    <p className="text-sm font-medium text-white mt-1">
-                      {new Date(selectedUser.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500">ใช้งานล่าสุด</p>
-                    <p className="text-sm font-medium text-white mt-1">
-                      {selectedUser.last_sign_in_at
-                        ? new Date(selectedUser.last_sign_in_at).toLocaleDateString('th-TH')
-                        : '-'}
-                    </p>
-                  </div>
-                  {selectedUser.ban_reason && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-neutral-500">เหตุผลที่แบน</p>
-                      <p className="text-sm font-medium text-red-400 mt-1">{selectedUser.ban_reason}</p>
+                      <div>
+                        <p className="text-xs text-neutral-500">ข้อความทั้งหมด</p>
+                        <p className="text-sm font-medium text-white mt-1">{selectedUser.total_messages.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">สมัครเมื่อ</p>
+                        <p className="text-sm font-medium text-white mt-1">
+                          {new Date(selectedUser.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">ใช้งานล่าสุด</p>
+                        <p className="text-sm font-medium text-white mt-1">
+                          {selectedUser.last_sign_in_at
+                            ? new Date(selectedUser.last_sign_in_at).toLocaleDateString('th-TH')
+                            : '-'}
+                        </p>
+                      </div>
+                      {selectedUser.ban_reason && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-neutral-500">เหตุผลที่แบน</p>
+                          <p className="text-sm font-medium text-red-400 mt-1">{selectedUser.ban_reason}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      setShowPlanModal(true);
-                    }}
-                    className="flex-1 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors text-sm"
-                  >
-                    เปลี่ยนแผน
-                  </button>
-                  {selectedUser.is_banned ? (
-                    <button
-                      onClick={() => {
-                        handleUnbanUser(selectedUser.user_id);
-                        setShowDetailModal(false);
-                      }}
-                      className="flex-1 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm"
-                    >
-                      ปลดแบน
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setShowDetailModal(false);
-                        setShowBanModal(true);
-                      }}
-                      className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm"
-                    >
-                      แบนผู้ใช้
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setShowDetailModal(false);
+                          setShowPlanModal(true);
+                        }}
+                        className="flex-1 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors text-sm"
+                      >
+                        เปลี่ยนแผน
+                      </button>
+                      {selectedUser.is_banned ? (
+                        <button
+                          onClick={() => {
+                            handleUnbanUser(selectedUser.user_id);
+                            setShowDetailModal(false);
+                          }}
+                          className="flex-1 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm"
+                        >
+                          ปลดแบน
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setShowDetailModal(false);
+                            setShowBanModal(true);
+                          }}
+                          className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm"
+                        >
+                          แบนผู้ใช้
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Ban Modal */}
-      <AnimatePresence>
-        {showBanModal && selectedUser && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setShowBanModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-red-500/10 rounded-xl">
-                  <AlertTriangle className="h-6 w-6 text-red-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">แบนผู้ใช้</h3>
-                  <p className="text-sm text-neutral-400">
-                    {selectedUser.full_name || 'ผู้ใช้'}
-                  </p>
-                </div>
-              </div>
+          {/* Ban Modal */}
+          <AnimatePresence>
+            {showBanModal && selectedUser && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                onClick={() => setShowBanModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-md glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 rounded-3xl p-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-red-500/10 rounded-xl">
+                      <AlertTriangle className="h-6 w-6 text-red-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">แบนผู้ใช้</h3>
+                      <p className="text-sm text-neutral-400">
+                        {selectedUser.full_name || 'ผู้ใช้'}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-2">
-                    เหตุผลในการแบน
-                  </label>
-                  <textarea
-                    value={banReason}
-                    onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="ระบุเหตุผล..."
-                    rows={3}
-                    className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
-                  />
-                </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">
+                        เหตุผลในการแบน
+                      </label>
+                      <textarea
+                        value={banReason}
+                        onChange={(e) => setBanReason(e.target.value)}
+                        placeholder="ระบุเหตุผล..."
+                        rows={3}
+                        className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
+                      />
+                    </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowBanModal(false)}
-                    className="flex-1 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    onClick={handleBanUser}
-                    disabled={!banReason}
-                    className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                  >
-                    แบนผู้ใช้
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowBanModal(false)}
+                        className="flex-1 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        onClick={handleBanUser}
+                        disabled={!banReason}
+                        className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                      >
+                        แบนผู้ใช้
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>,
         document.body
       )}
