@@ -42,6 +42,8 @@ export function FadeIn({
       transition: {
         duration,
         delay,
+        type: 'spring',
+        bounce: 0.4,
         ease: [0.25, 0.4, 0.25, 1],
       },
     },
@@ -109,7 +111,9 @@ export function StaggerItem({ children, className }: StaggerItemProps) {
       opacity: 1,
       y: 0,
       transition: {
-        duration: 0.5,
+        duration: 0.6,
+        type: 'spring',
+        bounce: 0.35,
         ease: [0.25, 0.4, 0.25, 1],
       },
     },

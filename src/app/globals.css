@@ -146,6 +146,45 @@ body {
   background: rgba(23, 23, 23, 0.8);
 }
 
+/* Premium Glassmorphism */
+.glass-premium {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+
+.dark .glass-premium {
+  background: rgba(15, 15, 15, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Premium intense glowing text */
+.text-glow-premium {
+  text-shadow: 0 0 20px rgba(220, 38, 38, 0.5), 0 0 40px rgba(220, 38, 38, 0.3);
+}
+
+/* Premium border glow */
+.border-glow-premium {
+  position: relative;
+}
+.border-glow-premium::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.5), transparent, rgba(168, 85, 247, 0.5));
+  z-index: -1;
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.border-glow-premium:hover::before {
+  opacity: 1;
+}
+
 /* Noise texture overlay */
 .noise-overlay::before {
   content: '';

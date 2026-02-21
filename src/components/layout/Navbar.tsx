@@ -67,8 +67,8 @@ export function Navbar() {
           className={cn(
             'relative max-w-6xl mx-auto rounded-2xl transition-all duration-300',
             isScrolled
-              ? 'bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/20 border border-neutral-200/50 dark:border-neutral-700/50'
-              : 'bg-white/50 dark:bg-neutral-900/50 backdrop-blur-sm'
+              ? 'glass-premium'
+              : 'bg-white/30 dark:bg-neutral-900/30 backdrop-blur-md'
           )}
         >
           <div className="flex items-center justify-between h-16 px-4 lg:px-6">
@@ -165,17 +165,16 @@ export function Navbar() {
                     </Link>
                   </Button>
 
-                  {/* Signup button - no infinite shimmer animation */}
-                  <div className="relative group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl opacity-70 group-hover:opacity-100 blur transition-opacity" />
+                  {/* Signup button */}
+                  <div className="relative group border-glow-premium rounded-xl">
                     <Button
                       variant="primary"
                       size="sm"
-                      className="relative bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 border-0 shadow-lg"
+                      className="relative bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 border-0 shadow-premium"
                       asChild
                     >
                       <Link href="/auth/signup" className="flex items-center gap-1.5">
-                        <Sparkles className="h-4 w-4" />
+                        <Sparkles className="h-4 w-4 animate-pulse" />
                         สมัครฟรี
                       </Link>
                     </Button>

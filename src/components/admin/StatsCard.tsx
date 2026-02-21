@@ -110,8 +110,8 @@ export function StatsCard({
     ? percentChange > 0
       ? 'up'
       : percentChange < 0
-      ? 'down'
-      : 'neutral'
+        ? 'down'
+        : 'neutral'
     : null;
 
   return (
@@ -128,10 +128,9 @@ export function StatsCard({
         boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.3)',
       }}
       className={cn(
-        'relative p-6 rounded-2xl border backdrop-blur-sm',
-        'bg-gradient-to-br from-neutral-900/90 to-neutral-950/90',
+        'relative p-6 rounded-3xl border glass-premium shadow-premium',
         styles.border,
-        'hover:shadow-xl transition-shadow duration-300',
+        'hover-lift duration-300',
         styles.glow
       )}
     >
@@ -161,9 +160,9 @@ export function StatsCard({
           {loading ? (
             <div className="h-9 w-24 bg-neutral-800 rounded-lg animate-pulse" />
           ) : (
-          <h3 className="text-3xl font-bold text-white">
-            <AnimatedNumber value={value} format={format} />
-          </h3>
+            <h3 className="text-3xl font-bold text-white">
+              <AnimatedNumber value={value} format={format} />
+            </h3>
           )}
 
           {/* Trend indicator */}

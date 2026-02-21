@@ -18,8 +18,9 @@ interface FooterClientProps {
 
 export function FooterClient({ content }: FooterClientProps) {
   return (
-    <footer className="bg-neutral-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <footer className="relative bg-neutral-950 text-white overflow-hidden border-t border-neutral-800">
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-900/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         {/* Main footer */}
         <div className="py-8 sm:py-12 lg:py-16 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 sm:gap-8 lg:gap-12">
           {/* Brand */}
@@ -48,9 +49,9 @@ export function FooterClient({ content }: FooterClientProps) {
                     key={social.platform}
                     href={social.url}
                     aria-label={social.platform}
-                    className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition-colors"
+                    className="p-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 transition-all duration-300 hover:shadow-premium-glow group border border-neutral-800 hover:border-primary-500/50"
                   >
-                    <Icon className="h-4 w-4 text-neutral-400" />
+                    <Icon className="h-4 w-4 text-neutral-400 group-hover:text-primary-400 transition-colors" />
                   </a>
                 );
               })}
