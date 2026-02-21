@@ -16,12 +16,12 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     minimumCacheTTL: 3600,
-    remotePatterns: [
-      new URL('https://images.rabbithub.ai/**'),
-      new URL('https://tjzk.replicate.delivery/**'),
-      new URL('https://replicate.delivery/**'),
-      new URL('https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/**'),
-      new URL('https://cdn.phototourl.com/**'),
+    domains: [
+      'images.rabbithub.ai',
+      'tjzk.replicate.delivery',
+      'replicate.delivery',
+      'pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev',
+      'cdn.phototourl.com',
     ],
   },
 
