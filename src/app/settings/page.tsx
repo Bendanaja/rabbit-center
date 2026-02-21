@@ -356,11 +356,10 @@ export default function SettingsPage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors touch-feedback ${
-                        activeTab === tab.id
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors touch-feedback ${activeTab === tab.id
                           ? 'bg-primary-600 text-white'
                           : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-                      }`}
+                        }`}
                     >
                       <tab.icon className="h-4 w-4" />
                       {tab.label}
@@ -370,17 +369,16 @@ export default function SettingsPage() {
               </div>
 
               {/* Desktop: Vertical sidebar */}
-              <Card className="p-2 hidden lg:block">
+              <Card className="p-2 hidden lg:block glass-premium shadow-premium border-white/20 dark:border-neutral-700/50">
                 <nav className="space-y-1">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        activeTab === tab.id
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.id
                           ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
                           : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
-                      }`}
+                        }`}
                     >
                       <tab.icon className="h-4 w-4" />
                       {tab.label}
@@ -409,7 +407,7 @@ export default function SettingsPage() {
             <FadeIn delay={0.2} className="lg:col-span-3">
               {/* Profile Tab */}
               {activeTab === 'profile' && (
-                <Card>
+                <Card className="glass-premium shadow-premium border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
                   <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
                     <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
                       ตั้งค่าโปรไฟล์
@@ -569,7 +567,7 @@ export default function SettingsPage() {
 
               {/* Notifications Tab */}
               {activeTab === 'notifications' && (
-                <Card>
+                <Card className="glass-premium shadow-premium border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
                   <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
                     <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
                       การแจ้งเตือน
@@ -610,7 +608,7 @@ export default function SettingsPage() {
 
               {/* Appearance Tab - Simple Theme Toggle */}
               {activeTab === 'appearance' && (
-                <Card>
+                <Card className="glass-premium shadow-premium border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
                   <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
                     <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
                       ธีม
@@ -641,9 +639,8 @@ export default function SettingsPage() {
                       {/* Toggle Switch */}
                       <button
                         onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-                        className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${
-                          resolvedTheme === 'dark' ? 'bg-indigo-600' : 'bg-amber-400'
-                        }`}
+                        className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${resolvedTheme === 'dark' ? 'bg-indigo-600' : 'bg-amber-400'
+                          }`}
                       >
                         <motion.div
                           className="absolute top-1 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center"
@@ -669,25 +666,22 @@ export default function SettingsPage() {
                         <button
                           key={option.id}
                           onClick={() => setTheme(option.id as 'light' | 'dark' | 'system')}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                            theme === option.id
+                          className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${theme === option.id
                               ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                               : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600'
-                          }`}
+                            }`}
                         >
                           <option.icon
-                            className={`h-5 w-5 ${
-                              theme === option.id
+                            className={`h-5 w-5 ${theme === option.id
                                 ? 'text-primary-600 dark:text-primary-400'
                                 : 'text-neutral-500'
-                            }`}
+                              }`}
                           />
                           <span
-                            className={`text-sm font-medium ${
-                              theme === option.id
+                            className={`text-sm font-medium ${theme === option.id
                                 ? 'text-primary-700 dark:text-primary-400'
                                 : 'text-neutral-600 dark:text-neutral-400'
-                            }`}
+                              }`}
                           >
                             {option.label}
                           </span>
@@ -709,7 +703,7 @@ export default function SettingsPage() {
 
               {/* Security Tab */}
               {activeTab === 'security' && (
-                <Card>
+                <Card className="glass-premium shadow-premium border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
                   <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
                     <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
                       ความปลอดภัย
@@ -754,7 +748,7 @@ export default function SettingsPage() {
 
               {/* Billing Tab */}
               {activeTab === 'billing' && (
-                <Card>
+                <Card className="glass-premium shadow-premium border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
                   <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
                     <h2 className="text-lg font-display font-semibold text-neutral-900 dark:text-white">
                       การเรียกเก็บเงิน
@@ -764,13 +758,12 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div className="p-6 space-y-6">
-                    <div className={`p-4 rounded-lg ${
-                      userData.isAdmin
+                    <div className={`p-4 rounded-lg ${userData.isAdmin
                         ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
                         : userData.planId === 'free'
                           ? 'bg-gradient-to-r from-neutral-500 to-neutral-600 text-white'
                           : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white'
-                    }`}>
+                      }`}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm opacity-90">แผนปัจจุบัน</p>
@@ -781,10 +774,10 @@ export default function SettingsPage() {
                       <div className="mt-4 pt-4 border-t border-white/20 flex justify-between text-sm">
                         <span>
                           {userData.isAdmin ? 'ผู้ดูแลระบบ' :
-                           userData.planId === 'free' ? 'ฟรี' :
-                           userData.planId === 'starter' ? '฿199/เดือน' :
-                           userData.planId === 'pro' ? '฿499/เดือน' :
-                           userData.planId === 'premium' ? '฿990/เดือน' : 'ฟรี'}
+                            userData.planId === 'free' ? 'ฟรี' :
+                              userData.planId === 'starter' ? '฿199/เดือน' :
+                                userData.planId === 'pro' ? '฿499/เดือน' :
+                                  userData.planId === 'premium' ? '฿990/เดือน' : 'ฟรี'}
                         </span>
                         {isAdmin && <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Admin</span>}
                       </div>

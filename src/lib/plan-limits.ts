@@ -147,7 +147,7 @@ function normalizeTier(tier: string): PlanId {
 function getFallbackModels(planId: PlanId, modelType?: string): string[] {
   if (modelType === 'image') {
     if (planId === 'free') return []
-    if (planId === 'starter') return ['seedream-3', 'seedream-4']
+    if (planId === 'starter') return ['seedream-3', 'seedream-4', 'flux-schnell']
     return [] // pro+ gets all
   }
   if (modelType === 'video') {

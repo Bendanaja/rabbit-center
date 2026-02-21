@@ -60,9 +60,11 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md p-8 sm:p-10 rounded-3xl glass-premium shadow-premium border border-white/20 dark:border-neutral-700/50 relative overflow-hidden">
+          {/* Subtle top glow */}
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary-500/50 to-transparent" />
+
           <FadeIn>
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 sm:gap-3 mb-6 sm:mb-8">
@@ -151,7 +153,7 @@ function LoginForm() {
                 type="submit"
                 variant="primary"
                 size="lg"
-                className="w-full justify-center"
+                className="w-full justify-center bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 border-0 text-white shadow-premium hover-lift border-glow-premium rounded-xl"
                 isLoading={loading}
               >
                 เข้าสู่ระบบ
@@ -176,10 +178,10 @@ function LoginForm() {
       </div>
 
       {/* Right side - Hero image */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary-600 to-primary-700 relative overflow-hidden">
-        <div className="absolute inset-0 dot-pattern opacity-10" />
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+      <div className="hidden lg:flex flex-1 bg-neutral-950 relative overflow-hidden border-l border-neutral-800">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[120px] animate-pulse-ring" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-rose-600/10 rounded-full blur-[120px] animate-float-3d" />
+
 
         <div className="relative flex items-center justify-center w-full p-12">
           <motion.div

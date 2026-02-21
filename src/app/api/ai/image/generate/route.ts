@@ -38,12 +38,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { prompt, model, size, n, image } = body as {
+    const { prompt, model, size, n, image, chatId } = body as {
       prompt: string
       model?: string
       size?: string
       n?: number
       image?: string // Reference image URL or base64 for i2i
+      chatId?: string
     }
 
     // Plan limit check: image quota
@@ -92,7 +93,37 @@ export async function POST(request: Request) {
     // Track activity in customer_profiles (non-blocking)
     trackActivity(user.id, 'image')
 
-    const result = await generateImage({ prompt, model, size, n, image })
+    // Route to the correct provider
+    const { getModelById, getModelKey, MODELS } = await import('@/lib/byteplus')
+    const modelDef = getModelById(model || '') || MODELS[model || ''] || MODELS[getModelKey(model || '') || '']
+
+    // Determine provider: check MODELS first, then DB for dynamically-added models
+    let isReplicate = modelDef?.apiProvider === 'replicate'
+    let replicateModelId = modelDef?.id || ''
+
+    if (!modelDef && model) {
+      // Model not in MODELS constant — check DB for dynamically-added Replicate models
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const supabase = createAdminClient()
+      const { data: dbModel } = await supabase
+        .from('ai_models')
+        .select('id, capabilities')
+        .eq('id', model)
+        .single()
+      if (dbModel?.capabilities?.includes('__replicate')) {
+        isReplicate = true
+        replicateModelId = dbModel.id // full Replicate model path like 'owner/model'
+      }
+    }
+
+    let result: { images: Array<{ url?: string; b64_json?: string }> }
+
+    if (isReplicate) {
+      const { generateImageReplicate } = await import('@/lib/replicate')
+      result = await generateImageReplicate({ prompt, model: model || 'flux-schnell', replicateModelId, size, n, chatId })
+    } else {
+      result = await generateImage({ prompt, model, size, n, image })
+    }
 
     // Increment usage AFTER successful generation
     await incrementUsage(user.id, 'image', costThb)
