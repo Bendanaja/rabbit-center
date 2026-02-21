@@ -43,7 +43,7 @@ export async function uploadImageToR2(
   if (R2_PUBLIC_URL) {
     return `${R2_PUBLIC_URL}/${key}`
   }
-  return `https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/${key}`
+  return `https://images.rabbithub.ai/${key}`
 }
 
 export async function deleteFromR2(key: string): Promise<void> {
@@ -136,7 +136,7 @@ export async function downloadAndUploadToR2(
   if (R2_PUBLIC_URL) {
     return `${R2_PUBLIC_URL}/${key}`
   }
-  return `https://pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev/${key}`
+  return `https://images.rabbithub.ai/${key}`
 }
 
 /**
