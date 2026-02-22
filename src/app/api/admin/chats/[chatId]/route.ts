@@ -79,6 +79,19 @@ export async function GET(
 
     if (messagesResult.error) throw messagesResult.error;
 
+    // Strip large base64 data from message content to keep response size manageable.
+    // Replace base64 data URIs inside [GENERATED_IMAGE] markers with a placeholder indicator.
+    const messages = (messagesResult.data || []).map((msg: Record<string, unknown>) => {
+      let content = msg.content as string;
+      if (content && content.includes('[GENERATED_IMAGE]')) {
+        content = content.replace(
+          /data:(image\/\w+);base64,[A-Za-z0-9+/=\s]{100,}/g,
+          (match, mimeType) => `[BASE64_IMAGE:${mimeType}:${Math.round(match.length * 0.75 / 1024)}KB]`
+        );
+      }
+      return { ...msg, content };
+    });
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chat = chatResult.data as any;
     const profileRaw = chat.user_profiles;
@@ -99,7 +112,7 @@ export async function GET(
         updated_at: chat.updated_at,
         is_archived: chat.is_archived,
       },
-      messages: messagesResult.data || [],
+      messages,
       user: {
         display_name: profile?.display_name || null,
         avatar_url: profile?.avatar_url || null,

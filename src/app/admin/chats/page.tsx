@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import {
   MessageSquare,
   Search,
@@ -19,6 +20,7 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   ChevronDown,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -728,24 +730,43 @@ function RichContentPart({ part }: { part: ParsedContent }) {
   if (part.type === 'image' && part.urls) {
     return (
       <div className={cn('grid gap-2', part.urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-        {part.urls.map((url, i) => (
-          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-            <div className="relative rounded-xl overflow-hidden border border-neutral-700/50 group">
-              <img
-                src={url}
-                alt={`generated-${i}`}
-                className="w-full max-h-[400px] object-cover transition-transform group-hover:scale-[1.02]"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="bg-black/60 rounded-lg p-1.5">
-                  <ExternalLink className="h-3.5 w-3.5 text-white" />
+        {part.urls.map((url, i) => {
+          // Handle base64-stripped placeholder from admin API
+          const placeholderMatch = url.match(/^\[BASE64_IMAGE:([^:]+):(\d+KB)\]$/);
+          if (placeholderMatch) {
+            return (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-neutral-800/40 border border-neutral-700/50 rounded-xl">
+                <ImageIcon className="h-8 w-8 text-neutral-500 shrink-0" />
+                <div>
+                  <p className="text-sm text-neutral-300">Generated Image</p>
+                  <p className="text-xs text-neutral-500">{placeholderMatch[1]} - {placeholderMatch[2]}</p>
                 </div>
               </div>
-            </div>
-          </a>
-        ))}
+            );
+          }
+
+          // HTTPS URL — use Next.js Image with link
+          return (
+            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+              <div className="relative rounded-xl overflow-hidden border border-neutral-700/50 group">
+                <Image
+                  src={url}
+                  alt={`generated-${i}`}
+                  width={512}
+                  height={512}
+                  className="w-full max-h-[400px] object-cover transition-transform group-hover:scale-[1.02]"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="bg-black/60 rounded-lg p-1.5">
+                    <ExternalLink className="h-3.5 w-3.5 text-white" />
+                  </div>
+                </div>
+              </div>
+            </a>
+          );
+        })}
       </div>
     );
   }
