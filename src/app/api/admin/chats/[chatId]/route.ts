@@ -63,6 +63,7 @@ export async function GET(
           response_time_ms,
           is_error,
           error_message,
+          metadata,
           created_at
         `)
         .eq('chat_id', chatId)

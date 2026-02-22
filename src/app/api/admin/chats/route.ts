@@ -36,7 +36,20 @@ export async function GET(request: NextRequest) {
     const sortBy = allowedSortFields.includes(searchParams.get('sortBy') || '') ? searchParams.get('sortBy')! : 'updated_at';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
 
+    const modelId = searchParams.get('modelId') || '';
     const offset = (page - 1) * limit;
+
+    // If searching, also find users matching by display_name
+    let matchedUserIds: string[] = [];
+    if (search) {
+      const safeSearch = sanitizeSearchQuery(search);
+      const { data: matchedUsers } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .ilike('display_name', `%${safeSearch}%`)
+        .limit(50);
+      matchedUserIds = matchedUsers?.map(u => u.id) || [];
+    }
 
     // Build query
     let query = supabase
@@ -61,10 +74,19 @@ export async function GET(request: NextRequest) {
       query = query.eq('user_id', userId);
     }
 
-    // Search filter (search by chat title)
+    // Search filter (search by chat title OR user display name)
     if (search) {
       const safeSearch = sanitizeSearchQuery(search);
-      query = query.ilike('title', `%${safeSearch}%`);
+      if (matchedUserIds.length > 0) {
+        query = query.or(`title.ilike.%${safeSearch}%,user_id.in.(${matchedUserIds.join(',')})`);
+      } else {
+        query = query.ilike('title', `%${safeSearch}%`);
+      }
+    }
+
+    // Filter by model
+    if (modelId) {
+      query = query.eq('model_id', modelId);
     }
 
     // Sort and paginate

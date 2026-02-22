@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import {
   MessageSquare,
   Search,
@@ -10,10 +11,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Filter,
   Hash,
   Zap,
   AlertTriangle,
+  Globe,
+  ExternalLink,
+  ArrowUpDown,
+  SlidersHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -21,6 +26,14 @@ import { PERMISSIONS } from '@/types/admin';
 import { authFetch } from '@/lib/api-client';
 import { useRealtime } from '@/hooks/useRealtime';
 import { cn } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
+
+const VideoPlayer = dynamic(
+  () => import('@/components/ui/VideoPlayer').then(mod => ({ default: mod.VideoPlayer })),
+  { ssr: false }
+);
+
+// ─── Types ──────────────────────────────────────────────
 
 interface ChatItem {
   id: string;
@@ -45,6 +58,7 @@ interface ChatMessage {
   response_time_ms: number | null;
   is_error: boolean;
   error_message: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -67,6 +81,91 @@ interface ChatDetail {
     email: string | null;
   };
 }
+
+// ─── Content Parsing (mirrors main MessageBubble) ───────
+
+interface WebSource {
+  title: string;
+  url: string;
+  description: string;
+}
+
+interface ParsedContent {
+  type: 'text' | 'image' | 'video' | 'web_sources';
+  content: string;
+  urls?: string[];
+  sources?: WebSource[];
+}
+
+function parseWebSources(raw: string): WebSource[] {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const sources: WebSource[] = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed.title && parsed.url) {
+        sources.push({ title: parsed.title, url: parsed.url, description: parsed.description || '' });
+      }
+    } catch {
+      // skip
+    }
+  }
+  return sources;
+}
+
+function parseMessageContent(content: string): ParsedContent[] {
+  const parts: ParsedContent[] = [];
+  const imageRegex = /\[GENERATED_IMAGE\]\n?([\s\S]*?)\n?\[\/GENERATED_IMAGE\]/g;
+  const videoRegex = /\[GENERATED_VIDEO\]\n?([\s\S]*?)\n?\[\/GENERATED_VIDEO\]/g;
+  const webSourcesRegex = /\[WEB_SOURCES\]\n?([\s\S]*?)\n?\[\/WEB_SOURCES\]/g;
+
+  const matches: { index: number; length: number; type: 'image' | 'video' | 'web_sources'; urls: string[]; sources?: WebSource[] }[] = [];
+
+  let match;
+  while ((match = imageRegex.exec(content)) !== null) {
+    const urls = match[1].split('\n').map(u => u.trim()).filter(Boolean);
+    matches.push({ index: match.index, length: match[0].length, type: 'image', urls });
+  }
+  while ((match = videoRegex.exec(content)) !== null) {
+    const urls = match[1].split('\n').map(u => u.trim()).filter(Boolean);
+    matches.push({ index: match.index, length: match[0].length, type: 'video', urls });
+  }
+  while ((match = webSourcesRegex.exec(content)) !== null) {
+    const sources = parseWebSources(match[1]);
+    if (sources.length > 0) {
+      matches.push({ index: match.index, length: match[0].length, type: 'web_sources', urls: [], sources });
+    }
+  }
+
+  matches.sort((a, b) => a.index - b.index);
+
+  if (matches.length === 0) {
+    return [{ type: 'text', content }];
+  }
+
+  let lastIndex = 0;
+  for (const m of matches) {
+    if (m.index > lastIndex) {
+      const text = content.slice(lastIndex, m.index).trim();
+      if (text) parts.push({ type: 'text', content: text });
+    }
+    if (m.type === 'web_sources') {
+      parts.push({ type: 'web_sources', content: '', sources: m.sources });
+    } else {
+      parts.push({ type: m.type, content: m.urls.join('\n'), urls: m.urls });
+    }
+    lastIndex = m.index + m.length;
+  }
+
+  if (lastIndex < content.length) {
+    const text = content.slice(lastIndex).trim();
+    if (text) parts.push({ type: 'text', content: text });
+  }
+
+  return parts;
+}
+
+// ─── Helpers ────────────────────────────────────────────
 
 function formatRelativeTime(dateStr: string): string {
   const now = new Date();
@@ -93,6 +192,26 @@ function formatTimestamp(dateStr: string): string {
   });
 }
 
+const SORT_OPTIONS = [
+  { value: 'updated_at:desc', label: 'ล่าสุด' },
+  { value: 'updated_at:asc', label: 'เก่าสุด' },
+  { value: 'message_count:desc', label: 'ข้อความมากสุด' },
+  { value: 'created_at:desc', label: 'สร้างล่าสุด' },
+] as const;
+
+const MODEL_FILTERS = [
+  { value: '', label: 'ทุกโมเดล' },
+  { value: 'openai/gpt-4o', label: 'GPT-4o' },
+  { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
+  { value: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet' },
+  { value: 'anthropic/claude-haiku-3.5', label: 'Claude Haiku' },
+  { value: 'google/gemini-2.0-flash-001', label: 'Gemini Flash' },
+  { value: 'google/gemini-2.5-pro-preview', label: 'Gemini Pro' },
+  { value: 'deepseek/deepseek-chat', label: 'DeepSeek' },
+] as const;
+
+// ─── Main Page Component ────────────────────────────────
+
 export default function AdminChatsPage() {
   const { checkPermission } = useAdmin();
   const canViewUsers = checkPermission(PERMISSIONS.VIEW_USERS);
@@ -109,11 +228,17 @@ export default function AdminChatsPage() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isFirstLoad = useRef(true);
 
+  // Sort & Filter
+  const [sortOption, setSortOption] = useState('updated_at:desc');
+  const [modelFilter, setModelFilter] = useState('');
+
   // Selected chat state
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [chatDetail, setChatDetail] = useState<ChatDetail | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [sortBy, sortOrder] = sortOption.split(':') as [string, string];
 
   // Fetch chat list
   const fetchChats = useCallback(async (searchTerm?: string) => {
@@ -121,9 +246,12 @@ export default function AdminChatsPage() {
       const params = new URLSearchParams({
         page: String(page),
         limit: '20',
+        sortBy,
+        sortOrder,
       });
       const s = searchTerm ?? debouncedSearch;
       if (s) params.set('search', s);
+      if (modelFilter) params.set('modelId', modelFilter);
 
       const response = await authFetch(`/api/admin/chats?${params}`);
       if (response.ok) {
@@ -141,18 +269,40 @@ export default function AdminChatsPage() {
       }
       setRefreshing(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, sortBy, sortOrder, modelFilter]);
 
   useEffect(() => {
     fetchChats();
   }, [fetchChats]);
 
-  // Real-time: auto-refetch on new chats/messages
-  const chatSubs = useMemo(() => [
+  // Real-time: auto-refetch chat list on new chats/messages
+  const chatListSubs = useMemo(() => [
     { table: 'chats' },
     { table: 'messages' },
   ], []);
-  useRealtime(chatSubs, () => fetchChats());
+  useRealtime(chatListSubs, () => fetchChats());
+
+  // Real-time: auto-refetch selected chat's messages
+  const fetchChatDetail = useCallback(async (chatId: string) => {
+    try {
+      const response = await authFetch(`/api/admin/chats/${chatId}`);
+      if (response.ok) {
+        const data: ChatDetail = await response.json();
+        setChatDetail(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch chat detail:', error);
+    }
+  }, []);
+
+  const messageSubs = useMemo(() => {
+    if (!selectedChatId) return [];
+    return [{ table: 'messages', filter: `chat_id=eq.${selectedChatId}` }];
+  }, [selectedChatId]);
+
+  useRealtime(messageSubs, () => {
+    if (selectedChatId) fetchChatDetail(selectedChatId);
+  }, !!selectedChatId);
 
   // Debounce search
   const handleSearchChange = (value: string) => {
@@ -194,6 +344,11 @@ export default function AdminChatsPage() {
     }
   }, [chatDetail?.messages]);
 
+  // Reset page when sort/filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [sortOption, modelFilter]);
+
   return (
     <div className="min-h-screen">
       <AdminHeader onRefresh={handleRefresh} isRefreshing={refreshing} />
@@ -213,8 +368,8 @@ export default function AdminChatsPage() {
         <div className="flex gap-5 h-[calc(100vh-220px)]">
           {/* Left Panel: Chat List */}
           <div className="w-[420px] shrink-0 flex flex-col bg-neutral-900/40 border border-neutral-800/60 rounded-xl overflow-hidden">
-            {/* Search */}
-            <div className="p-3 border-b border-neutral-800/60">
+            {/* Search + Sort/Filter */}
+            <div className="p-3 border-b border-neutral-800/60 space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
                 <input
@@ -224,6 +379,36 @@ export default function AdminChatsPage() {
                   placeholder="ค้นหาชื่อผู้ใช้, หัวข้อแชท..."
                   className="w-full pl-10 pr-4 py-2.5 bg-neutral-900/80 border border-neutral-800 rounded-xl text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 transition-all"
                 />
+              </div>
+
+              {/* Sort & Filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500 pointer-events-none" />
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                    className="w-full pl-8 pr-7 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
+                  >
+                    {SORT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
+                </div>
+                <div className="relative flex-1">
+                  <SlidersHorizontal className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500 pointer-events-none" />
+                  <select
+                    value={modelFilter}
+                    onChange={(e) => setModelFilter(e.target.value)}
+                    className="w-full pl-8 pr-7 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
+                  >
+                    {MODEL_FILTERS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
+                </div>
               </div>
             </div>
 
@@ -420,10 +605,21 @@ export default function AdminChatsPage() {
   );
 }
 
-// ─── Message Bubble ──────────────────────────────────────
+// ─── Rich Message Bubble ────────────────────────────────
+
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
+
+  const parsedContent = useMemo(
+    () => parseMessageContent(message.content),
+    [message.content]
+  );
+
+  const hasMedia = parsedContent.some(p => p.type !== 'text');
+
+  // Extract attachments from metadata
+  const attachments = (message.metadata?.attachments as { url: string; contentType?: string; fileName?: string }[] | undefined);
 
   if (isSystem) {
     return (
@@ -438,10 +634,29 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div className={cn('max-w-[75%] space-y-1', isUser ? 'items-end' : 'items-start')}>
+        {/* User attachments (uploaded images) */}
+        {isUser && attachments && attachments.length > 0 && (
+          <div className={cn('grid gap-2 mb-2', attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+            {attachments.map((att, i) => {
+              if (!att.url.startsWith('https://') && !att.url.startsWith('data:image/')) return null;
+              return (
+                <div key={i} className="relative rounded-xl overflow-hidden border border-neutral-700/50">
+                  <img
+                    src={att.url}
+                    alt={att.fileName || `attachment-${i}`}
+                    className="w-full max-h-[300px] object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Bubble */}
         <div
           className={cn(
-            'px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words',
+            'px-4 py-3 rounded-2xl text-sm break-words',
             isUser
               ? 'bg-primary-500/20 text-white rounded-br-md'
               : message.is_error
@@ -454,8 +669,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
               <span>{message.error_message}</span>
             </div>
+          ) : hasMedia ? (
+            <div className="space-y-3">
+              {parsedContent.map((part, i) => (
+                <RichContentPart key={i} part={part} />
+              ))}
+            </div>
+          ) : isUser ? (
+            <span className="whitespace-pre-wrap">{message.content}</span>
           ) : (
-            message.content
+            <MarkdownRenderer content={message.content} />
           )}
         </div>
 
@@ -495,7 +718,81 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-// ─── Chat List Skeleton ──────────────────────────────────
+// ─── Rich Content Rendering ─────────────────────────────
+
+function RichContentPart({ part }: { part: ParsedContent }) {
+  if (part.type === 'text') {
+    return <MarkdownRenderer content={part.content} />;
+  }
+
+  if (part.type === 'image' && part.urls) {
+    return (
+      <div className={cn('grid gap-2', part.urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+        {part.urls.map((url, i) => (
+          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+            <div className="relative rounded-xl overflow-hidden border border-neutral-700/50 group">
+              <img
+                src={url}
+                alt={`generated-${i}`}
+                className="w-full max-h-[400px] object-cover transition-transform group-hover:scale-[1.02]"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="bg-black/60 rounded-lg p-1.5">
+                  <ExternalLink className="h-3.5 w-3.5 text-white" />
+                </div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    );
+  }
+
+  if (part.type === 'video' && part.urls) {
+    return (
+      <div className="space-y-2">
+        {part.urls.map((url, i) => (
+          <div key={i} className="rounded-xl overflow-hidden border border-neutral-700/50">
+            <VideoPlayer src={url} compact />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (part.type === 'web_sources' && part.sources) {
+    return (
+      <div className="flex flex-wrap gap-2 mt-2">
+        {part.sources.map((source, i) => {
+          let domain = '';
+          try { domain = new URL(source.url).hostname; } catch { /* skip */ }
+          return (
+            <a
+              key={i}
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 rounded-lg transition-colors group"
+            >
+              <Globe className="h-3 w-3 text-neutral-500 shrink-0" />
+              <span className="text-xs text-neutral-300 group-hover:text-white truncate max-w-[200px]">
+                {source.title || domain}
+              </span>
+              <ExternalLink className="h-2.5 w-2.5 text-neutral-600 shrink-0" />
+            </a>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ─── Chat List Skeleton ─────────────────────────────────
+
 function ChatListSkeleton() {
   return (
     <div className="animate-pulse">
