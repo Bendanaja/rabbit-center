@@ -79,17 +79,68 @@ export async function GET(
 
     if (messagesResult.error) throw messagesResult.error;
 
-    // Strip large base64 data from message content to keep response size manageable.
-    // Replace base64 data URIs inside [GENERATED_IMAGE] markers with a placeholder indicator.
+    // Server-side content parsing: extract images, videos, web sources from markers
+    // and return as structured fields so the frontend doesn't need regex parsing.
     const messages = (messagesResult.data || []).map((msg: Record<string, unknown>) => {
-      let content = msg.content as string;
-      if (content && content.includes('[GENERATED_IMAGE]')) {
-        content = content.replace(
-          /data:(image\/\w+);base64,[A-Za-z0-9+/=\s]{100,}/g,
-          (match, mimeType) => `[BASE64_IMAGE:${mimeType}:${Math.round(match.length * 0.75 / 1024)}KB]`
-        );
-      }
-      return { ...msg, content };
+      let content = msg.content as string || '';
+      const images: string[] = [];
+      const videos: string[] = [];
+      const webSources: { title: string; url: string }[] = [];
+
+      // Extract images
+      content = content.replace(
+        /\[GENERATED_IMAGE\]\n?([\s\S]*?)\n?\[\/GENERATED_IMAGE\]/g,
+        (_, block: string) => {
+          const urls = block.split('\n').map((l: string) => l.trim()).filter(Boolean);
+          for (const url of urls) {
+            if (url.startsWith('data:')) {
+              // Remaining base64 — skip display, just note it
+              images.push('');
+            } else {
+              images.push(url);
+            }
+          }
+          return '';
+        }
+      );
+
+      // Extract videos
+      content = content.replace(
+        /\[GENERATED_VIDEO\]\n?([\s\S]*?)\n?\[\/GENERATED_VIDEO\]/g,
+        (_, block: string) => {
+          const urls = block.split('\n').map((l: string) => l.trim()).filter(Boolean);
+          videos.push(...urls.filter((u: string) => !u.startsWith('data:')));
+          return '';
+        }
+      );
+
+      // Extract web sources
+      content = content.replace(
+        /\[WEB_SOURCES\]\n?([\s\S]*?)\n?\[\/WEB_SOURCES\]/g,
+        (_, block: string) => {
+          const lines = block.split('\n').map((l: string) => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.title && parsed.url) {
+                webSources.push({ title: parsed.title, url: parsed.url });
+              }
+            } catch { /* skip */ }
+          }
+          return '';
+        }
+      );
+
+      const cleanContent = content.trim();
+      const filteredImages = images.filter(Boolean);
+
+      return {
+        ...msg,
+        content: cleanContent,
+        ...(filteredImages.length > 0 && { images: filteredImages }),
+        ...(videos.length > 0 && { videos }),
+        ...(webSources.length > 0 && { webSources }),
+      };
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

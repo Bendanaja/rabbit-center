@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 3600,
     domains: [
       'images.rabbithub.ai',
+      'cdn.rabbithub.ai',
       'tjzk.replicate.delivery',
       'replicate.delivery',
       'pub-91859bd8d5ff4000acee98cb9c5702d9.r2.dev',

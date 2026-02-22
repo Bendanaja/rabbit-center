@@ -20,7 +20,6 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   ChevronDown,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -62,6 +61,10 @@ interface ChatMessage {
   error_message: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  // Server-side parsed fields
+  images?: string[];
+  videos?: string[];
+  webSources?: { title: string; url: string }[];
 }
 
 interface ChatDetail {
@@ -82,89 +85,6 @@ interface ChatDetail {
     avatar_url: string | null;
     email: string | null;
   };
-}
-
-// ─── Content Parsing (mirrors main MessageBubble) ───────
-
-interface WebSource {
-  title: string;
-  url: string;
-  description: string;
-}
-
-interface ParsedContent {
-  type: 'text' | 'image' | 'video' | 'web_sources';
-  content: string;
-  urls?: string[];
-  sources?: WebSource[];
-}
-
-function parseWebSources(raw: string): WebSource[] {
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const sources: WebSource[] = [];
-  for (const line of lines) {
-    try {
-      const parsed = JSON.parse(line);
-      if (parsed.title && parsed.url) {
-        sources.push({ title: parsed.title, url: parsed.url, description: parsed.description || '' });
-      }
-    } catch {
-      // skip
-    }
-  }
-  return sources;
-}
-
-function parseMessageContent(content: string): ParsedContent[] {
-  const parts: ParsedContent[] = [];
-  const imageRegex = /\[GENERATED_IMAGE\]\n?([\s\S]*?)\n?\[\/GENERATED_IMAGE\]/g;
-  const videoRegex = /\[GENERATED_VIDEO\]\n?([\s\S]*?)\n?\[\/GENERATED_VIDEO\]/g;
-  const webSourcesRegex = /\[WEB_SOURCES\]\n?([\s\S]*?)\n?\[\/WEB_SOURCES\]/g;
-
-  const matches: { index: number; length: number; type: 'image' | 'video' | 'web_sources'; urls: string[]; sources?: WebSource[] }[] = [];
-
-  let match;
-  while ((match = imageRegex.exec(content)) !== null) {
-    const urls = match[1].split('\n').map(u => u.trim()).filter(Boolean);
-    matches.push({ index: match.index, length: match[0].length, type: 'image', urls });
-  }
-  while ((match = videoRegex.exec(content)) !== null) {
-    const urls = match[1].split('\n').map(u => u.trim()).filter(Boolean);
-    matches.push({ index: match.index, length: match[0].length, type: 'video', urls });
-  }
-  while ((match = webSourcesRegex.exec(content)) !== null) {
-    const sources = parseWebSources(match[1]);
-    if (sources.length > 0) {
-      matches.push({ index: match.index, length: match[0].length, type: 'web_sources', urls: [], sources });
-    }
-  }
-
-  matches.sort((a, b) => a.index - b.index);
-
-  if (matches.length === 0) {
-    return [{ type: 'text', content }];
-  }
-
-  let lastIndex = 0;
-  for (const m of matches) {
-    if (m.index > lastIndex) {
-      const text = content.slice(lastIndex, m.index).trim();
-      if (text) parts.push({ type: 'text', content: text });
-    }
-    if (m.type === 'web_sources') {
-      parts.push({ type: 'web_sources', content: '', sources: m.sources });
-    } else {
-      parts.push({ type: m.type, content: m.urls.join('\n'), urls: m.urls });
-    }
-    lastIndex = m.index + m.length;
-  }
-
-  if (lastIndex < content.length) {
-    const text = content.slice(lastIndex).trim();
-    if (text) parts.push({ type: 'text', content: text });
-  }
-
-  return parts;
 }
 
 // ─── Helpers ────────────────────────────────────────────
@@ -613,12 +533,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
-  const parsedContent = useMemo(
-    () => parseMessageContent(message.content),
-    [message.content]
-  );
-
-  const hasMedia = parsedContent.some(p => p.type !== 'text');
+  const hasMedia = !!(message.images?.length || message.videos?.length || message.webSources?.length);
 
   // Extract attachments from metadata
   const attachments = (message.metadata?.attachments as { url: string; contentType?: string; fileName?: string }[] | undefined);
@@ -671,16 +586,79 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
               <span>{message.error_message}</span>
             </div>
-          ) : hasMedia ? (
-            <div className="space-y-3">
-              {parsedContent.map((part, i) => (
-                <RichContentPart key={i} part={part} />
-              ))}
-            </div>
-          ) : isUser ? (
-            <span className="whitespace-pre-wrap">{message.content}</span>
           ) : (
-            <MarkdownRenderer content={message.content} />
+            <div className="space-y-3">
+              {/* Text content */}
+              {message.content && (
+                isUser ? (
+                  <span className="whitespace-pre-wrap">{message.content}</span>
+                ) : (
+                  <MarkdownRenderer content={message.content} />
+                )
+              )}
+
+              {/* Generated images (server-side parsed) */}
+              {message.images && message.images.length > 0 && (
+                <div className={cn('grid gap-2', message.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+                  {message.images.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                      <div className="relative rounded-xl overflow-hidden border border-neutral-700/50 group">
+                        <Image
+                          src={url}
+                          alt={`generated-${i}`}
+                          width={512}
+                          height={512}
+                          className="w-full max-h-[400px] object-cover transition-transform group-hover:scale-[1.02]"
+                          unoptimized
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="bg-black/60 rounded-lg p-1.5">
+                            <ExternalLink className="h-3.5 w-3.5 text-white" />
+                          </div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {/* Generated videos (server-side parsed) */}
+              {message.videos && message.videos.length > 0 && (
+                <div className="space-y-2">
+                  {message.videos.map((url, i) => (
+                    <div key={i} className="rounded-xl overflow-hidden border border-neutral-700/50">
+                      <VideoPlayer src={url} compact />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Web sources (server-side parsed) */}
+              {message.webSources && message.webSources.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {message.webSources.map((source, i) => {
+                    let domain = '';
+                    try { domain = new URL(source.url).hostname; } catch { /* skip */ }
+                    return (
+                      <a
+                        key={i}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 rounded-lg transition-colors group"
+                      >
+                        <Globe className="h-3 w-3 text-neutral-500 shrink-0" />
+                        <span className="text-xs text-neutral-300 group-hover:text-white truncate max-w-[200px]">
+                          {source.title || domain}
+                        </span>
+                        <ExternalLink className="h-2.5 w-2.5 text-neutral-600 shrink-0" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -718,98 +696,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
     </div>
   );
-}
-
-// ─── Rich Content Rendering ─────────────────────────────
-
-function RichContentPart({ part }: { part: ParsedContent }) {
-  if (part.type === 'text') {
-    return <MarkdownRenderer content={part.content} />;
-  }
-
-  if (part.type === 'image' && part.urls) {
-    return (
-      <div className={cn('grid gap-2', part.urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-        {part.urls.map((url, i) => {
-          // Handle base64-stripped placeholder from admin API
-          const placeholderMatch = url.match(/^\[BASE64_IMAGE:([^:]+):(\d+KB)\]$/);
-          if (placeholderMatch) {
-            return (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 bg-neutral-800/40 border border-neutral-700/50 rounded-xl">
-                <ImageIcon className="h-8 w-8 text-neutral-500 shrink-0" />
-                <div>
-                  <p className="text-sm text-neutral-300">Generated Image</p>
-                  <p className="text-xs text-neutral-500">{placeholderMatch[1]} - {placeholderMatch[2]}</p>
-                </div>
-              </div>
-            );
-          }
-
-          // HTTPS URL — use Next.js Image with link
-          return (
-            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-              <div className="relative rounded-xl overflow-hidden border border-neutral-700/50 group">
-                <Image
-                  src={url}
-                  alt={`generated-${i}`}
-                  width={512}
-                  height={512}
-                  className="w-full max-h-[400px] object-cover transition-transform group-hover:scale-[1.02]"
-                  unoptimized
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="bg-black/60 rounded-lg p-1.5">
-                    <ExternalLink className="h-3.5 w-3.5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </a>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (part.type === 'video' && part.urls) {
-    return (
-      <div className="space-y-2">
-        {part.urls.map((url, i) => (
-          <div key={i} className="rounded-xl overflow-hidden border border-neutral-700/50">
-            <VideoPlayer src={url} compact />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (part.type === 'web_sources' && part.sources) {
-    return (
-      <div className="flex flex-wrap gap-2 mt-2">
-        {part.sources.map((source, i) => {
-          let domain = '';
-          try { domain = new URL(source.url).hostname; } catch { /* skip */ }
-          return (
-            <a
-              key={i}
-              href={source.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 bg-neutral-800/80 hover:bg-neutral-700/80 border border-neutral-700/50 rounded-lg transition-colors group"
-            >
-              <Globe className="h-3 w-3 text-neutral-500 shrink-0" />
-              <span className="text-xs text-neutral-300 group-hover:text-white truncate max-w-[200px]">
-                {source.title || domain}
-              </span>
-              <ExternalLink className="h-2.5 w-2.5 text-neutral-600 shrink-0" />
-            </a>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return null;
 }
 
 // ─── Chat List Skeleton ─────────────────────────────────
