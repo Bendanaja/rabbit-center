@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Search,
   User,
+  Users,
   Bot,
   Clock,
   ChevronLeft,
@@ -20,6 +21,7 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -35,6 +37,13 @@ const VideoPlayer = dynamic(
 );
 
 // ─── Types ──────────────────────────────────────────────
+
+interface ChatUser {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  chat_count: number;
+}
 
 interface ChatItem {
   id: string;
@@ -61,7 +70,6 @@ interface ChatMessage {
   error_message: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
-  // Server-side parsed fields
   images?: string[];
   videos?: string[];
   webSources?: { title: string; url: string }[];
@@ -138,17 +146,22 @@ export default function AdminChatsPage() {
   const { checkPermission } = useAdmin();
   const canViewUsers = checkPermission(PERMISSIONS.VIEW_USERS);
 
+  // User list state
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+
   // Chat list state
   const [chats, setChats] = useState<ChatItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loadingChats, setLoadingChats] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalChats, setTotalChats] = useState(0);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const isFirstLoad = useRef(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sort & Filter
   const [sortOption, setSortOption] = useState('updated_at:desc');
@@ -162,9 +175,41 @@ export default function AdminChatsPage() {
 
   const [sortBy, sortOrder] = sortOption.split(':') as [string, string];
 
-  // Fetch chat list
+  // ─── Fetch Users ──────────────────────────────────────
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await authFetch('/api/admin/chats/users');
+      if (response.ok) {
+        const data = await response.json();
+        setChatUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Filter users by search
+  const filteredUsers = useMemo(() => {
+    if (!userSearch) return chatUsers;
+    const q = userSearch.toLowerCase();
+    return chatUsers.filter(u =>
+      (u.display_name || '').toLowerCase().includes(q)
+    );
+  }, [chatUsers, userSearch]);
+
+  const totalUserChats = useMemo(
+    () => chatUsers.reduce((sum, u) => sum + u.chat_count, 0),
+    [chatUsers]
+  );
+
+  // ─── Fetch Chats ──────────────────────────────────────
   const fetchChats = useCallback(async (searchTerm?: string) => {
     try {
+      setLoadingChats(true);
       const params = new URLSearchParams({
         page: String(page),
         limit: '20',
@@ -174,6 +219,7 @@ export default function AdminChatsPage() {
       const s = searchTerm ?? debouncedSearch;
       if (s) params.set('search', s);
       if (modelFilter) params.set('modelId', modelFilter);
+      if (selectedUserId) params.set('userId', selectedUserId);
 
       const response = await authFetch(`/api/admin/chats?${params}`);
       if (response.ok) {
@@ -185,26 +231,21 @@ export default function AdminChatsPage() {
     } catch (error) {
       console.error('Failed to fetch chats:', error);
     } finally {
-      if (isFirstLoad.current) {
-        setLoading(false);
-        isFirstLoad.current = false;
-      }
+      setLoadingChats(false);
       setRefreshing(false);
     }
-  }, [page, debouncedSearch, sortBy, sortOrder, modelFilter]);
+  }, [page, debouncedSearch, sortBy, sortOrder, modelFilter, selectedUserId]);
 
-  useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+  useEffect(() => { fetchChats(); }, [fetchChats]);
 
-  // Real-time: auto-refetch chat list on new chats/messages
+  // Real-time: auto-refetch
   const chatListSubs = useMemo(() => [
     { table: 'chats' },
     { table: 'messages' },
   ], []);
-  useRealtime(chatListSubs, () => fetchChats());
+  useRealtime(chatListSubs, () => { fetchChats(); fetchUsers(); });
 
-  // Real-time: auto-refetch selected chat's messages
+  // Real-time: selected chat messages
   const fetchChatDetail = useCallback(async (chatId: string) => {
     try {
       const response = await authFetch(`/api/admin/chats/${chatId}`);
@@ -239,9 +280,20 @@ export default function AdminChatsPage() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchChats();
+    fetchUsers();
   };
 
-  // Fetch chat detail
+  // Select user
+  const handleSelectUser = (userId: string | null) => {
+    setSelectedUserId(userId);
+    setSelectedChatId(null);
+    setChatDetail(null);
+    setPage(1);
+    setSearchQuery('');
+    setDebouncedSearch('');
+  };
+
+  // Select chat
   const handleSelectChat = useCallback(async (chatId: string) => {
     setSelectedChatId(chatId);
     setLoadingMessages(true);
@@ -259,89 +311,194 @@ export default function AdminChatsPage() {
     }
   }, []);
 
-  // Scroll to bottom when messages load
+  // Scroll to bottom
   useEffect(() => {
     if (chatDetail?.messages && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatDetail?.messages]);
 
-  // Reset page when sort/filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [sortOption, modelFilter]);
+  // Reset page on filter changes
+  useEffect(() => { setPage(1); }, [sortOption, modelFilter]);
+
+  // Selected user info
+  const selectedUser = useMemo(
+    () => chatUsers.find(u => u.user_id === selectedUserId),
+    [chatUsers, selectedUserId]
+  );
 
   return (
     <div className="min-h-screen">
       <AdminHeader onRefresh={handleRefresh} isRefreshing={refreshing} />
 
-      <div className="p-6 space-y-5">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">ส่องแชท</h1>
-            <p className="text-neutral-400 mt-1">
-              {totalChats.toLocaleString()} แชททั้งหมด
-            </p>
-          </div>
-        </div>
+      <div className="p-4 lg:p-6">
+        {/* Three-panel layout */}
+        <div className="flex gap-3 h-[calc(100vh-130px)]">
 
-        {/* Two-panel layout */}
-        <div className="flex gap-5 h-[calc(100vh-220px)]">
-          {/* Left Panel: Chat List */}
-          <div className="w-[420px] shrink-0 flex flex-col bg-neutral-900/40 border border-neutral-800/60 rounded-xl overflow-hidden">
-            {/* Search + Sort/Filter */}
-            <div className="p-3 border-b border-neutral-800/60 space-y-2">
+          {/* ═══ Panel 1: Users ═══ */}
+          <div className="w-[220px] shrink-0 flex flex-col bg-neutral-900/40 border border-neutral-800/60 rounded-xl overflow-hidden">
+            {/* User search */}
+            <div className="p-2.5 border-b border-neutral-800/60">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="ค้นหาผู้ใช้..."
+                  className="w-full pl-8 pr-3 py-2 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-primary-500/30 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* All users button */}
+            <button
+              onClick={() => handleSelectUser(null)}
+              className={cn(
+                'w-full text-left px-3 py-2.5 border-b border-neutral-800/40 transition-colors flex items-center gap-2.5',
+                selectedUserId === null
+                  ? 'bg-primary-500/10 border-l-2 border-l-primary-500'
+                  : 'hover:bg-neutral-800/30'
+              )}
+            >
+              <div className="h-8 w-8 rounded-full bg-neutral-800 flex items-center justify-center shrink-0">
+                <Users className="h-3.5 w-3.5 text-neutral-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white">ทั้งหมด</p>
+                <p className="text-[10px] text-neutral-500">{totalUserChats} แชท</p>
+              </div>
+            </button>
+
+            {/* User list */}
+            <div className="flex-1 overflow-y-auto">
+              {loadingUsers ? (
+                <UserListSkeleton />
+              ) : filteredUsers.length === 0 ? (
+                <div className="py-8 text-center">
+                  <User className="h-6 w-6 mx-auto mb-2 text-neutral-600" />
+                  <p className="text-neutral-500 text-[11px]">ไม่พบผู้ใช้</p>
+                </div>
+              ) : (
+                filteredUsers.map((u) => (
+                  <button
+                    key={u.user_id}
+                    onClick={() => handleSelectUser(u.user_id)}
+                    className={cn(
+                      'w-full text-left px-3 py-2.5 border-b border-neutral-800/30 transition-colors flex items-center gap-2.5',
+                      selectedUserId === u.user_id
+                        ? 'bg-primary-500/10 border-l-2 border-l-primary-500'
+                        : 'hover:bg-neutral-800/30'
+                    )}
+                  >
+                    <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="" className="h-8 w-8 object-cover" />
+                      ) : (
+                        <User className="h-3.5 w-3.5 text-neutral-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">
+                        {u.display_name || 'ไม่ระบุชื่อ'}
+                      </p>
+                      <p className="text-[10px] text-neutral-500">{u.chat_count} แชท</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            {/* User count */}
+            <div className="px-3 py-2 border-t border-neutral-800/60">
+              <p className="text-[10px] text-neutral-600 text-center">
+                {chatUsers.length} ผู้ใช้
+              </p>
+            </div>
+          </div>
+
+          {/* ═══ Panel 2: Chats ═══ */}
+          <div className="w-[340px] shrink-0 flex flex-col bg-neutral-900/40 border border-neutral-800/60 rounded-xl overflow-hidden">
+            {/* Header: selected user + search */}
+            <div className="p-2.5 border-b border-neutral-800/60 space-y-2">
+              {/* Selected user badge */}
+              {selectedUser && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-primary-500/5 border border-primary-500/20 rounded-lg">
+                  <div className="h-5 w-5 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
+                    {selectedUser.avatar_url ? (
+                      <img src={selectedUser.avatar_url} alt="" className="h-5 w-5 object-cover" />
+                    ) : (
+                      <User className="h-2.5 w-2.5 text-neutral-500" />
+                    )}
+                  </div>
+                  <span className="text-xs text-primary-300 font-medium truncate flex-1">
+                    {selectedUser.display_name || 'ไม่ระบุชื่อ'}
+                  </span>
+                  <button
+                    onClick={() => handleSelectUser(null)}
+                    className="text-neutral-500 hover:text-white transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder="ค้นหาชื่อผู้ใช้, หัวข้อแชท..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-900/80 border border-neutral-800 rounded-xl text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 transition-all"
+                  placeholder="ค้นหาหัวข้อแชท..."
+                  className="w-full pl-8 pr-3 py-2 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-primary-500/30 transition-all"
                 />
               </div>
 
               {/* Sort & Filter */}
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <div className="relative flex-1">
-                  <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500 pointer-events-none" />
+                  <ArrowUpDown className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
                   <select
                     value={sortOption}
                     onChange={(e) => setSortOption(e.target.value)}
-                    className="w-full pl-8 pr-7 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
+                    className="w-full pl-6 pr-5 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-[11px] text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
                   >
                     {SORT_OPTIONS.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
+                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-neutral-500 pointer-events-none" />
                 </div>
                 <div className="relative flex-1">
-                  <SlidersHorizontal className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500 pointer-events-none" />
+                  <SlidersHorizontal className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
                   <select
                     value={modelFilter}
                     onChange={(e) => setModelFilter(e.target.value)}
-                    className="w-full pl-8 pr-7 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-xs text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
+                    className="w-full pl-6 pr-5 py-1.5 bg-neutral-900/80 border border-neutral-800 rounded-lg text-[11px] text-neutral-300 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-500/30"
                   >
                     {MODEL_FILTERS.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-neutral-500 pointer-events-none" />
+                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-neutral-500 pointer-events-none" />
                 </div>
               </div>
             </div>
 
-            {/* Chat List */}
+            {/* Chat count */}
+            <div className="px-3 py-1.5 border-b border-neutral-800/40">
+              <p className="text-[11px] text-neutral-500">{totalChats} แชท</p>
+            </div>
+
+            {/* Chat list */}
             <div className="flex-1 overflow-y-auto">
-              {loading ? (
+              {loadingChats ? (
                 <ChatListSkeleton />
               ) : chats.length === 0 ? (
-                <div className="py-16 text-center">
-                  <MessageSquare className="h-10 w-10 mx-auto mb-3 text-neutral-600" />
-                  <p className="text-neutral-400 text-sm">ไม่พบแชท</p>
+                <div className="py-12 text-center">
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 text-neutral-600" />
+                  <p className="text-neutral-500 text-xs">ไม่พบแชท</p>
                 </div>
               ) : (
                 chats.map((chat) => (
@@ -349,52 +506,52 @@ export default function AdminChatsPage() {
                     key={chat.id}
                     onClick={() => handleSelectChat(chat.id)}
                     className={cn(
-                      'w-full text-left p-4 border-b border-neutral-800/40 transition-colors',
+                      'w-full text-left px-3 py-3 border-b border-neutral-800/30 transition-colors',
                       selectedChatId === chat.id
                         ? 'bg-primary-500/10 border-l-2 border-l-primary-500'
                         : 'hover:bg-neutral-800/30'
                     )}
                   >
-                    <div className="flex items-start gap-3">
-                      {/* Avatar */}
-                      <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
-                        {chat.user_avatar_url ? (
-                          <img
-                            src={chat.user_avatar_url}
-                            alt={chat.user_display_name || ''}
-                            className="h-9 w-9 object-cover"
-                          />
-                        ) : (
-                          <User className="h-4 w-4 text-neutral-500" />
-                        )}
-                      </div>
-
+                    <div className="flex items-start gap-2.5">
+                      {/* Avatar - only show when not filtering by user */}
+                      {!selectedUserId && (
+                        <div className="h-7 w-7 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center mt-0.5">
+                          {chat.user_avatar_url ? (
+                            <img src={chat.user_avatar_url} alt="" className="h-7 w-7 object-cover" />
+                          ) : (
+                            <User className="h-3 w-3 text-neutral-500" />
+                          )}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         {/* User name + time */}
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-white truncate">
-                            {chat.user_display_name || 'ไม่ระบุชื่อ'}
-                          </span>
-                          <span className="text-[11px] text-neutral-500 shrink-0">
+                          {!selectedUserId && (
+                            <span className="text-xs font-medium text-white truncate">
+                              {chat.user_display_name || 'ไม่ระบุชื่อ'}
+                            </span>
+                          )}
+                          <span className={cn(
+                            'text-[10px] text-neutral-500 shrink-0',
+                            selectedUserId && 'ml-auto'
+                          )}>
                             {formatRelativeTime(chat.last_message_at || chat.updated_at)}
                           </span>
                         </div>
-
                         {/* Chat title */}
-                        <p className="text-sm text-neutral-400 truncate mt-0.5">
+                        <p className="text-xs text-neutral-400 truncate mt-0.5">
                           {chat.title || 'แชทใหม่'}
                         </p>
-
-                        {/* Meta: model + message count */}
-                        <div className="flex items-center gap-3 mt-1.5">
+                        {/* Meta */}
+                        <div className="flex items-center gap-2 mt-1">
                           {chat.model_id && (
-                            <span className="flex items-center gap-1 text-[11px] text-neutral-500">
-                              <Bot className="h-3 w-3" />
-                              <span className="truncate max-w-[120px]">{chat.model_id}</span>
+                            <span className="flex items-center gap-0.5 text-[10px] text-neutral-500">
+                              <Bot className="h-2.5 w-2.5" />
+                              <span className="truncate max-w-[100px]">{chat.model_id.split('/').pop()}</span>
                             </span>
                           )}
-                          <span className="flex items-center gap-1 text-[11px] text-neutral-500">
-                            <Hash className="h-3 w-3" />
+                          <span className="flex items-center gap-0.5 text-[10px] text-neutral-500">
+                            <Hash className="h-2.5 w-2.5" />
                             {chat.message_count}
                           </span>
                         </div>
@@ -407,70 +564,62 @@ export default function AdminChatsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="p-3 border-t border-neutral-800/60 flex items-center justify-between">
+              <div className="px-2.5 py-2 border-t border-neutral-800/60 flex items-center justify-between">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   className={cn(
-                    'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    'flex items-center gap-0.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
                     page <= 1
                       ? 'text-neutral-600 cursor-not-allowed'
                       : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
                   )}
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <ChevronLeft className="h-3 w-3" />
                   ก่อนหน้า
                 </button>
-                <span className="text-xs text-neutral-500">
-                  {page} / {totalPages}
-                </span>
+                <span className="text-[11px] text-neutral-500">{page}/{totalPages}</span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className={cn(
-                    'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    'flex items-center gap-0.5 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
                     page >= totalPages
                       ? 'text-neutral-600 cursor-not-allowed'
                       : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
                   )}
                 >
                   ถัดไป
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Right Panel: Message Viewer */}
+          {/* ═══ Panel 3: Messages ═══ */}
           <div className="flex-1 flex flex-col bg-neutral-900/40 border border-neutral-800/60 rounded-xl overflow-hidden">
             {!selectedChatId ? (
-              /* Empty State */
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <MessageSquare className="h-12 w-12 mx-auto mb-4 text-neutral-700" />
-                  <p className="text-neutral-400 text-lg">เลือกแชทเพื่อดูข้อความ</p>
-                  <p className="text-neutral-600 text-sm mt-1">เลือกแชทจากรายการด้านซ้าย</p>
+                  <p className="text-neutral-400">เลือกแชทเพื่อดูข้อความ</p>
+                  <p className="text-neutral-600 text-sm mt-1">เลือกแชทจากรายการตรงกลาง</p>
                 </div>
               </div>
             ) : loadingMessages ? (
-              /* Loading Messages */
               <div className="flex-1 flex items-center justify-center">
                 <Loader2 className="h-8 w-8 text-neutral-500 animate-spin" />
               </div>
             ) : chatDetail ? (
               <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-neutral-800/60 shrink-0">
+                <div className="px-4 py-3 border-b border-neutral-800/60 shrink-0">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
+                    <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center">
                       {chatDetail.user.avatar_url ? (
-                        <img
-                          src={chatDetail.user.avatar_url}
-                          alt={chatDetail.user.display_name || ''}
-                          className="h-10 w-10 object-cover"
-                        />
+                        <img src={chatDetail.user.avatar_url} alt="" className="h-9 w-9 object-cover" />
                       ) : (
-                        <User className="h-5 w-5 text-neutral-500" />
+                        <User className="h-4 w-4 text-neutral-500" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -512,7 +661,6 @@ export default function AdminChatsPage() {
                 </div>
               </>
             ) : (
-              /* Error state */
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-neutral-600" />
@@ -527,15 +675,12 @@ export default function AdminChatsPage() {
   );
 }
 
-// ─── Rich Message Bubble ────────────────────────────────
+// ─── Message Bubble ──────────────────────────────────────
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
-  const hasMedia = !!(message.images?.length || message.videos?.length || message.webSources?.length);
-
-  // Extract attachments from metadata
   const attachments = (message.metadata?.attachments as { url: string; contentType?: string; fileName?: string }[] | undefined);
 
   if (isSystem) {
@@ -551,7 +696,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div className={cn('max-w-[75%] space-y-1', isUser ? 'items-end' : 'items-start')}>
-        {/* User attachments (uploaded images) */}
+        {/* User attachments */}
         {isUser && attachments && attachments.length > 0 && (
           <div className={cn('grid gap-2 mb-2', attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
             {attachments.map((att, i) => {
@@ -588,7 +733,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Text content */}
               {message.content && (
                 isUser ? (
                   <span className="whitespace-pre-wrap">{message.content}</span>
@@ -597,7 +741,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 )
               )}
 
-              {/* Generated images (server-side parsed) */}
               {message.images && message.images.length > 0 && (
                 <div className={cn('grid gap-2', message.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
                   {message.images.map((url, i) => (
@@ -623,7 +766,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 </div>
               )}
 
-              {/* Generated videos (server-side parsed) */}
               {message.videos && message.videos.length > 0 && (
                 <div className="space-y-2">
                   {message.videos.map((url, i) => (
@@ -634,7 +776,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 </div>
               )}
 
-              {/* Web sources (server-side parsed) */}
               {message.webSources && message.webSources.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {message.webSources.map((source, i) => {
@@ -663,15 +804,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         </div>
 
         {/* Meta info */}
-        <div
-          className={cn(
-            'flex items-center gap-2 px-1',
-            isUser ? 'justify-end' : 'justify-start'
-          )}
-        >
-          <span className="text-[10px] text-neutral-600">
-            {formatTimestamp(message.created_at)}
-          </span>
+        <div className={cn('flex items-center gap-2 px-1', isUser ? 'justify-end' : 'justify-start')}>
+          <span className="text-[10px] text-neutral-600">{formatTimestamp(message.created_at)}</span>
           {!isUser && message.model_id && (
             <span className="text-[10px] text-neutral-600 flex items-center gap-0.5">
               <Bot className="h-2.5 w-2.5" />
@@ -698,21 +832,37 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-// ─── Chat List Skeleton ─────────────────────────────────
+// ─── Skeletons ───────────────────────────────────────────
+
+function UserListSkeleton() {
+  return (
+    <div className="animate-pulse">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 border-b border-neutral-800/30">
+          <div className="h-8 w-8 bg-neutral-800 rounded-full shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 bg-neutral-800 rounded w-20" />
+            <div className="h-2 bg-neutral-800/60 rounded w-12" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ChatListSkeleton() {
   return (
     <div className="animate-pulse">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex items-start gap-3 p-4 border-b border-neutral-800/40">
-          <div className="h-9 w-9 bg-neutral-800 rounded-full shrink-0" />
-          <div className="flex-1 space-y-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-start gap-2.5 px-3 py-3 border-b border-neutral-800/30">
+          <div className="h-7 w-7 bg-neutral-800 rounded-full shrink-0" />
+          <div className="flex-1 space-y-1.5">
             <div className="flex items-center justify-between">
-              <div className="h-3.5 bg-neutral-800 rounded w-24" />
-              <div className="h-2.5 bg-neutral-800/60 rounded w-16" />
+              <div className="h-3 bg-neutral-800 rounded w-20" />
+              <div className="h-2.5 bg-neutral-800/60 rounded w-14" />
             </div>
-            <div className="h-3 bg-neutral-800/60 rounded w-40" />
-            <div className="h-2.5 bg-neutral-800/40 rounded w-28" />
+            <div className="h-2.5 bg-neutral-800/60 rounded w-36" />
+            <div className="h-2 bg-neutral-800/40 rounded w-24" />
           </div>
         </div>
       ))}
