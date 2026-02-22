@@ -207,6 +207,7 @@ export type PricingPlan = typeof PRICING_PLANS[number];
 export const NAV_LINKS = [
   { href: '/', label: 'หน้าแรก' },
   { href: '/chat', label: 'แชท' },
+  { href: '/studios', label: 'Studios' },
   { href: '/pricing', label: 'ราคา' },
 ] as const;
 

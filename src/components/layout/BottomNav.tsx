@@ -6,9 +6,7 @@ import { motion } from 'framer-motion';
 import {
   Home,
   MessageSquare,
-  ImagePlus,
-  Video,
-  Gift,
+  Wand2,
   Settings,
   LogIn,
 } from 'lucide-react';
@@ -28,14 +26,9 @@ const baseNavItems = [
     highlight: true,
   },
   {
-    href: '/image',
-    label: 'สร้างภาพ',
-    icon: ImagePlus,
-  },
-  {
-    href: '/video',
-    label: 'สร้างวิดีโอ',
-    icon: Video,
+    href: '/studios',
+    label: 'Studios',
+    icon: Wand2,
   },
 ];
 
@@ -53,8 +46,7 @@ export function BottomNav() {
 
   // Don't show on pages with their own navigation
   if (pathname === '/chat') return null;
-  if (pathname === '/image') return null;
-  if (pathname === '/video') return null;
+  if (pathname === '/studios') return null;
 
   // Don't show on auth pages
   if (pathname.startsWith('/auth')) return null;

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Sparkles, ArrowRight, Zap, MessageSquare, CreditCard, Settings, LogIn } from 'lucide-react';
+import { Menu, X, Sparkles, ArrowRight, Zap, MessageSquare, Wand2, CreditCard, Settings, LogIn } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 const navIcons: Record<string, React.ReactNode> = {
   '/': <Zap className="h-4 w-4" />,
   '/chat': <MessageSquare className="h-4 w-4" />,
+  '/studios': <Wand2 className="h-4 w-4" />,
   '/pricing': <CreditCard className="h-4 w-4" />,
   '/settings': <Settings className="h-4 w-4" />,
 };
