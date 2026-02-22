@@ -19,7 +19,6 @@ const pageNames: Record<string, string> = {
   '/admin/users': 'จัดการผู้ใช้',
   '/admin/models': 'จัดการ AI Models',
   '/admin/analytics': 'วิเคราะห์ข้อมูล',
-  '/admin/settings': 'ตั้งค่าระบบ',
   '/admin/moderation': 'ตรวจสอบเนื้อหา',
   '/admin/subscriptions': 'จัดการสมาชิก',
   '/admin/activity': 'ประวัติการใช้งาน',

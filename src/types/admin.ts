@@ -265,7 +265,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: 'AI Models', href: '/admin/models', icon: 'Bot', permission: PERMISSIONS.VIEW_MODELS },
   { name: 'จัดการเนื้อหา', href: '/admin/content', icon: 'FileEdit', permission: PERMISSIONS.EDIT_SITE_CONFIG },
   { name: 'วิเคราะห์', href: '/admin/analytics', icon: 'BarChart3', permission: PERMISSIONS.VIEW_DASHBOARD },
-  { name: 'ตั้งค่าระบบ', href: '/admin/settings', icon: 'Settings', permission: PERMISSIONS.VIEW_SETTINGS },
   { name: 'ตรวจสอบ', href: '/admin/moderation', icon: 'Shield', permission: PERMISSIONS.VIEW_FLAGS },
   { name: 'สมาชิก', href: '/admin/subscriptions', icon: 'CreditCard', permission: PERMISSIONS.VIEW_SUBSCRIPTIONS },
   { name: 'จัดการ Admin', href: '/admin/admins', icon: 'UserCog', permission: PERMISSIONS.MANAGE_ADMINS },

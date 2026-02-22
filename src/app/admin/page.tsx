@@ -378,7 +378,6 @@ export default function AdminDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { name: 'จัดการผู้ใช้', href: '/admin/users', icon: Users, color: 'blue' },
-              { name: 'ตั้งค่าระบบ', href: '/admin/settings', icon: Settings, color: 'purple' },
               { name: 'System Health', href: '/admin/system', icon: Activity, color: 'green' },
               { name: 'ตรวจสอบ', href: '/admin/moderation', icon: Shield, color: 'orange' },
             ].map((action, index) => (
