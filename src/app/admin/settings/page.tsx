@@ -51,7 +51,7 @@ export default function AdminSettingsPage() {
       const response = await authFetch('/api/admin/settings');
       if (response.ok) {
         const data = await response.json();
-        setSettings(data || []);
+        setSettings(Array.isArray(data) ? data : data.settings || []);
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
